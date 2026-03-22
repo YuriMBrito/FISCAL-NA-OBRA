@@ -1,6 +1,8 @@
-{
-  "version": 2,
-  "builds": [
-    { "src": "**/*", "use": "@vercel/static" }
-  ]
-}
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  // Suas configurações do Vite aqui
+  build: {
+    outDir: 'dist',
+  }
+});
