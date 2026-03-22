@@ -1,0 +1,595 @@
+<div id="modal-smart-import" class="oculto" style="position:fixed;inset:0;background:rgba(17,17,24,.75);backdrop-filter:blur(6px);z-index:6000;display:none;align-items:center;justify-content:center;overflow-y:auto;padding:16px">
+  <div style="background:#fff;border-radius:12px;width:100%;max-width:900px;max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.35)">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:18px 22px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:17px;font-weight:800;letter-spacing:-.3px">📊 Importação Inteligente de Planilha</div>
+        <div style="font-size:11px;opacity:.8;margin-top:2px">Detecção automática de colunas · Validação TCU · Relatório de conferência</div>
+      </div>
+      <button onclick="fecharSmartImport()" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+
+    <div style="padding:20px 22px">
+
+      <!-- FASE 1: Upload -->
+      <div id="si-fase-upload">
+        <div style="display:flex;gap:12px;margin-bottom:14px">
+          <div id="si-modo-tag-nova" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:#dbeafe;color:#1e40af">NOVA OBRA</div>
+          <div id="si-modo-tag-inserir" style="display:none;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:#dcfce7;color:#1A1A1A">INSERIR NA OBRA ATIVA</div>
+        </div>
+
+        <!-- Colunas esperadas -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:16px;font-size:11.5px">
+          <div style="font-weight:700;color:#374151;margin-bottom:8px">📋 Estrutura de colunas esperada (9 colunas fixas):</div>
+          <div style="display:grid;grid-template-columns:repeat(9,1fr);gap:4px;text-align:center">
+            <div style="background:#1e3a5f;color:#fff;padding:4px 2px;border-radius:4px;font-size:10px;font-weight:700">1<br>ITEM</div>
+            <div style="background:#333333;color:#fff;padding:4px 2px;border-radius:4px;font-size:10px;font-weight:700">2<br>CÓDIGO</div>
+            <div style="background:#333333;color:#fff;padding:4px 2px;border-radius:4px;font-size:10px;font-weight:700">3<br>BANCO</div>
+            <div style="background:#1e40af;color:#fff;padding:4px 2px;border-radius:4px;font-size:10px;font-weight:700">4<br>DESCRIÇÃO</div>
+            <div style="background:#333333;color:#fff;padding:4px 2px;border-radius:4px;font-size:10px;font-weight:700">5<br>UND</div>
+            <div style="background:#059669;color:#fff;padding:4px 2px;border-radius:4px;font-size:10px;font-weight:700">6<br>QUANT.</div>
+            <div style="background:#d97706;color:#fff;padding:4px 2px;border-radius:4px;font-size:10px;font-weight:700">7<br>V.UNIT s/BDI</div>
+            <div style="background:#dc2626;color:#fff;padding:4px 2px;border-radius:4px;font-size:10px;font-weight:700">8<br>V.UNIT +BDI</div>
+            <div style="background:#7c3aed;color:#fff;padding:4px 2px;border-radius:4px;font-size:10px;font-weight:700">9<br>TOTAL</div>
+          </div>
+        </div>
+
+        <!-- Drop zone -->
+        <div id="si-drop-zone" onclick="document.getElementById('si-file-input').click()"
+          style="border:2px dashed #93c5fd;border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:#eff6ff;transition:all .2s"
+          ondragover="event.preventDefault();this.style.borderColor='#333333';this.style.background='#dbeafe'"
+          ondragleave="this.style.borderColor='#93c5fd';this.style.background='#eff6ff'"
+          ondrop="_siHandleDrop(event)">
+          <div style="font-size:40px;margin-bottom:8px">📂</div>
+          <div style="font-weight:700;color:#1e40af;font-size:14px;margin-bottom:4px">Clique ou arraste o arquivo aqui</div>
+          <div style="font-size:12px;color:#6b7280">Suporta PDF (.pdf) e Excel (.xls / .xlsx)</div>
+          <input type="file" id="si-file-input" accept=".pdf,.xls,.xlsx" style="display:none" onchange="_siProcessarArquivo(event)">
+        </div>
+
+        <!-- Meta dados manuals -->
+        <div style="margin-top:14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px">
+          <div style="font-weight:700;font-size:12px;color:#374151;margin-bottom:10px">📝 Dados do Contrato (extraídos automaticamente ou preencha manualmente):</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div style="grid-column:1/-1"><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px">Objeto / Nome da Obra</label><input id="si-objeto" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;box-sizing:border-box" placeholder="Ex: Construção de UBS Triângulo Leal..."></div>
+            <div><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px">Nº Contrato</label><input id="si-contrato" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;box-sizing:border-box" placeholder="CE01-25"></div>
+            <div><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px">BDI (%)</label><input id="si-bdi" type="number" step="0.01" value="25" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;box-sizing:border-box"></div>
+            <div><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px">Contratante</label><input id="si-contratante" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;box-sizing:border-box" placeholder="Prefeitura Municipal..."></div>
+            <div><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px">Contratada</label><input id="si-contratada" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;box-sizing:border-box" placeholder="Empresa..."></div>
+          </div>
+        </div>
+
+        <div id="si-status" style="margin-top:12px;min-height:20px;font-size:12px;color:#374151"></div>
+      </div>
+
+      <!-- FASE 2: Mapeamento manual (caso auto falhe) -->
+      <div id="si-fase-mapeamento" style="display:none">
+        <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:#92400e">
+          ⚠️ <strong>Mapeamento manual necessário.</strong> O sistema não identificou automaticamente todas as colunas. Selecione qual coluna do arquivo corresponde a cada campo:
+        </div>
+        <div id="si-mapeamento-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px"></div>
+        <button onclick="_siAplicarMapeamento()" style="background:#333333;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px">✅ Aplicar Mapeamento e Continuar</button>
+      </div>
+
+      <!-- FASE 3: Preview + Validação -->
+      <div id="si-fase-preview" style="display:none">
+
+        <!-- Resumo de validação -->
+        <div id="si-resumo-validacao" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px"></div>
+
+        <!-- Tabs: Preview / Relatório -->
+        <div style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;margin-bottom:14px">
+          <button id="si-tab-preview" onclick="_siAbaAtiva('preview')" style="padding:8px 16px;border:none;border-bottom:3px solid #333333;background:none;font-weight:700;color:#333333;cursor:pointer;font-size:12px">📋 Preview dos Itens</button>
+          <button id="si-tab-relatorio" onclick="_siAbaAtiva('relatorio')" style="padding:8px 16px;border:none;border-bottom:3px solid transparent;background:none;color:#6b7280;cursor:pointer;font-size:12px">📊 Relatório de Conferência</button>
+          <button id="si-tab-log" onclick="_siAbaAtiva('log')" style="padding:8px 16px;border:none;border-bottom:3px solid transparent;background:none;color:#6b7280;cursor:pointer;font-size:12px">📄 Log Técnico</button>
+        </div>
+
+        <div id="si-aba-preview" style="max-height:340px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px">
+          <table style="width:100%;border-collapse:collapse;font-size:10.5px">
+            <thead style="background:#1e3a5f;color:#fff;position:sticky;top:0">
+              <tr>
+                <th style="padding:6px 8px;text-align:left">Item</th>
+                <th style="padding:6px 8px;text-align:left">Código</th>
+                <th style="padding:6px 8px;text-align:left">Banco</th>
+                <th style="padding:6px 8px;text-align:left;min-width:200px">Descrição</th>
+                <th style="padding:6px 4px;text-align:center">Und</th>
+                <th style="padding:6px 8px;text-align:right">Qtd</th>
+                <th style="padding:6px 8px;text-align:right">V.Unit s/BDI</th>
+                <th style="padding:6px 8px;text-align:right">V.Unit +BDI</th>
+                <th style="padding:6px 8px;text-align:right">Total</th>
+                <th style="padding:6px 4px;text-align:center">✓</th>
+              </tr>
+            </thead>
+            <tbody id="si-preview-tbody"></tbody>
+          </table>
+        </div>
+
+        <div id="si-aba-relatorio" style="display:none;max-height:340px;overflow-y:auto"></div>
+        <div id="si-aba-log" style="display:none;max-height:340px;overflow-y:auto;background:#0f172a;color:#94a3b8;font-family:monospace;font-size:10.5px;padding:12px;border-radius:8px;white-space:pre-wrap"></div>
+
+        <!-- Botões de ação -->
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;align-items:center">
+          <button id="si-btn-criar" onclick="_siCriarObra()" style="background:#059669;color:#fff;border:none;padding:10px 20px;border-radius:7px;cursor:pointer;font-weight:700;font-size:13px">✅ Criar Obra e Importar</button>
+          <button onclick="_siExportarRelatorioPDF()" style="background:#7c3aed;color:#fff;border:none;padding:10px 16px;border-radius:7px;cursor:pointer;font-weight:700;font-size:12px">📄 Exportar Relatório PDF</button>
+          <button onclick="fecharSmartImport()" style="background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:10px 16px;border-radius:7px;cursor:pointer;font-size:12px">✕ Cancelar</button>
+          <div id="si-count-info" style="margin-left:auto;font-size:11px;color:#6b7280"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+   v23 — BARRA ÚNICA UNIFICADA
+   [ Logo | ═══ OBRA CENTRAL ═══ | Ações ]
+══════════════════════════════════════════════════ -->
+<header>
+  <!-- ① Logo / Brand -->
+  <div class="header-logo-section" id="header-logo-section">
+    <div class="logo-icon" style="flex-shrink:0">FO</div>
+    <div class="header-logo-text">
+      <div class="logo-nome" id="header-obra-nome" style="font-size:13px;letter-spacing:.2px">Fiscal na Obra</div>
+      <div class="logo-sub" id="header-obra-sub" style="font-size:9px;opacity:.6">v23 · Sistema</div>
+    </div>
+  </div>
+
+  <!-- ② Centro — Seleção de Obra -->
+  <div class="header-obra-center">
+    <span class="header-obra-label">🏗️ Obra Ativa</span>
+    <select id="sel-obra" onchange="trocarObra(this.value)" title="Selecionar obra ativa"></select>
+    <button class="hd-obra-btn primary" onclick="novaObra()" title="Nova Obra">➕ Nova</button>
+    <button class="hd-obra-btn" onclick="abrirImportComTipo()" title="Importar">📄 Importar</button>
+    <button class="hd-obra-btn danger" onclick="excluirObraAtiva()" title="Excluir obra ativa">🗑️</button>
+    <span id="obra-badge" id="obra-badge-hd"></span>
+  </div>
+
+  <!-- ③ Direita — Ações, Usuário, Tema -->
+  <div class="header-actions-section">
+    <div class="fb-status" id="fb-status-bar">
+      <div class="fb-dot" id="fb-dot"></div>
+      <span id="fb-status-txt">offline</span>
+    </div>
+    <div class="user-info" id="user-info-btn" onclick="abrirPainelUsuario()" style="display:none">
+      <div class="user-avatar" id="user-avatar-letter">?</div>
+      <span id="user-display-name">...</span>
+    </div>
+    <button class="btn-tema" id="btn-tema" onclick="toggleTema()" title="Alternar Dark/Light">
+      <span id="tema-ico">☀️</span><span id="tema-txt">Light</span>
+    </button>
+    <button class="btn-fs" onclick="toggleFullscreen()" title="Tela cheia (F11)" id="btn-fs">⛶</button>
+    <button class="btn btn-cinza btn-sm" onclick="imprimirPagina()" style="padding:5px 9px;font-size:11px" title="Imprimir / PDF">🖨️</button>
+    <button class="btn btn-cinza btn-sm" onclick="fbLogout()" id="btn-logout" style="display:none;padding:5px 9px;font-size:11px">🚪 Sair</button>
+  </div>
+</header>
+
+<div class="app-shell">
+<nav id="sidebar-nav">
+  <div class="sidebar-head">
+    <span class="sidebar-brand">Fiscal na Obra</span>
+    <button class="sidebar-toggle" id="btn-sidebar-toggle" onclick="toggleSidebar()" title="Recolher/expandir">☰</button>
+  </div>
+
+  <div class="sidebar-group-label">Dashboard</div>
+  <button id="tab-dashboard"    onclick="verPagina('dashboard')"    data-tip="Dashboard">         <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span></button>
+  <button id="tab-resumo-geral" onclick="verPagina('resumo-geral')" data-tip="Resumo Geral">      <span class="nav-icon">🏗️</span><span class="nav-label">Resumo Geral</span></button>
+  <button id="tab-dash-global"  onclick="verPagina('dash-global')"  data-tip="Dashboard Global">  <span class="nav-icon">🌐</span><span class="nav-label">Dashboard Global</span></button>
+  <button id="tab-obras-concluidas" onclick="verPagina('obras-concluidas')" data-tip="Obras Concluídas"><span class="nav-icon">🏆</span><span class="nav-label">Obras Concluídas</span></button>
+
+  <div class="sidebar-group-label">Medição</div>
+  <button id="tab-boletim"      onclick="verPagina('boletim')"      data-tip="Boletim de Medição"> <span class="nav-icon">📋</span><span class="nav-label">Boletim de Medição</span></button>
+  <button id="tab-aditivos"     onclick="verPagina('aditivos')"     data-tip="Aditivos Contratuais"> <span class="nav-icon">📝</span><span class="nav-label">Aditivos</span></button>
+  <button id="tab-memoria"      onclick="verPagina('memoria')"      data-tip="Memória de Cálculo"> <span class="nav-icon">📐</span><span class="nav-label">Memória de Cálculo</span></button>
+  <button id="tab-relatorio"    onclick="verPagina('relatorio')"    data-tip="Relatório Mensal">   <span class="nav-icon">📑</span><span class="nav-label">Relatório Mensal</span></button>
+  <button id="tab-chuva"        onclick="verPagina('chuva')"        data-tip="Quadro de Chuva">    <span class="nav-icon">🌧️</span><span class="nav-label">Quadro de Chuva</span></button>
+
+  <div class="sidebar-group-label">Registro</div>
+  <button id="tab-diario"       onclick="verPagina('diario')"       data-tip="Diário de Obras">   <span class="nav-icon">📓</span><span class="nav-label">Diário de Obras</span></button>
+  <button id="tab-notificacoes" onclick="verPagina('notificacoes')" data-tip="Notificações">       <span class="nav-icon">🔔</span><span class="nav-label">Notificações</span></button>
+  <button id="tab-documentos"   onclick="verPagina('documentos')"   data-tip="Documentos">         <span class="nav-icon">📂</span><span class="nav-label">Documentos</span></button>
+  <button id="tab-ocorrencias-tec" onclick="verPagina('ocorrencias-tec')" data-tip="Ocorrências Técnicas"><span class="nav-icon">⚠️</span><span class="nav-label">Ocorrências</span></button>
+  <button id="tab-historico-obra" onclick="verPagina('historico-obra')" data-tip="Histórico da Obra"><span class="nav-icon">📜</span><span class="nav-label">Histórico da Obra</span></button>
+  <button id="tab-painel-contratual" onclick="verPagina('painel-contratual')" data-tip="Painel Contratual"><span class="nav-icon">📊</span><span class="nav-label">Painel Contratual</span></button>
+
+  <div class="sidebar-group-label">Sistema</div>
+  <button id="tab-importar"     onclick="verPagina('importar')"     data-tip="Importar SINAPI/ORSE"><span class="nav-icon">📥</span><span class="nav-label">Importar SINAPI/ORSE</span></button>
+  <button id="tab-usuarios"     onclick="verPagina('usuarios')"     data-tip="Usuários">            <span class="nav-icon">👥</span><span class="nav-label">Usuários</span></button>
+  <button id="tab-auditoria"    onclick="verPagina('auditoria')"    data-tip="Auditoria" data-perm="admin_only">          <span class="nav-icon">🔍</span><span class="nav-label">Auditoria</span></button>
+  <button id="tab-backup"       onclick="verPagina('backup')"       data-tip="Backup" data-perm="admin_only">             <span class="nav-icon">💾</span><span class="nav-label">Backup</span></button>
+  <button id="tab-config"       onclick="verPagina('config')"       data-tip="Configurações">       <span class="nav-icon">⚙️</span><span class="nav-label">Configurações</span></button>
+</nav>
+
+<div class="conteudo">
+
+<!-- ═══════════════════════════════════════
+     CONFIGURAÇÕES
+═══════════════════════════════════════ -->
+<div id="config" class="pagina">
+  <div class="card">
+    <div class="titulo-secao">Dados do Contrato</div>
+    <div class="form-grid">
+      <div class="campo"><label>Nº Contrato</label><input id="cfgContrato" value=""></div>
+      <div class="campo"><label>BDI (%)</label><input id="cfgBdi" type="number" step="0.01" value="25"></div>
+      <div class="campo">
+        <label>Modo de Cálculo Numérico</label>
+        <select id="cfgModoCalculo" style="width:100%">
+          <option value="truncar">✂️ Truncar valores (2 casas)</option>
+          <option value="arredondar">🔢 Arredondar valores</option>
+        </select>
+        <div style="margin-top:6px;padding:7px 10px;border-radius:4px;border-left:3px solid #555555;background:#F8F8F8;font-size:10.5px;color:#444444;line-height:1.6">
+          <strong>⚖️ Recomendação TCU:</strong> Utilizar <strong>truncamento em 2 casas decimais</strong> nos cálculos de medição de obras públicas, evitando acumulação de arredondamentos que podem favorecer indevidamente a contratada.<br>
+          <span style="color:#78350F;font-size:10px">Truncar: 10,456 → 10,45 &nbsp;|&nbsp; Arredondar: 10,456 → 10,46</span>
+        </div>
+      </div>
+      <div class="campo cheio"><label>Objeto</label><input id="cfgObjeto" value=""></div>
+      <div class="campo"><label>Contratante</label><input id="cfgContratante" value=""></div>
+      <div class="campo"><label>Contratada</label><input id="cfgContratada" value=""></div>
+      <div class="campo"><label>CNPJ Contratada</label><input id="cfgCnpj" value=""></div>
+      <div class="campo"><label>Valor Contratual (R$)</label><input id="cfgValor" type="number" step="0.01" value=""></div>
+      <div class="campo"><label>Início Previsto</label><input id="cfgInicioPrev" type="date" value=""></div>
+      <div class="campo"><label>Início Real</label><input id="cfgInicioReal" type="date" value="" onchange="calcularTerminoAuto()"></div>
+      <div class="campo"><label>Duração do Contrato (dias) <span style="font-weight:400;color:#9ca3af">→ calcula término</span></label><input id="cfgDuracaoDias" type="number" min="1" placeholder="Ex: 365" onchange="calcularTerminoAuto()"></div>
+      <div class="campo"><label>Término Previsto <span style="font-weight:400;color:#9ca3af">(auto ou manual)</span></label><input id="cfgTermino" type="date" value=""></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="titulo-secao">Responsáveis Técnicos</div>
+    <!-- Fiscal Titular -->
+    <div style="font-size:10px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;margin-top:4px">📋 Fiscal Titular</div>
+    <div class="form-grid" style="margin-bottom:14px">
+      <div class="campo"><label>Nome Completo — Fiscal Titular</label><input id="cfgFiscal" value=""></div>
+      <div class="campo"><label>CREA/CAU Fiscal Titular</label><input id="cfgCreaFiscal" value=""></div>
+      <div class="campo"><label>Cargo / Função — Fiscal Titular</label><input id="cfgCargoFiscal" placeholder="Ex: Engenheiro Civil / Fiscal de Obras"></div>
+    </div>
+    <!-- Fiscal Suplente -->
+    <div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Fiscal Suplente</div>
+    <div class="form-grid" style="margin-bottom:14px">
+      <div class="campo"><label>Nome Completo — Fiscal Suplente</label><input id="cfgFiscalSuplente" placeholder="Nome do fiscal suplente"></div>
+      <div class="campo"><label>CREA/CAU Fiscal Suplente</label><input id="cfgCreaFiscalSuplente" placeholder="CREA/CAU"></div>
+      <div class="campo"><label>Cargo / Função — Fiscal Suplente</label><input id="cfgCargoFiscalSuplente" placeholder="Ex: Engenheiro Civil"></div>
+    </div>
+    <!-- RT Execução -->
+    <div style="font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">🔧 Responsável Técnico (Execução)</div>
+    <div class="form-grid">
+      <div class="campo"><label>Responsável Técnico (Execução)</label><input id="cfgRT" value=""></div>
+      <div class="campo"><label>CREA/CAU RT</label><input id="cfgCreaRT" value=""></div>
+    </div>
+    <div class="acoes">
+      <button class="btn btn-azul" onclick="salvarConfig()">💾 Salvar Configurações</button>
+    </div>
+  </div>
+
+  <!-- ═══ v17: Tipo de Obra nas Configurações ═══ -->
+  <div class="card">
+    <div class="titulo-secao">🏗️ Tipo de Obra / Modelo de PDF</div>
+    <div style="font-size:12.5px;color:var(--text-secondary);margin-bottom:14px;line-height:1.6">
+      Selecione o padrão desta obra. O tipo define o modelo de PDF gerado e o layout do Boletim de Medição.
+    </div>
+    <div class="tipo-obra-grid" id="cfg-tipo-obra-grid">
+      <div class="tipo-obra-card" id="cfg-tipo-prefeitura" onclick="_salvarTipoObraConfig('prefeitura')">
+        <div class="tipo-obra-icon">🏛️</div>
+        <div class="tipo-obra-title">Padrão Prefeitura</div>
+        <div class="tipo-obra-desc">Boletim de medição e memória de cálculo padrão municipal/estadual.</div>
+      </div>
+      <div class="tipo-obra-card" id="cfg-tipo-caixa" onclick="_salvarTipoObraConfig('caixa')">
+        <div class="tipo-obra-icon">🏦</div>
+        <div class="tipo-obra-title">Padrão Caixa</div>
+        <div class="tipo-obra-desc">Modelo oficial CEF — para obras financiadas pela Caixa Econômica Federal.</div>
+      </div>
+    </div>
+    <div id="cfg-tipo-obra-msg" style="margin-top:10px;font-size:12px;color:var(--green);min-height:18px"></div>
+  </div>
+  <div class="card">
+    <div class="titulo-secao">Logo da Empresa</div>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div>
+        <div id="logoPreviewWrap" style="margin-bottom:10px;display:none">
+          <img id="logoPreviewImg" class="logo-preview" src="" alt="Logo">
+        </div>
+        <label class="btn btn-cinza btn-sm" style="cursor:pointer">
+          📁 Selecionar Logo (PNG/JPG)
+          <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none" onchange="carregarLogo(event)">
+        </label>
+        <button class="btn btn-vermelho btn-sm" style="margin-left:6px" onclick="removerLogo()">🗑️ Remover</button>
+      </div>
+      <div style="font-size:11px;color:#6b7280;max-width:320px">
+        O logo será exibido automaticamente no cabeçalho de todos os PDFs gerados (Relatório Mensal, Memória de Cálculo e Boletim de Medição).
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="titulo-secao">Boletins Cadastrados</div>
+    <div id="cfg-bm-lista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:12px"></div>
+    <button class="btn btn-cinza btn-sm" onclick="adicionarBM()">➕ Novo Boletim</button>
+
+  <!-- v46: ZONA DE STATUS DA OBRA -->
+  <div class="card" id="cfg-status-obra-card" style="border:2px solid rgba(22,163,74,.35)">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <span style="font-size:24px">✅</span>
+      <div>
+        <div class="titulo-secao" style="margin:0;border:none;padding:0;color:var(--green)">Status da Obra</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Gerencie o ciclo de vida desta obra. Apenas aqui é possível marcar como concluída.</div>
+      </div>
+    </div>
+    <div id="cfg-status-obra-info" style="margin-bottom:14px"></div>
+    <div id="cfg-status-obra-acoes"></div>
+  </div>
+
+  <!-- v19: LIXEIRA -->
+  <div class="card" style="border:2px solid rgba(220,38,38,.35)">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:22px">🗑️</span>
+        <div>
+          <div class="titulo-secao" style="margin:0;border:none;padding:0;color:var(--red)">Lixeira — Itens Excluídos</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Itens movidos para cá podem ser restaurados. Só são excluídos permanentemente ao esvaziar.</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-verde btn-sm" onclick="lixeiraRestaurarTudo()">♻️ Restaurar Tudo</button>
+        <button class="btn btn-vermelho btn-sm" onclick="lixeiraEsvaziar()">💀 Esvaziar Lixeira</button>
+        <button class="btn btn-cinza btn-sm" onclick="renderLixeira()">🔄 Atualizar</button>
+      </div>
+    </div>
+    <div id="lixeira-lista">
+      <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">🗑️ Lixeira vazia.</div>
+    </div>
+  </div>
+
+  <!-- v8: Seção Firebase -->
+  <div class="card">
+    <div class="titulo-secao">🔥 Integração Firebase (Online)</div>
+    <div id="fb-status-config-box">
+      <div class="kpi-grid" style="margin-bottom:14px">
+        <div class="kpi-box" id="fb-kpi-status">
+          <div class="kpi-label">Status da Conexão</div>
+          <div class="kpi-val" id="fb-kpi-status-val" style="font-size:14px">— offline —</div>
+        </div>
+        <div class="kpi-box green" id="fb-kpi-user">
+          <div class="kpi-label">Usuário Logado</div>
+          <div class="kpi-val" id="fb-kpi-user-val" style="font-size:12px">—</div>
+        </div>
+        <div class="kpi-box gray">
+          <div class="kpi-label">Projeto Firebase</div>
+          <div class="kpi-val" id="fb-kpi-project" style="font-size:12px">—</div>
+        </div>
+        <div class="kpi-box gray">
+          <div class="kpi-label">ID do Contrato</div>
+          <div class="kpi-val" id="fb-kpi-contrato" style="font-size:12px">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="acoes">
+      <button class="btn btn-azul btn-sm" onclick="document.getElementById('modal-firebase').classList.remove('oculto');_preencherModalFirebase()">⚙️ Configurar Firebase</button>
+      <button class="btn btn-verde btn-sm" onclick="_fbSincronizarDados()">🔄 Forçar Sincronização</button>
+      <button class="btn btn-vermelho btn-sm" onclick="fbLogout()">🚪 Desconectar / Trocar Usuário</button>
+    </div>
+    <div style="margin-top:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:12px;font-size:11.5px;color:#92400e;line-height:1.6">
+      <strong>📋 Regras de Segurança Firestore</strong> — Configure no Console Firebase → Firestore → Rules:<br>
+      <code style="display:block;background:#fff7ed;padding:8px;border-radius:3px;margin-top:6px;font-size:10.5px;white-space:pre-wrap">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuth() { return request.auth != null; }
+    function isAdmin() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.perfil == 'administrador';
+    }
+    match /usuarios/{userId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (request.auth.uid == userId || isAdmin());
+    }
+    match /contratos/{contratoId} {
+      allow read, write: if isAuth();
+      allow delete: if isAdmin();
+      match /{subcollection=**} {
+        allow read, write: if isAuth();
+        allow delete: if isAdmin();
+      }
+    }
+  }
+}</code>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     HISTÓRICO DA OBRA — v47
+════════════════════════════════════════════════ -->
+<div id="historico-obra" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:26px">📜</span>
+        <div>
+          <div class="titulo-secao" style="margin:0;border:none;padding:0">Histórico da Obra</div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px">Rastreabilidade completa — todas as alterações registradas cronologicamente</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="hist-filtro-tipo" onchange="renderHistoricoObra()" style="padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-paper)">
+          <option value="">Todos os tipos</option>
+          <option value="aditivo">Aditivos</option>
+          <option value="boletim">Boletins</option>
+          <option value="planilha">Planilha</option>
+          <option value="obra">Obra</option>
+          <option value="configuracao">Configuração</option>
+          <option value="ocorrencia">Ocorrências</option>
+        </select>
+        <button class="btn btn-azul btn-sm" onclick="exportarHistoricoCSV()">📥 Exportar CSV</button>
+      </div>
+    </div>
+    <div id="hist-obra-lista" style="display:flex;flex-direction:column;gap:6px;max-height:70vh;overflow-y:auto">
+      <div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px">Nenhum registro de histórico.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     OCORRÊNCIAS TÉCNICAS — v47
+════════════════════════════════════════════════ -->
+<div id="ocorrencias-tec" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:26px">⚠️</span>
+        <div>
+          <div class="titulo-secao" style="margin:0;border:none;padding:0">Registro de Ocorrências Técnicas</div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px">Histórico permanente de atrasos, irregularidades e determinações técnicas</div>
+        </div>
+      </div>
+      <button class="btn btn-azul btn-sm" onclick="abrirModalOcorrenciaTec()">➕ Nova Ocorrência</button>
+    </div>
+    <div id="oct-filtros" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <select id="oct-filtro-tipo" onchange="renderOcorrenciasTec()" style="padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-paper)">
+        <option value="">Todos os tipos</option>
+        <option value="Atraso">Atraso</option>
+        <option value="Irregularidade">Irregularidade</option>
+        <option value="Não Conformidade">Não Conformidade</option>
+        <option value="Determinação Técnica">Determinação Técnica</option>
+      </select>
+      <select id="oct-filtro-status" onchange="renderOcorrenciasTec()" style="padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-paper)">
+        <option value="">Todos os status</option>
+        <option value="Aberta">Aberta</option>
+        <option value="Em Tratamento">Em Tratamento</option>
+        <option value="Resolvida">Resolvida</option>
+      </select>
+    </div>
+    <div id="oct-lista"></div>
+  </div>
+</div>
+
+<!-- Modal Nova Ocorrência Técnica -->
+<div id="modal-ocorrencia-tec" style="display:none;position:fixed;inset:0;z-index:9300;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--bg-paper);border-radius:14px;box-shadow:var(--shadow-dark);width:100%;max-width:620px;max-height:90vh;overflow-y:auto">
+    <div style="background:var(--bg-card-alt);color:var(--text-on-panel);padding:16px 20px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-weight:700;font-size:14px">⚠️ <span id="modal-oct-titulo">Nova Ocorrência Técnica</span></span>
+      <button onclick="fecharModalOcorrenciaTec()" style="background:none;border:none;color:var(--text-on-panel);font-size:18px;cursor:pointer">×</button>
+    </div>
+    <div style="padding:20px">
+      <input type="hidden" id="oct-edit-id">
+      <div class="form-grid">
+        <div class="campo">
+          <label>Data da Ocorrência <span style="color:var(--red)">*</span></label>
+          <input id="oct-data" type="date">
+        </div>
+        <div class="campo">
+          <label>Tipo <span style="color:var(--red)">*</span></label>
+          <select id="oct-tipo" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg-paper)">
+            <option value="Atraso">⏰ Atraso</option>
+            <option value="Irregularidade">🔴 Irregularidade</option>
+            <option value="Não Conformidade">❌ Não Conformidade</option>
+            <option value="Determinação Técnica">📋 Determinação Técnica</option>
+          </select>
+        </div>
+        <div class="campo cheio">
+          <label>Descrição detalhada <span style="color:var(--red)">*</span></label>
+          <textarea id="oct-descricao" rows="4" placeholder="Descreva a ocorrência de forma técnica e objetiva..." style="resize:vertical;width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:13px"></textarea>
+        </div>
+        <div class="campo">
+          <label>Responsável</label>
+          <input id="oct-responsavel" placeholder="Nome do fiscal ou técnico">
+        </div>
+        <div class="campo">
+          <label>Status</label>
+          <select id="oct-status" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg-paper)">
+            <option value="Aberta">Aberta</option>
+            <option value="Em Tratamento">Em Tratamento</option>
+            <option value="Resolvida">Resolvida</option>
+          </select>
+        </div>
+        <div class="campo cheio">
+          <label>Providências / Ação tomada</label>
+          <textarea id="oct-providencias" rows="2" placeholder="Descreva as providências adotadas ou determinadas..." style="resize:vertical;width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:13px"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+        <button class="btn btn-sm" onclick="fecharModalOcorrenciaTec()" style="background:var(--bg-card);color:var(--text-secondary)">Cancelar</button>
+        <button class="btn btn-azul btn-sm" onclick="salvarOcorrenciaTec()">💾 Salvar Ocorrência</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PAINEL CONTRATUAL — v47
+════════════════════════════════════════════════ -->
+<div id="painel-contratual" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:26px">📊</span>
+        <div>
+          <div class="titulo-secao" style="margin:0;border:none;padding:0">Painel Contratual</div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px">Controle financeiro e de prazo — atualizado automaticamente</div>
+        </div>
+      </div>
+      <button class="btn btn-azul btn-sm" onclick="gerarRelatorioConsolidado()">🖨️ Relatório Consolidado PDF</button>
+    </div>
+    <div id="painel-contratual-conteudo"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     OBRAS CONCLUÍDAS — v46
+═══════════════════════════════════════ -->
+<div id="obras-concluidas" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:28px">🏆</span>
+        <div>
+          <div class="titulo-secao" style="margin:0;border:none;padding:0">Obras Concluídas</div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px">Arquivo permanente — consulta em modo leitura. Dados intactos, sem edição.</div>
+        </div>
+      </div>
+      <div id="obras-conc-badge" style="background:var(--green-soft);color:var(--green);font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;border:1px solid var(--green)"></div>
+    </div>
+    <div id="obras-conc-lista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px">
+      <div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px;grid-column:1/-1">
+        🏗️ Nenhuma obra concluída ainda.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MEMÓRIA DE CÁLCULO
+═══════════════════════════════════════ -->
+<div id="memoria" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div class="titulo-secao" style="margin:0;border:none;padding:0">📐 Memória de Cálculo</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="sel-mem-bm" onchange="renderMemoria()" style="width:auto;padding:6px 10px;font-size:12px"></select>
+        <button class="btn btn-verde btn-sm"  onclick="salvarMemoria()">💾 Salvar</button>
+        <button class="btn btn-cinza btn-sm"  onclick="imprimirMemoria()">🖨️ Imprimir</button>
+        <button class="btn btn-azul  btn-sm"  onclick="exportarMemoriaCsv()">📥 CSV</button>
+      </div>
+    </div>
+
+    <!-- KPIs dinâmicos -->
+    <div class="kpi-grid" id="mem-kpis"></div>
+
+    <!-- Legenda de fórmulas -->
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:9px 12px;margin-bottom:10px;font-size:11px;color:#713f12;line-height:1.7">
+      <b>📌 Fórmulas aplicadas automaticamente por unidade de medida:</b><br>
+      &nbsp;• <b>m²</b> → Área = Comprimento × Largura × Quantidade &nbsp;|&nbsp;
+        <b>m³</b> → Volume = Comprimento × Largura × Altura × Quantidade<br>
+      &nbsp;• <b>m</b> &nbsp;→ Total = Comprimento × Quantidade &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;
+        <b>un / vb / pt / cj…</b> → Total = Quantidade<br>
+      &nbsp;• <b>% Exec.</b> = (Quant. Calculada ÷ Quant. Contratual) × 100 — atualizado em tempo real.
+    </div>
+
+    <div style="overflow-x:auto;max-height:72vh;overflow-y:auto">
+      <div id="mem-table-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     REGISTRO DE BMs
+═══════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════
+     BOLETIM DE MEDIÇÃO

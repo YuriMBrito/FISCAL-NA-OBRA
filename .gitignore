@@ -1,0 +1,34 @@
+# Dependências
+node_modules/
+functions/node_modules/
+
+# Build
+dist/
+
+# Credenciais sensíveis — NUNCA comitar
+serviceAccountKey.json
+.env
+.env.*
+*.key
+*.pem
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
+ui-debug.log
+
+# Cobertura de testes
+coverage/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+.vercel
+.env*.local

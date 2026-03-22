@@ -1,0 +1,401 @@
+/* Fiscal na Obra v13 — Temas */
+
+r: #CCCCCC; box-shadow: 0 1px 6px rgba(0,0,0,.05); }
+.alerta-item.resolvido { opacity: .5; }
+.alerta-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; filter: grayscale(1); }
+.alerta-body { flex: 1; min-width: 0; }
+.alerta-title { font-weight: 700; font-size: 12px; color: #111111; margin-bottom: 2px; }
+.alerta-desc { font-size: 11px; color: #888888; line-height: 1.5; }
+.alerta-ts { font-size: 9.5px; color: #AAAAAA; margin-top: 3px; font-family: var(--font-mono); }
+.alerta-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.alerta-sev-alta  { border-left: 3px solid #111111; }
+.alerta-sev-media { border-left: 3px solid #555555; }
+.alerta-sev-baixa { border-left: 3px solid #888888; }
+.alerta-sev-info  { border-left: 3px solid #AAAAAA; }
+.alerta-empty { text-align: center; padding: 20px; color: #AAAAAA; font-size: 12px; }
+
+.curvaS-kpi { text-align: center; padding: 8px; border-radius: 8px; background: #F8F8F8; border: 1px solid #EBEBEB; }
+.curvaS-kpi-label { font-size: 9px; color: #888888; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 2px; }
+.curvaS-kpi-val { font-size: 15px; font-weight: 800; font-family: var(--font-mono); color: #111111; }
+
+.alerta-config-grid { display: grid; grid-template-columns: 1fr 100px; gap: 8px; align-items: center; }
+.alerta-config-grid label { font-size: 11.5px; color: #555555; }
+.alerta-config-grid input { font-size: 11px; padding: 4px 8px; text-align: right; }
+
+.medal-1 { color: #555555; } .medal-2 { color: #888888; } .medal-3 { color: #AAAAAA; }
+
+body.light-mode .alerta-item { background: #FFFFFF; border-color: #EBEBEB; }
+body.light-mode .curvaS-kpi { background: #F8F8F8; border-color: #EBEBEB; }
+
+/* ═══ BM INFO BOX ═══ */
+.bm-infos { display: flex; flex-wrap: nowrap; gap: 10px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; }
+.bm-infos::-webkit-scrollbar { height: 4px; }
+.bm-infos::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 4px; }
+.bm-info-box { background: #FFFFFF; border: 1px solid #E8E8E8; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.04); padding: 14px 12px; min-width: 140px; flex: 1 0 140px; }
+.bm-info-label { font-size: 9px; font-weight: 700; color: #888888; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 4px; }
+.bm-info-val { font-size: 15px; font-weight: 700; color: #111111; font-family: var(--font-mono); }
+
+/* ════════════════════════════════════════════════════════════════
+   v12 — ADITIVOS: IDENTIFICAÇÃO VISUAL POR 5 CORES
+   ┌──────────────────────────────────────────────────────────────┐
+   │  VERMELHO (.item-quantidade-reduzida) — qtd diminuiu        │
+   │  VERDE    (.item-valor-aumentado)     — valor total subiu   │
+   │  AZUL     (.item-quantidade-aumentada)— qtd aumentou        │
+   │  AMARELO  (.item-removido)            — qtd=0 E preço=0     │
+   │  ROXO     (.item-valor-reduzido)      — valor total caiu    │
+   └──────────────────────────────────────────────────────────────┘
+   Prioridade de conflito (da mais alta para a mais baixa):
+     1. AMARELO  — item eliminado (qtd=0 E preço=0)
+     2. AZUL     — quantidade aumentada
+     3. VERMELHO — quantidade reduzida
+     4. VERDE    — valor total aumentado (qtd inalterada, preço subiu)
+     5. ROXO     — valor total reduzido  (qtd inalterada, preço caiu)
+   Fórmula de comparação: valor_total = quantidade × preço_unitário
+════════════════════════════════════════════════════════════════ */
+#adt-versao-badge { transition: background .2s, color .2s; }
+
+/* ── Garante impressão fiel às cores da tela ── */
+@media print {
+  #adt-planilha-card,
+  #adt-planilha-card * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
+
+/* ── Linha base: transição suave ── */
+#adt-planilha-card .adt-pl-row { transition: background .18s; }
+
+/* ══════════════════════════════════════════════
+   1. VERMELHO — quantidade reduzida
+══════════════════════════════════════════════ */
+#adt-planilha-card .item-quantidade-reduzida td {
+  background-color: rgba(220, 38, 38, .10) !important;
+  color: #1a1a1a;
+}
+#adt-planilha-card .item-quantidade-reduzida td:first-child {
+  border-left: 4px solid #DC2626 !important;
+}
+#adt-planilha-card .item-quantidade-reduzida .adt-pl-input {
+  border-color: rgba(220, 38, 38, .5) !important;
+  background: rgba(255,255,255,.85) !important;
+}
+#adt-planilha-card .item-quantidade-reduzida .adt-pl-delta {
+  background: rgba(220, 38, 38, .18) !important;
+  color: #991b1b !important;
+}
+#adt-planilha-card .item-quantidade-reduzida .adt-badge-visual {
+  background: rgba(220, 38, 38, .15);
+  color: #991b1b;
+  border: 1px solid rgba(220, 38, 38, .35);
+}
+
+/* ══════════════════════════════════════════════
+   2. VERDE — valor total aumentado
+══════════════════════════════════════════════ */
+#adt-planilha-card .item-valor-aumentado td {
+  background-color: rgba(22, 163, 74, .10) !important;
+  color: #1a1a1a;
+}
+#adt-planilha-card .item-valor-aumentado td:first-child {
+  border-left: 4px solid #16A34A !important;
+}
+#adt-planilha-card .item-valor-aumentado .adt-pl-input {
+  border-color: rgba(22, 163, 74, .5) !important;
+  background: rgba(255,255,255,.85) !important;
+}
+#adt-planilha-card .item-valor-aumentado .adt-pl-delta {
+  background: rgba(22, 163, 74, .18) !important;
+  color: #166534 !important;
+}
+#adt-planilha-card .item-valor-aumentado .adt-badge-visual {
+  background: rgba(22, 163, 74, .15);
+  color: #166534;
+  border: 1px solid rgba(22, 163, 74, .35);
+}
+
+/* ══════════════════════════════════════════════
+   3. AZUL — quantidade aumentada
+══════════════════════════════════════════════ */
+#adt-planilha-card .item-quantidade-aumentada td {
+  background-color: rgba(37, 99, 235, .10) !important;
+  color: #1a1a1a;
+}
+#adt-planilha-card .item-quantidade-aumentada td:first-child {
+  border-left: 4px solid #2563EB !important;
+}
+#adt-planilha-card .item-quantidade-aumentada .adt-pl-input {
+  border-color: rgba(37, 99, 235, .5) !important;
+  background: rgba(255,255,255,.85) !important;
+}
+#adt-planilha-card .item-quantidade-aumentada .adt-pl-delta {
+  background: rgba(37, 99, 235, .18) !important;
+  color: #1e40af !important;
+}
+#adt-planilha-card .item-quantidade-aumentada .adt-badge-visual {
+  background: rgba(37, 99, 235, .15);
+  color: #1e40af;
+  border: 1px solid rgba(37, 99, 235, .35);
+}
+
+/* ══════════════════════════════════════════════
+   4. AMARELO — item removido (qtd=0 E preço=0)
+══════════════════════════════════════════════ */
+#adt-planilha-card .item-removido td {
+  background-color: rgba(234, 179, 8, .15) !important;
+  color: #713f12 !important;
+  opacity: .80;
+  text-decoration: line-through;
+}
+#adt-planilha-card .item-removido td:first-child {
+  border-left: 4px solid #CA8A04 !important;
+  opacity: 1;
+  text-decoration: none;
+}
+#adt-planilha-card .item-removido .adt-pl-input {
+  text-decoration: none;
+  background: rgba(255,255,255,.7) !important;
+}
+#adt-planilha-card .item-removido .adt-badge-visual {
+  background: rgba(234, 179, 8, .20);
+  color: #713f12;
+  border: 1px solid rgba(202, 138, 4, .40);
+}
+
+/* ══════════════════════════════════════════════
+   5. ROXO — valor total reduzido
+══════════════════════════════════════════════ */
+#adt-planilha-card .item-valor-reduzido td {
+  background-color: rgba(124, 58, 237, .10) !important;
+  color: #1a1a1a;
+}
+#adt-planilha-card .item-valor-reduzido td:first-child {
+  border-left: 4px solid #7C3AED !important;
+}
+#adt-planilha-card .item-valor-reduzido .adt-pl-input {
+  border-color: rgba(124, 58, 237, .5) !important;
+  background: rgba(255,255,255,.85) !important;
+}
+#adt-planilha-card .item-valor-reduzido .adt-pl-delta {
+  background: rgba(124, 58, 237, .18) !important;
+  color: #5b21b6 !important;
+}
+#adt-planilha-card .item-valor-reduzido .adt-badge-visual {
+  background: rgba(124, 58, 237, .15);
+  color: #5b21b6;
+  border: 1px solid rgba(124, 58, 237, .35);
+}
+
+/* ── Grupos/subgrupos: neutro, nunca colorido ── */
+#adt-planilha-card .adt-pl-row--grupo td,
+#adt-planilha-card .adt-pl-row--subgrupo td {
+  background-color: #F0F0F0 !important;
+  color: #111 !important;
+  font-weight: 600;
+  text-decoration: none !important;
+  opacity: 1 !important;
+}
+
+/* ── Input editável ── */
+#adt-planilha-card .adt-pl-input {
+  width: 80px; padding: 3px 6px;
+  border: 1px solid #DDDDDD; border-radius: 6px;
+  font-family: var(--font-mono); font-size: 12px;
+  background: #FFFFFF; color: #111111; text-align: right;
+  transition: border-color .15s;
+}
+#adt-planilha-card .adt-pl-input:focus {
+  outline: none; border-color: #333333;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.07);
+}
+#adt-planilha-card .adt-pl-input--changed { font-weight: 700; }
+
+/* ── Badges de delta ── */
+#adt-planilha-card .adt-pl-delta {
+  display: inline-block; font-size: 10px;
+  font-family: var(--font-mono); font-weight: 700;
+  padding: 1px 6px; border-radius: 10px; margin-left: 4px;
+}
+#adt-planilha-card .adt-pl-delta--pos  { background: rgba(22,163,74,.15);  color: #166534; }
+#adt-planilha-card .adt-pl-delta--neg  { background: rgba(220,38,38,.15);  color: #991b1b; }
+#adt-planilha-card .adt-pl-delta--val  { background: rgba(124,58,237,.15); color: #5b21b6; }
+#adt-planilha-card .adt-pl-delta--novo { background: rgba(37,99,235,.12);  color: #1e40af; }
+
+/* ── Badge de ícone (coluna Ações) ── */
+.adt-badge-visual {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; font-family: var(--font-mono);
+  padding: 2px 7px; border-radius: 10px; white-space: nowrap;
+  letter-spacing: .2px;
+}
+
+/* ── Pílulas da legenda ── */
+.adt-pl-legenda-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+}
+.adt-pl-legenda-pill--qtd-reduzida {
+  background: rgba(220,38,38,.12); color: #991b1b;
+  border: 1px solid rgba(220,38,38,.28);
+}
+.adt-pl-legenda-pill--valor-aumentado {
+  background: rgba(22,163,74,.12); color: #166534;
+  border: 1px solid rgba(22,163,74,.28);
+}
+.adt-pl-legenda-pill--qtd-aumentada {
+  background: rgba(37,99,235,.12); color: #1e40af;
+  border: 1px solid rgba(37,99,235,.28);
+}
+.adt-pl-legenda-pill--removido {
+  background: rgba(234,179,8,.15); color: #713f12;
+  border: 1px solid rgba(202,138,4,.30);
+}
+.adt-pl-legenda-pill--valor-reduzido {
+  background: rgba(124,58,237,.12); color: #5b21b6;
+  border: 1px solid rgba(124,58,237,.28);
+}
+/* Compatibilidade com nomes anteriores */
+.adt-pl-legenda-pill--aumentado  { background: rgba(37,99,235,.12); color: #1e40af; border: 1px solid rgba(37,99,235,.28); }
+.adt-pl-legenda-pill--diminuido  { background: rgba(220,38,38,.12); color: #991b1b; border: 1px solid rgba(220,38,38,.28); }
+.adt-pl-legenda-pill--reduzido   { background: rgba(124,58,237,.12); color: #5b21b6; border: 1px solid rgba(124,58,237,.28); }
+.adt-pl-legenda-pill--novo       { background: rgba(22,163,74,.12);  color: #166534; border: 1px solid rgba(22,163,74,.28); }
+.adt-pl-legenda-pill--valor      { background: rgba(124,58,237,.12); color: #5b21b6; border: 1px solid rgba(124,58,237,.28); }
+
+#adt-pl-novo-form { background: #F8F8F8; border: 1px dashed #CCCCCC; border-radius: 8px; padding: 12px; margin-top: 10px; display: none; }
+#adt-pl-novo-form.visivel { display: block; }
+
+/* ═══ DASH ADITIVOS ═══ */
+#dash-aditivos-panel { display: none; margin-bottom: 14px; }
+#dash-aditivos-panel.visivel { display: block; }
+.dash-adt-card { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 14px 18px; margin-bottom: 0; }
+.dash-adt-titulo { font-size: 10px; font-weight: 700; color: #888888; text-transform: uppercase; letter-spacing: .7px; margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
+.dash-adt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.dash-adt-kpi { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07); border-radius: 10px; padding: 12px 10px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform .15s; }
+.dash-adt-kpi:hover { transform: translateY(-1px); }
+.dash-adt-kpi-label { font-size: 9px; font-weight: 700; color: #888888; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 5px; width: 100%; }
+.dash-adt-kpi-val { font-size: 15px; font-weight: 700; font-family: var(--font-mono); color: #EEEEEE; }
+
+/* ═══ MISC ═══ */
+code, pre { background: #F4F4F4; color: #222222; border: 1px solid #E8E8E8; border-radius: 6px; padding: 2px 6px; font-family: var(--font-mono); font-size: 12px; }
+pre { padding: 12px; overflow-x: auto; }
+
+.mem-item { background: #FFFFFF; border: 1px solid #EBEBEB; border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+.mem-item-head { background: #F8F8F8; padding: 10px 14px; border-bottom: 1px solid #EBEBEB; display: flex; align-items: center; justify-content: space-between; }
+.mem-linha { background: #FAFAFA; border: 1px solid #F0F0F0; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; transition: background .15s; }
+.mem-linha:hover { background: #F4F4F4; }
+
+.doc-card { background: #FFFFFF; border: 1px solid #EBEBEB; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+.doc-grupo-card { background: #F8F8F8; border: 1px solid #EBEBEB; border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.lixeira-item { background: #FFFFFF; border: 1px solid #EBEBEB; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+
+/* ═══ CELULA DIA ═══ */
+.celula-dia { border: 1px solid #E8E8E8 !important; border-radius: 6px !important; transition: box-shadow .15s; }
+.celula-dia:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08) !important; }
+
+/* ═══ QUADRO DE CHUVAS — CALENDÁRIO ANUAL ═══ */
+.grade-calendario {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 8px;
+}
+@media (max-width: 1100px) { .grade-calendario { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 780px)  { .grade-calendario { grid-template-columns: repeat(2, 1fr); } }
+.mes-card {
+  background: #FFFFFF;
+  border: 1px solid #E8E8E8;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.mes-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #F8F8F8;
+  border-bottom: 1px solid #E8E8E8;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.mes-stats { font-size: 10px; font-weight: 600; color: #64748b; }
+.dias-semana {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: #F0F0F0;
+  padding: 4px 6px 2px;
+}
+.label-dia-sem {
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+.grade-dias {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  padding: 6px;
+}
+.celula-dia {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  border-radius: 5px !important;
+  border: 1px solid transparent !important;
+  transition: all .15s;
+}
+.celula-dia.vazia { cursor: default; pointer-events: none; }
+.celula-dia.hoje { outline: 2px solid #3b82f6; outline-offset: -1px; font-weight: 800; }
+.celula-dia.c-sol       { background: #fef9c3; color: #713f12; border-color: #fde68a !important; }
+.celula-dia.c-parcial   { background: #dbeafe; color: #1e3a5f; border-color: #bfdbfe !important; }
+.celula-dia.c-chuva     { background: #bfdbfe; color: #1e3a8a; border-color: #93c5fd !important; }
+.celula-dia.c-tempestade{ background: #9ca3af; color: #111827; border-color: #6b7280 !important; }
+.celula-dia.c-misto     { background: linear-gradient(135deg,#bfdbfe 50%,#fef9c3 50%); color: #1e3a5f; border-color: #93c5fd !important; }
+.celula-dia.tem-dado:hover { transform: scale(1.1); z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,.15) !important; }
+
+/* Legenda e nav */
+.nav-ano { display: flex; align-items: center; gap: 10px; }
+.ano-btn {
+  background: #F0F0F0; border: 1px solid #E0E0E0; border-radius: 6px;
+  padding: 4px 10px; cursor: pointer; font-size: 16px; font-weight: 700; color: #374151;
+  transition: background .15s;
+}
+.ano-btn:hover { background: #E0E0E0; }
+.ano-display { font-size: 18px; font-weight: 800; color: #1e293b; font-family: var(--font-mono); min-width: 56px; text-align: center; }
+.legenda-chuva { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.leg-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #64748b; font-weight: 500; }
+.leg-cor { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.08); flex-shrink: 0; }
+
+/* Resumo anual */
+.resumo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+.resumo-box {
+  background: #F8F8F8;
+  border: 1px solid #E8E8E8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: center;
+}
+.resumo-mes { font-size: 11px; font-weight: 700; color: #374151; margin-bottom: 4px; }
+.resumo-stat { font-size: 11px; color: #64748b; font-weight: 500; }
+
+
+
+/* ═══ MACRO TOTAL / TITULO COL ═══ */
+.macro-total { color: #111111; font-family: var(--font-mono); font-weight: 800; }
+.titulo-col { color: #111111; font-weight: 700; }
+.ano-display { color: #111111; font-family: var(--font-mono); font-weight: 600; }

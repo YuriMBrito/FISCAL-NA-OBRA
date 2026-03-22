@@ -1,0 +1,130 @@
+rules_version = '2';
+
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  FISCAL NA OBRA v15.1 — Regras de Segurança Firebase Storage           ║
+// ║  CORREÇÃO CRÍTICA: Leitura agora exige membresia na obra                ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+//
+// CORREÇÕES v15.1:
+//   - allow read: if autenticado() → substituído por souMembroDaObraStorage()
+//     que verifica se o usuário pertence à obra antes de liberar leitura.
+//   - Isso corrige a vulnerabilidade em que qualquer usuário autenticado
+//     podia acessar documentos, fotos e logos de qualquer obra.
+//
+// ESTRUTURA DE ARQUIVOS:
+//   obras/{obraId}/logo                    → logo da obra (imagem, ≤ 2 MB)
+//   obras/{obraId}/docs/{arquivo}          → documentos (≤ 20 MB)
+//   obras/{obraId}/fotos-medicao/{arquivo} → fotos de BM (≤ 10 MB)
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─────────────────────────────────────────────────────────────
+    //  FUNÇÕES AUXILIARES
+    // ─────────────────────────────────────────────────────────────
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    // Administrador global (via Custom Claim)
+    function adminGlobal() {
+      return autenticado() && request.auth.token.adminGlobal == true;
+    }
+
+    // Perfil com permissão de escrita (Custom Claim 'role')
+    function perfilEscrita() {
+      return autenticado() && (
+        adminGlobal() ||
+        request.auth.token.role in ['fiscal', 'engenheiro', 'administrador']
+      );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  CORREÇÃO CRÍTICA — Verificação de membresia na obra
+    //
+    //  Lê /obras/{obraId} no Firestore para verificar se o usuário
+    //  é o dono da obra OU está na lista de usuários vinculados.
+    //
+    //  Nota: firestore.get() em Storage Rules consulta o Firestore
+    //  para cruzar dados — operação cobrada como 1 leitura Firestore.
+    // ─────────────────────────────────────────────────────────────
+    function souDonoDaObraStorage(obraId) {
+      return autenticado() &&
+        firestore.exists(/databases/(default)/documents/obras/$(obraId)) &&
+        firestore.get(/databases/(default)/documents/obras/$(obraId)).data.uid == request.auth.uid;
+    }
+
+    function souMembroDaObraStorage(obraId) {
+      let listaPath = /databases/(default)/documents/obras/$(obraId)/usuarios/lista;
+      let listaOk = firestore.exists(listaPath) &&
+        firestore.get(listaPath).data.lista.hasAny([{'uid': request.auth.uid}]);
+      return autenticado() && (
+        souDonoDaObraStorage(obraId) ||
+        adminGlobal() ||
+        listaOk
+      );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  PASTA: obras/{obraId}/logo — Logo da obra
+    // ─────────────────────────────────────────────────────────────
+    match /obras/{obraId}/logo {
+      // CORRIGIDO: apenas membros da obra lêem o logo
+      allow read:   if souMembroDaObraStorage(obraId);
+
+      allow write:  if perfilEscrita()
+        && souMembroDaObraStorage(obraId)
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if adminGlobal();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  PASTA: obras/{obraId}/docs/{arquivo} — Documentos da obra
+    // ─────────────────────────────────────────────────────────────
+    match /obras/{obraId}/docs/{arquivo} {
+      // CORRIGIDO: apenas membros da obra lêem documentos
+      allow read: if souMembroDaObraStorage(obraId);
+
+      allow write: if perfilEscrita()
+        && souMembroDaObraStorage(obraId)
+        && request.resource.size <= 20 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('application/pdf') ||
+          request.resource.contentType.matches('image/.*') ||
+          request.resource.contentType.matches('application/vnd.ms-excel') ||
+          request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') ||
+          request.resource.contentType.matches('application/msword') ||
+          request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.wordprocessingml.document') ||
+          request.resource.contentType.matches('text/csv') ||
+          request.resource.contentType.matches('text/plain')
+        );
+
+      allow delete: if adminGlobal();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  PASTA: obras/{obraId}/fotos-medicao/{arquivo} — Fotos de BM
+    // ─────────────────────────────────────────────────────────────
+    match /obras/{obraId}/fotos-medicao/{arquivo} {
+      // CORRIGIDO: apenas membros da obra lêem fotos de medição
+      allow read:   if souMembroDaObraStorage(obraId);
+
+      allow write:  if perfilEscrita()
+        && souMembroDaObraStorage(obraId)
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if adminGlobal();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  BLOQUEIO GLOBAL — Qualquer caminho não mapeado é negado
+    // ─────────────────────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

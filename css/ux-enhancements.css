@@ -1,0 +1,359 @@
+/* ═══════════════════════════════════════════════════════════
+   FISCAL NA OBRA — UX ENHANCEMENTS
+   Camada visual sobre o design Minimal B&W Edition existente.
+   NÃO altera arquitetura, módulos ou lógica.
+═══════════════════════════════════════════════════════════ */
+
+/* ── 2. SPACING SYSTEM ─────────────────────────────────────
+   Aliases semânticos sobre os --space-N já existentes.
+   Usar nas novas regras para consistência.                */
+:root {
+  --space-xs: var(--space-2, 8px);
+  --space-sm: var(--space-4, 16px);
+  --space-md: var(--space-6, 24px);
+  --space-lg: var(--space-8, 32px);
+  --space-xl: 48px;
+}
+
+/* ── 1. DASHBOARD CARD ALIGNMENT ───────────────────────────
+   Resolve conflitos entre inline style="margin:..." e
+   centering via margin-left/right:auto.
+   Cards dentro de .dash-dark usam gap do flow vertical.   */
+#dashboard .dash-dark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+/* Todos os filhos diretos: centering forçado */
+#dashboard .dash-dark > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+/* dash-trio gap herda do pai, remove margin próprio */
+#dashboard .dash-dark > .dash-trio {
+  margin-top: 0 !important;
+}
+/* Atalhos: margin-bottom extra para separar seção */
+#dashboard .dash-dark > .dash-atalhos {
+  margin-bottom: var(--space-xs) !important;
+}
+
+/* ── 3. CARD HIERARCHY ─────────────────────────────────────
+   Destaque sutil nos módulos principais sem alterar design. */
+
+/* Atalhos principais: borda inferior mais visível ao hover */
+.dash-atalho:nth-child(-n+3) {
+  border-color: rgba(255,255,255,.12);
+}
+.dash-atalho:nth-child(-n+3)::after {
+  background: rgba(255,255,255,.5);
+}
+
+/* Card Avanço da Obra: borda lateral sutil */
+#dashboard .dash-dark > .card:first-of-type {
+  border-left: 3px solid rgba(255,255,255,.15);
+}
+
+/* ── 4. CARD OBRA SELECIONADA ──────────────────────────────
+   Estilo para o card de contexto da obra no topo.
+   Renderizado pelo dashboard-controller.js via JS.        */
+.dash-obra-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  border-left: 4px solid rgba(255,255,255,.25);
+  overflow: hidden;
+}
+.dash-obra-card-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+  filter: grayscale(1) brightness(1.3);
+}
+.dash-obra-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.dash-obra-card-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,.45);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin-bottom: 3px;
+}
+.dash-obra-card-nome {
+  font-size: 16px;
+  font-weight: 800;
+  color: #EEEEEE;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.dash-obra-card-meta {
+  font-size: 11px;
+  color: rgba(255,255,255,.4);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 6. TABLE READABILITY ──────────────────────────────────
+   Zebra, hover, sticky headers e overflow para tabelas.   */
+
+/* Tabela-wrap: garante scroll horizontal sem quebrar layout */
+.tabela-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border-subtle, #EBEBEB);
+  border-radius: var(--radius-sm);
+}
+.tabela-wrap::-webkit-scrollbar { height: 6px; }
+.tabela-wrap::-webkit-scrollbar-track { background: transparent; }
+.tabela-wrap::-webkit-scrollbar-thumb { background: #DDD; border-radius: 3px; }
+.dash-dark .tabela-wrap {
+  border-color: rgba(255,255,255,.08);
+}
+.dash-dark .tabela-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); }
+
+/* Sticky header reforçado (já existe em #bol-table-wrap e #tbl-memoria) */
+table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+/* Zebra + hover melhorado para listas longas */
+tbody tr:nth-child(even) td {
+  background: var(--bg-card-alt, #F4F4F4);
+}
+tbody tr:hover td {
+  background: #EDEDF0;
+  transition: background .1s;
+}
+/* Dark mode override */
+.dash-dark tbody tr:nth-child(even) td {
+  background: rgba(255,255,255,.02);
+}
+.dash-dark tbody tr:hover td {
+  background: rgba(255,255,255,.05);
+}
+
+/* ── 7. FEEDBACK VISUAL ────────────────────────────────────
+   Indicador de alterações não salvas + animação de sucesso */
+
+/* Badge "não salvo" pulsante */
+.unsaved-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  padding: 3px 10px;
+  border-radius: 20px;
+  animation: unsaved-pulse 2s ease-in-out infinite;
+}
+@keyframes unsaved-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .65; }
+}
+.dash-dark .unsaved-indicator {
+  background: rgba(180,83,9,.15);
+  border-color: rgba(180,83,9,.3);
+  color: #fbbf24;
+}
+
+/* Feedback de sucesso ao salvar (flash verde na borda) */
+.save-success-flash {
+  animation: save-flash .6s ease;
+}
+@keyframes save-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(22,163,74,.5); }
+  50%  { box-shadow: 0 0 0 4px rgba(22,163,74,.25); }
+  100% { box-shadow: none; }
+}
+
+/* ── 8. RESPONSIVIDADE ─────────────────────────────────────
+   Breakpoints adicionais para tabelas e grids.            */
+
+@media (max-width: 1024px) {
+  .dash-trio {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+@media (max-width: 768px) {
+  .dash-trio {
+    grid-template-columns: 1fr !important;
+  }
+  .dash-atalhos {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
+    gap: 10px !important;
+  }
+  .dash-atalho {
+    padding: 14px 10px !important;
+  }
+  .dash-atalho-icon { font-size: 24px !important; }
+  .dash-atalho-label { font-size: 10px !important; }
+
+  /* Tabelas: força scroll horizontal */
+  .tabela-wrap {
+    margin-left: calc(-1 * var(--space-sm));
+    margin-right: calc(-1 * var(--space-sm));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  /* Card obra: stack vertical */
+  .dash-obra-card {
+    flex-direction: column;
+    text-align: center;
+    gap: var(--space-xs);
+  }
+  .dash-obra-card-nome { white-space: normal; }
+}
+
+@media (max-width: 480px) {
+  .dash-atalhos {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .dash-obra-card { padding: var(--space-xs) var(--space-sm); }
+}
+
+/* ── 9. BUTTON STANDARDIZATION ─────────────────────────────
+   Min-height e consistência entre variantes.              */
+.btn {
+  min-height: 34px;
+  line-height: 1.2;
+}
+.btn-sm {
+  min-height: 28px;
+}
+/* Garante que todos os botões tenham mesma transição */
+.btn:hover {
+  transition: all .18s ease;
+}
+/* Disabled state consistente */
+.btn:disabled, .btn[disabled] {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ── 10. PRINT IMPROVEMENTS ────────────────────────────────
+   Evita cortes em tabelas e mantém contraste.             */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Evita cortar linhas de tabela */
+  tr {
+    page-break-inside: avoid !important;
+  }
+  /* Cabeçalhos repetem em novas páginas */
+  thead {
+    display: table-header-group !important;
+  }
+  tfoot {
+    display: table-footer-group !important;
+  }
+  /* Cards e seções: evita cortes */
+  .card, .kpi-box, .kpi-grid, .dash-trio > * {
+    page-break-inside: avoid !important;
+  }
+  /* Esconde elementos interativos */
+  .btn, button, select, .dash-atalhos, .sidebar, .topbar, nav {
+    display: none !important;
+  }
+  /* Full width sem padding */
+  .conteudo {
+    padding: 0 !important;
+  }
+  .dash-dark {
+    background: #fff !important;
+    color: #000 !important;
+    padding: 8mm !important;
+  }
+  .dash-dark .card {
+    background: #fff !important;
+    border: 1px solid #ddd !important;
+    color: #000 !important;
+  }
+}
+
+/* ── 4. SIDEBAR OBRA CARD ───────────────────────────────────
+   CSS classes replacing inline styles in sidebar.js.       */
+.sidebar-obra-info {
+  padding: 8px 12px;
+  margin: 0 8px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.08);
+  overflow: hidden;
+  max-width: 100%;
+}
+.sidebar-obra-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,.5);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-obra-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #e2e8f0;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.sidebar-obra-contrato {
+  font-size: 10px;
+  color: rgba(255,255,255,.4);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 4.3 SIDEBAR SCROLL ───────────────────────────────────
+   Scroll elegante quando muitos módulos.                  */
+.sidebar-nav {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.12) transparent;
+}
+.sidebar-nav::-webkit-scrollbar { width: 4px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 2px; }
+.sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.2); }
+
+/* ── 5. CHART CONTAINERS ───────────────────────────────────
+   Garante que canvas dos gráficos não overflow.           */
+canvas {
+  max-width: 100%;
+  height: auto !important;
+}

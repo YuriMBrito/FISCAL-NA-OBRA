@@ -1,7 +1,6 @@
-import { defineConfig } from 'vite'
-
-export default defineConfig({
-  css: {
-    postcss: {}
-  }
-})
+{
+  "version": 2,
+  "builds": [
+    { "src": "**/*", "use": "@vercel/static" }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "firestore.indexes.json",
+      "storage.rules",
+      ".firebaserc",
+      ".gitignore",
+      "README.md",
+      "FAULT-ISOLATION.md",
+      "LGPD.md",
+      "guia-firebase.docx",
+      "node_modules/**",
+      "functions/**",
+      "tests/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400, stale-while-revalidate=3600"
+          }
+        ]
+      },
+      {
+        "source": "**/*.css",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400, stale-while-revalidate=3600"
+          }
+        ]
+      },
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleusercontent.com https://firebasestorage.googleapis.com https://*.web.app; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.firebaseio.com https://firebasestorage.googleapis.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "X-XSS-Protection",
+            "value": "1; mode=block"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(), microphone=(), geolocation=()"
+          },
+          {
+            "key": "Strict-Transport-Security",
+            "value": "max-age=31536000; includeSubDomains; preload"
+          }
+        ]
+      }
+    ]
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "southamerica-east1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8080
+    },
+    "hosting": {
+      "port": 5000
+    },
+    "storage": {
+      "port": 9199
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000
+    }
+  },
+  "_notas_plano_gratuito": {
+    "cloud_functions": "REMOVIDAS — plano Spark (gratuito) não suporta Cloud Functions. Toda validação migrada para client-side e Firestore Rules.",
+    "validacoes_migradas": [
+      "validarAditivoArt125 → aditivos-controller.js (já existia validação client-side)",
+      "validarCNPJContratado → config-controller.js (adicionada validação client-side)",
+      "validarProrrogacaoArt111 → prazos-controller.js (já existia validação client-side)",
+      "validarCapMedicaoBM → bm-controller.js (adicionada validação client-side)",
+      "protegerAuditoria → firestore.rules (allow update: if false — já implementado)",
+      "protegerHistorico → firestore.rules (allow update: if false — já implementado)",
+      "exportarDadosPublicosObra → exportacao-obra-controller.js (leitura direta Firestore)"
+    ]
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Fiscal na Obra",
+        "supportEmail": "akutamig85@gmail.com"
+      }
+    }
+  }
+}

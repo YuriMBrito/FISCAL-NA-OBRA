@@ -1,0 +1,22 @@
+{
+  "name": "fiscal-na-obra-functions",
+  "version": "15.4.0",
+  "description": "Cloud Functions — validação server-side Lei 14.133/2021",
+  "engines": { "node": "22" },
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint .",
+    "build": "echo 'No build step for CJS functions'",
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-google": "^0.14.0"
+  },
+  "private": true
+}

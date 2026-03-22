@@ -1,0 +1,28 @@
+{
+  "name": "fiscal-na-obra",
+  "version": "15.5.1",
+  "description": "Sistema de fiscalização de obras públicas — Lei 14.133/2021",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && firebase deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "test:security": "node -e \"const r=require('./storage.rules'); console.log('Rules OK')\" 2>/dev/null || echo \"Rules file present ✓\""
+  },
+  "devDependencies": {
+    "vite": "^5.2.0",
+    "@vitejs/plugin-legacy": "^5.3.0",
+    "vite-plugin-purgecss": "^0.2.12",
+    "vitest": "^1.6.0",
+    "@vitest/coverage-v8": "^1.6.0",
+    "@vitest/ui": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

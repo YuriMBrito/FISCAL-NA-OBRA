@@ -1,0 +1,1106 @@
+<div id="boletim" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div class="titulo-secao" style="margin:0;border:none;padding:0">Boletim de Medição</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="sel-bol-bm" onchange="renderBoletim()" style="width:auto;padding:6px 10px;font-size:12px"></select>
+        <button class="btn btn-verde btn-sm" onclick="abrirCrudItemBM('novo')">➕ Adicionar Item</button>
+        <button class="btn btn-laranja btn-sm" onclick="abrirCrudMacroItem()">📦 Macro Item</button>
+        <button class="btn btn-azul btn-sm" onclick="imprimirBoletim()">🖨️ Gerar PDF</button>
+      </div>
+    </div>
+    <div class="bm-infos" id="bol-infos"></div>
+    <div style="overflow-x:auto;overflow-y:auto;max-height:65vh;width:100%">
+      <div id="bol-table-wrap" style="min-width:max-content"></div>
+    </div>
+    <div class="card" style="margin-top:12px;margin-bottom:0">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px;text-align:center">
+        <div>
+          <div style="height:45px"></div>
+          <div style="border-top:1px solid #000;padding-top:8px;font-size:10.5px;color:#6b7280">
+            <div style="font-weight:700;color:#1e293b" id="sig-fiscal-bol">FISCAL DO CONTRATO</div>
+            <div id="sig-crea-bol"></div>
+            <div style="margin-top:3px">Data: ___/___/______</div>
+          </div>
+        </div>
+        <div>
+          <div style="height:45px"></div>
+          <div style="border-top:1px solid #000;padding-top:8px;font-size:10.5px;color:#6b7280">
+            <div style="font-weight:700;color:#1e293b" id="sig-contratada-bol">RESPONSÁVEL TÉCNICO</div>
+            <div id="sig-cnpj-bol"></div>
+            <div style="margin-top:3px">Data: ___/___/______</div>
+          </div>
+        </div>
+        <div>
+          <div style="height:45px"></div>
+          <div style="border-top:1px solid #000;padding-top:8px;font-size:10.5px;color:#6b7280">
+            <div style="font-weight:700;color:#1e293b" id="sig-contratante-bol">CONTRATANTE</div>
+            <div>GESTORA DO CONTRATO</div>
+            <div style="margin-top:3px">Data: ___/___/______</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     QUADRO DE CHUVA
+═══════════════════════════════════════ -->
+<div id="chuva" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div class="nav-ano">
+        <button class="ano-btn" onclick="mudarAno(-1)">‹</button>
+        <div class="ano-display" id="anoDisplay">2026</div>
+        <button class="ano-btn" onclick="mudarAno(+1)">›</button>
+      </div>
+      <div class="legenda-chuva">
+        <span class="leg-item"><span class="leg-cor" style="background:#fef9c3"></span>☀️ Sol</span>
+        <span class="leg-item"><span class="leg-cor" style="background:#dbeafe"></span>⛅ Parcial</span>
+        <span class="leg-item"><span class="leg-cor" style="background:#bfdbfe"></span>🌧️ Chuva</span>
+        <span class="leg-item"><span class="leg-cor" style="background:#9ca3af"></span>⛈️ Tempestade</span>
+        <span class="leg-item"><span class="leg-cor" style="background:linear-gradient(135deg,#bfdbfe 50%,#fef9c3 50%)"></span>Misto</span>
+      </div>
+      <button class="btn btn-azul btn-sm" onclick="imprimirChuva()">🖨️ Exportar PDF</button>
+    </div>
+    <div class="grade-calendario" id="gradeCalendario"></div>
+  </div>
+  <div class="card">
+    <div class="titulo-secao">Resumo Anual</div>
+    <div class="resumo-grid" id="resumoAnual"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     RELATÓRIO MENSAL
+═══════════════════════════════════════ -->
+<div id="relatorio" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div class="titulo-secao" style="margin:0;border:none;padding:0">Relatório Mensal de Acompanhamento</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="sel-rel-bm" onchange="renderRelatorio()" style="width:auto;padding:6px 10px;font-size:12px"></select>
+        <span style="font-size:10px;font-weight:700;color:#6b7280;margin-left:8px">PERÍODO:</span>
+        <input type="date" id="rel-data-ini" style="width:auto;padding:5px 8px;font-size:11px" onchange="renderRelatorio()">
+        <span style="font-size:10px;color:#6b7280">até</span>
+        <input type="date" id="rel-data-fim" style="width:auto;padding:5px 8px;font-size:11px" onchange="renderRelatorio()">
+        <button class="btn btn-cinza btn-sm" onclick="limparFiltroRelatorio()">✕ Limpar</button>
+        <button class="btn btn-azul btn-sm" onclick="imprimirRelatorio()">🖨️ Gerar PDF</button>
+      </div>
+    </div>
+
+    <!-- Cabeçalho -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+      <table style="font-size:11.5px;border-collapse:collapse">
+        <tr><td style="color:#6b7280;padding:4px 0;width:38%">Contratante:</td><td style="font-weight:600" id="rel-contratante"></td></tr>
+        <tr><td style="color:#6b7280;padding:4px 0">Contratada:</td><td style="font-weight:600" id="rel-contratada"></td></tr>
+        <tr><td style="color:#6b7280;padding:4px 0">Objeto:</td><td id="rel-objeto" style="font-size:11px"></td></tr>
+        <tr><td style="color:#6b7280;padding:4px 0">Contrato Nº:</td><td style="font-weight:600" id="rel-contrato"></td></tr>
+        <tr><td style="color:#6b7280;padding:4px 0">Valor Contratual:</td><td style="font-weight:600;font-family:'Courier New',monospace" id="rel-valor"></td></tr>
+      </table>
+      <table style="font-size:11.5px;border-collapse:collapse">
+        <tr><td style="color:#6b7280;padding:4px 0;width:38%">Início Previsto:</td><td>15/04/2025</td></tr>
+        <tr><td style="color:#6b7280;padding:4px 0">Início Real:</td><td style="color:#2A2A2A;font-weight:600">02/01/2026</td></tr>
+        <tr><td style="color:#6b7280;padding:4px 0">Término Previsto:</td><td>31/03/2026</td></tr>
+        <tr><td style="color:#6b7280;padding:4px 0">Fiscal:</td><td id="rel-fiscal"></td></tr>
+        <tr><td style="color:#6b7280;padding:4px 0">Mês Referência:</td><td style="font-weight:700;color:#333333" id="rel-mes"></td></tr>
+      </table>
+    </div>
+
+    <!-- Período info -->
+    <div class="rel-periodo-info" id="rel-periodo-info"></div>
+    <!-- KPIs -->
+    <div class="kpi-grid" id="rel-kpis"></div>
+
+    <!-- Situação Física -->
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:12px;margin-bottom:12px">
+      <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#374151;margin-bottom:10px">Situação Físico-Financeira</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;text-align:center" id="rel-fisica"></div>
+    </div>
+
+    <!-- Serviços -->
+    <div class="titulo-secao" style="margin-top:14px">Serviços Executados no Período</div>
+    <div style="overflow-x:auto;margin-bottom:14px">
+      <div id="rel-servicos"></div>
+    </div>
+
+    <!-- Checklist -->
+    <div class="titulo-secao">Checklist de Fiscalização</div>
+    <div id="rel-checklist" style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:14px"></div>
+
+    <!-- Ocorrências -->
+    <div class="titulo-secao">Ocorrências e Pendências</div>
+    <div id="rel-ocorrencias" style="margin-bottom:6px"></div>
+    <button class="btn btn-cinza btn-sm" onclick="addOcorrencia()">➕ Adicionar Ocorrência</button>
+
+    <!-- Observações -->
+    <div class="titulo-secao" style="margin-top:14px">Observações do Fiscal</div>
+    <textarea id="rel-obs" rows="4" placeholder="Descreva as principais observações e conclusões do período..." style="margin-bottom:12px"></textarea>
+
+    <!-- Assinaturas -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px;text-align:center;margin-top:16px">
+      <div>
+        <div style="height:45px"></div>
+        <div style="border-top:1px solid #000;padding-top:8px;font-size:10.5px;color:#6b7280">
+          <div style="font-weight:700;color:#1e293b" id="rel-sig-fiscal"></div>
+          <div>Fiscal do Contrato</div>
+          <div id="rel-sig-crea"></div>
+          <div style="margin-top:2px">Data: ___/___/______</div>
+        </div>
+      </div>
+      <div>
+        <div style="height:45px"></div>
+        <div style="border-top:1px solid #000;padding-top:8px;font-size:10.5px;color:#6b7280">
+          <div style="font-weight:700;color:#1e293b" id="rel-sig-rt">RESPONSÁVEL TÉCNICO</div>
+          <div>Execução / Contratada</div>
+          <div style="margin-top:2px">Data: ___/___/______</div>
+        </div>
+      </div>
+      <div>
+        <div style="height:45px"></div>
+        <div style="border-top:1px solid #000;padding-top:8px;font-size:10.5px;color:#6b7280">
+          <div style="font-weight:700;color:#1e293b" id="rel-sig-contratante"></div>
+          <div>Gestora do Contrato</div>
+          <div style="margin-top:2px">Data: ___/___/______</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     DASHBOARD
+═══════════════════════════════════════ -->
+<div id="dashboard" class="pagina ativa">
+<div class="dash-dark">
+  <!-- Atalhos de Navegação Rápida -->
+  <div class="dash-atalhos">
+    <div class="dash-atalho" onclick="verPagina('boletim')">
+      <div class="dash-atalho-icon">📋</div>
+      <div class="dash-atalho-label">Boletim de Medição</div>
+    </div>
+    <div class="dash-atalho" onclick="verPagina('memoria')">
+      <div class="dash-atalho-icon">📐</div>
+      <div class="dash-atalho-label">Memória de Cálculo</div>
+    </div>
+    <div class="dash-atalho" onclick="verPagina('diario')">
+      <div class="dash-atalho-icon">📓</div>
+      <div class="dash-atalho-label">Diário de Obras</div>
+    </div>
+    <div class="dash-atalho" onclick="verPagina('notificacoes')">
+      <div class="dash-atalho-icon">🔔</div>
+      <div class="dash-atalho-label">Notificações</div>
+    </div>
+    <div class="dash-atalho" onclick="verPagina('relatorio')">
+      <div class="dash-atalho-icon">📑</div>
+      <div class="dash-atalho-label">Relatório Mensal</div>
+    </div>
+    <div class="dash-atalho" onclick="verPagina('documentos')">
+      <div class="dash-atalho-icon">📂</div>
+      <div class="dash-atalho-label">Documentos</div>
+    </div>
+    <div class="dash-atalho" onclick="verPagina('config')">
+      <div class="dash-atalho-icon">⚙️</div>
+      <div class="dash-atalho-label">Configurações</div>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div class="titulo-secao" style="margin:0;border:none;padding:0">📊 Dashboard Geral da Obra</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="dash-status-sel" onchange="salvarStatusObra()" style="width:auto;padding:6px 10px;font-size:12px">
+          <option value="Em andamento">🔵 Em andamento</option>
+          <option value="Paralisada">🔴 Paralisada</option>
+          <option value="Concluída">🟢 Concluída</option>
+        </select>
+        <button class="btn btn-cinza btn-sm" onclick="renderDashboard()">🔄 Atualizar</button>
+      </div>
+    </div>
+
+    <!-- Status e nome -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px">Obra</div>
+        <div style="font-size:18px;font-weight:800;color:#ffffff;text-shadow:0 1px 4px rgba(0,0,0,.4)" id="dash-nome-obra"></div>
+      </div>
+      <div id="dash-status-badge"></div>
+    </div>
+
+    <!-- KPIs principais -->
+    <div class="dash-kpi-grid" id="dash-kpis"></div>
+
+    <!-- ★ v43: Painel de Aditivos Contratuais (inserido aqui, sem tocar em kpis) -->
+    <div id="dash-aditivos-panel"></div>
+
+    <!-- Barras de progresso -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="titulo-secao">Progresso da Obra</div>
+      <div style="margin-bottom:14px">
+        <div class="prog-label"><span>📐 Progresso Físico (executado)</span><span id="dash-pct-fisico-lbl">0,00 %</span></div>
+        <div class="prog-wrap-lg"><div class="prog-bar-lg" id="dash-prog-fisico" style="width:0%;background:#333333"></div></div>
+      </div>
+      <div style="margin-bottom:14px">
+        <div class="prog-label"><span>💰 Progresso Financeiro (acumulado / contratual)</span><span id="dash-pct-fin-lbl">0,00 %</span></div>
+        <div class="prog-wrap-lg"><div class="prog-bar-lg" id="dash-prog-fin" style="width:0%;background:#2A2A2A"></div></div>
+      </div>
+      <div>
+        <div class="prog-label"><span>📅 Prazo Decorrido (dias)</span><span id="dash-pct-prazo-lbl">0,00 %</span></div>
+        <div class="prog-wrap-lg"><div class="prog-bar-lg" id="dash-prog-prazo" style="width:0%;background:#ea580c"></div></div>
+      </div>
+    </div>
+
+    <!-- Gráficos financeiros -->
+    <div class="dash-charts-grid">
+      <div class="card" style="margin:0">
+        <div class="titulo-secao">Evolução Financeira por BM</div>
+        <canvas id="dashChartBM" height="200"></canvas>
+      </div>
+      <div class="card" style="margin:0">
+        <div class="titulo-secao">Situação Geral</div>
+        <canvas id="dashChartPizza" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- v7: Gráfico de Evolução Física com Projeção -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="titulo-secao">📈 Evolução Física Real + Projeção de Conclusão</div>
+      <canvas id="dashChartEvolucao" height="130"></canvas>
+      <div class="evolucao-proj" id="dash-evolucao-proj">—</div>
+    </div>
+
+    <!-- v26: CURVA S — Física e Financeira -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <div class="titulo-secao" style="margin:0;border:none;padding:0">📉 Curva S — Evolução Prevista vs Realizada</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-cinza btn-sm" id="curvaS-tipo-fisica" onclick="_curvaSTipo('fisica')" style="font-size:10px;background:rgba(37,99,235,.2);color:#60a5fa;border-color:rgba(37,99,235,.4)">📐 Física</button>
+          <button class="btn btn-cinza btn-sm" id="curvaS-tipo-financeira" onclick="_curvaSTipo('financeira')" style="font-size:10px">💰 Financeira</button>
+        </div>
+      </div>
+      <canvas id="dashChartCurvaS" height="160"></canvas>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px" id="curvaS-kpis"></div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:8px;font-style:italic" id="curvaS-legenda">
+        A Curva S mostra o progresso planejado vs executado. Desvios indicam atraso ou adiantamento.
+      </div>
+    </div>
+
+    <!-- v26: PAINEL DE ALERTAS INTELIGENTES -->
+    <div class="card" style="margin-bottom:14px" id="dash-alertas-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <div class="titulo-secao" style="margin:0;border:none;padding:0">
+          🚨 Alertas Inteligentes
+          <span id="alertas-contador" style="background:#dc2626;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;margin-left:6px;display:none">0</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-cinza btn-sm" onclick="_alertaConfig()" style="font-size:10px">⚙️ Limites</button>
+          <button class="btn btn-cinza btn-sm" onclick="_alertaAtualizar()" style="font-size:10px">🔄 Atualizar</button>
+        </div>
+      </div>
+      <div id="dash-alertas-lista"></div>
+    </div>
+
+    <!-- Resumo último BM + Desvio Físico + Indicadores -->
+    <div class="dash-trio">
+      <div class="card" style="margin:0">
+        <div class="titulo-secao">Último Boletim de Medição</div>
+        <div id="dash-ultimo-bm"></div>
+      </div>
+      <div class="card" style="margin:0">
+        <div class="titulo-secao">⚖️ Desvio Físico da Obra</div>
+        <div id="dash-desvio-fisico"></div>
+      </div>
+      <div class="card" style="margin:0">
+        <div class="titulo-secao">Indicadores de Prazo e Notificações</div>
+        <div id="dash-indicadores"></div>
+      </div>
+    </div>
+
+    <!-- ═══ v18: REGISTRO DE BMs INTEGRADO AO DASHBOARD ═══ -->
+    <div class="card" style="margin-top:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        <div class="titulo-secao" style="margin:0;border:none;padding:0">📒 Registro de Boletins de Medição</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-pdf btn-sm" onclick="imprimirRegistroBMs()">📄 Exportar PDF</button>
+          <button class="btn btn-cinza btn-sm" onclick="renderRegistroBMs()">🔄 Atualizar</button>
+        </div>
+      </div>
+      <!-- KPIs resumo -->
+      <div class="kpi-grid" id="reg-bms-kpis" style="margin-bottom:20px"></div>
+      <!-- Gráfico de barras por BM -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">Evolução das Medições</div>
+        <canvas id="regBmsChart" height="90"></canvas>
+      </div>
+      <!-- Tabela de BMs -->
+      <div class="tabela-wrap">
+        <table class="bm-reg-table" id="reg-bms-tabela">
+          <thead>
+            <tr>
+              <th class="td-c" style="width:50px">Nº BM</th>
+              <th>Período / Mês de Referência</th>
+              <th style="width:110px">Data Medição</th>
+              <th class="td-r" style="width:150px">Valor BM (R$)</th>
+              <th class="td-r" style="width:90px">% BM</th>
+              <th class="td-r" style="width:160px">Acumulado Total (R$)</th>
+              <th class="td-r" style="width:100px">% Acumulado</th>
+              <th class="td-r" style="width:150px">Saldo a Executar (R$)</th>
+              <th class="td-r" style="width:90px">% Saldo</th>
+              <th class="td-c" style="width:80px">Status</th>
+            </tr>
+          </thead>
+          <tbody id="reg-bms-tbody"></tbody>
+          <tfoot id="reg-bms-tfoot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Detalhe do BM selecionado (clique na linha) -->
+    <div class="card" id="reg-bms-detalhe" style="display:none;margin-top:14px">
+      <div class="titulo-secao" id="reg-bms-detalhe-titulo">Detalhes do BM</div>
+      <div id="reg-bms-detalhe-corpo"></div>
+    </div>
+
+  </div>
+</div><!-- /dash-dark -->
+</div>
+
+<!-- ═══════════════════════════════════════
+     NOTIFICAÇÕES
+═══════════════════════════════════════ -->
+<div id="notificacoes" class="pagina">
+  <div class="card">
+    <div class="titulo-secao">Registro de Notificações</div>
+    <!-- Formulário de adição -->
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:5px;padding:14px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#0369a1;text-transform:uppercase;margin-bottom:10px">Nova Notificação</div>
+      <div class="form-grid">
+        <div class="campo"><label>Número da Notificação</label><input id="notif-num" placeholder="Ex: NOT-001/2026"></div>
+        <div class="campo"><label>Data da Notificação</label><input id="notif-data" type="date"></div>
+        <div class="campo cheio"><label>Descrição da Notificação</label><textarea id="notif-desc" rows="3" placeholder="Descreva o objeto da notificação..."></textarea></div>
+      </div>
+      <div class="acoes" style="margin-top:10px">
+        <button class="btn btn-azul btn-sm" onclick="adicionarNotificacao()">➕ Registrar Notificação</button>
+      </div>
+    </div>
+    <!-- Filtro por período + PDF -->
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:#374151">Filtrar por período:</div>
+      <input type="date" id="notif-filtro-ini" style="width:auto" onchange="renderNotificacoes()">
+      <span style="font-size:11px;color:#6b7280">até</span>
+      <input type="date" id="notif-filtro-fim" style="width:auto" onchange="renderNotificacoes()">
+      <button class="btn btn-cinza btn-sm" onclick="limparFiltroNotif()">✕ Limpar</button>
+      <button class="btn btn-pdf btn-sm" onclick="gerarPDFNotificacoes()" style="margin-left:auto">📄 Gerar PDF de Notificações</button>
+    </div>
+    <!-- Listagem -->
+    <div id="notif-lista"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     DIÁRIO DE OBRAS
+═══════════════════════════════════════ -->
+<div id="diario" class="pagina">
+  <div class="card">
+    <div class="titulo-secao">📓 Diário de Obras</div>
+
+    <!-- ── Formulário Novo Registro ── -->
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:16px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;margin-bottom:12px">➕ Novo Registro</div>
+      <div class="form-grid">
+
+        <!-- Data e Clima -->
+        <div class="campo">
+          <label>Data *</label>
+          <input id="diario-data" type="date" onchange="diarioAutoClima()">
+        </div>
+        <div class="campo">
+          <label>Condições Climáticas</label>
+          <select id="diario-clima">
+            <option value="">— Sem informação —</option>
+            <option value="☀️ Sol">☀️ Sol</option>
+            <option value="⛅ Parcialmente nublado">⛅ Parcialmente nublado</option>
+            <option value="☁️ Nublado">☁️ Nublado</option>
+            <option value="🌧️ Chuva fraca">🌧️ Chuva fraca</option>
+            <option value="⛈️ Chuva forte / Tempestade">⛈️ Chuva forte / Tempestade</option>
+          </select>
+          <span style="font-size:9.5px;color:#6b7280;margin-top:2px" id="diario-clima-fonte"></span>
+        </div>
+
+        <!-- Descrição -->
+        <div class="campo cheio">
+          <label>Descrição das Ocorrências do Dia *</label>
+          <textarea id="diario-desc" rows="4" placeholder="Descreva os serviços executados, ocorrências, decisões tomadas..."></textarea>
+        </div>
+
+        <!-- Número de funcionários -->
+        <div class="campo">
+          <label>Total de Funcionários Presentes</label>
+          <input id="diario-num-func" type="number" min="0" placeholder="0" style="max-width:120px">
+        </div>
+        <div class="campo"></div><!-- spacer -->
+
+        <!-- Funções exercidas -->
+        <div class="campo cheio">
+          <label>Funções Exercidas</label>
+          <div id="diario-funcoes-lista"></div>
+          <button class="btn btn-cinza btn-sm" style="margin-top:6px" onclick="diarioAdicionarFuncao()">➕ Adicionar Função</button>
+        </div>
+
+        <!-- Equipamentos -->
+        <div class="campo cheio">
+          <label>Equipamentos Utilizados</label>
+          <div id="diario-equip-lista"></div>
+          <button class="btn btn-cinza btn-sm" style="margin-top:6px" onclick="diarioAdicionarEquip()">➕ Adicionar Equipamento</button>
+        </div>
+
+        <!-- Veículos -->
+        <div class="campo cheio">
+          <label>Veículos Utilizados</label>
+          <div id="diario-veic-lista"></div>
+          <button class="btn btn-cinza btn-sm" style="margin-top:6px" onclick="diarioAdicionarVeic()">➕ Adicionar Veículo</button>
+        </div>
+
+        <!-- Observações -->
+        <div class="campo cheio">
+          <label>Observações Adicionais</label>
+          <textarea id="diario-obs-campo" rows="2" placeholder="Pendências, comunicações, decisões..."></textarea>
+        </div>
+
+        <!-- Fotos com legenda -->
+        <div class="campo cheio">
+          <label>Relatório Fotográfico</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+            <label class="btn btn-cinza btn-sm" style="cursor:pointer">
+              📷 Adicionar Fotos
+              <input type="file" id="diario-fotos-input" accept="image/*" multiple style="display:none" onchange="preVisualizarFotos(event)">
+            </label>
+            <span style="font-size:10.5px;color:#6b7280" id="diario-fotos-count">0 foto(s)</span>
+          </div>
+          <div id="diario-fotos-preview" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:4px"></div>
+        </div>
+      </div>
+
+      <div class="acoes" style="margin-top:14px">
+        <button class="btn btn-verde btn-sm" onclick="adicionarRegistroDiario()">💾 Salvar Registro</button>
+        <button class="btn btn-cinza btn-sm" onclick="limparFormDiario()">✕ Limpar</button>
+      </div>
+    </div>
+
+    <!-- ── Filtros + PDF ── -->
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:#374151">Filtrar por período:</div>
+      <input type="date" id="diario-filtro-ini" style="width:auto" onchange="renderDiario()">
+      <span style="font-size:11px;color:#6b7280">até</span>
+      <input type="date" id="diario-filtro-fim" style="width:auto" onchange="renderDiario()">
+      <button class="btn btn-cinza btn-sm" onclick="limparFiltroDiario()">✕ Limpar</button>
+      <button class="btn btn-pdf btn-sm" onclick="gerarPDFDiario()" style="margin-left:auto">📄 Gerar PDF do Diário</button>
+    </div>
+
+    <!-- ── Listagem ── -->
+    <div id="diario-lista"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     IMPORTAR
+═══════════════════════════════════════ -->
+<div id="importar" class="pagina">
+  <div class="card">
+    <div class="titulo-secao">Importar Planilha SINAPI / ORSE</div>
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf" onchange="onFileSelected(event)">
+      <div class="dropzone-icon">📂</div>
+      <div class="dropzone-txt">Clique ou arraste o arquivo</div>
+      <div class="dropzone-sub">.xlsx · .xls · .pdf · Máx 50MB</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <label style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase">Identificar como:</label>
+      <button class="fonte-btn sinapi ativo" id="impFonteSinapi" onclick="impMudarFonte('SINAPI')">SINAPI</button>
+      <button class="fonte-btn orse"         id="impFonteOrse"   onclick="impMudarFonte('ORSE')">ORSE</button>
+      <button class="fonte-btn"              id="impFonteOutra"  onclick="impMudarFonte('OUTRA')">Outra</button>
+    </div>
+  </div>
+  <div class="imp-progress" id="impProgress">
+    <div id="impArquivo" style="font-size:11px;color:#6b7280;margin-bottom:6px"></div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="impBar"></div></div>
+    <div id="impStatus" style="font-size:12px;margin-bottom:4px">Aguardando...</div>
+    <div class="imp-log" id="impLog"></div>
+  </div>
+  <div class="card" id="impMapCard" style="display:none">
+    <div class="titulo-secao">Mapeamento de Colunas</div>
+    <div class="col-map-grid">
+      <div class="campo"><label>Código</label><select id="mapCod"></select></div>
+      <div class="campo"><label>Descrição</label><select id="mapDesc"></select></div>
+      <div class="campo"><label>Unidade</label><select id="mapUnd"></select></div>
+      <div class="campo"><label>Preço Unit.</label><select id="mapValor"></select></div>
+    </div>
+    <div class="acoes">
+      <button class="btn btn-azul" onclick="aplicarMapeamento()">✅ Confirmar e Importar</button>
+      <button class="btn btn-cinza" onclick="cancelarImportacao()">Cancelar</button>
+    </div>
+  </div>
+  <div class="card" id="impPreviewCard" style="display:none">
+    <div class="titulo-secao">Preview dos Itens Detectados</div>
+    <div id="impStats" style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap"></div>
+    <div class="acoes" style="margin-top:0;margin-bottom:12px">
+      <button class="btn btn-azul" onclick="confirmarImportacao()">💾 Importar para Base</button>
+      <button class="btn btn-cinza" onclick="cancelarImportacao()">✕ Cancelar</button>
+    </div>
+    <div style="max-height:320px;overflow:auto;border:1px solid #e5e7eb;border-radius:4px">
+      <table><thead><tr><th>Código</th><th>Descrição</th><th>Und.</th><th style="text-align:right">Preço</th><th>Fonte</th></tr></thead>
+        <tbody id="impPreviewBody"></tbody></table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="titulo-secao">Base Importada (<span id="baseCont">0</span> itens)</div>
+    <div class="base-filtros">
+      <input id="baseFiltro" placeholder="🔍 Filtrar..." oninput="renderizarBaseLista()" style="max-width:260px">
+      <button class="fonte-btn sinapi" id="filtSinapi" onclick="filtrarFonte('SINAPI')">SINAPI</button>
+      <button class="fonte-btn orse"   id="filtOrse"   onclick="filtrarFonte('ORSE')">ORSE</button>
+      <button class="fonte-btn ativo"  id="filtTodos"  onclick="filtrarFonte('TODOS')">Todas</button>
+      <button class="btn btn-vermelho btn-sm" style="margin-left:auto" onclick="limparBaseImportada()">🗑️ Limpar Base</button>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-radius:4px;max-height:400px;overflow-y:auto">
+      <div id="baseLista"></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     USUARIOS (Firebase)
+═══════════════════════════════════════ -->
+<div id="usuarios" class="pagina">
+  <div class="card">
+    <div class="titulo-secao">👥 Gerenciamento de Usuários</div>
+
+    <!-- Abas: Meu Perfil | Gerenciar Usuários | Histórico -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-cinza btn-sm" id="usr-tab-perfil" onclick="_usrTab('perfil')" style="font-size:11px">👤 Meu Perfil</button>
+      <button class="btn btn-cinza btn-sm" id="usr-tab-gerenciar" onclick="_usrTab('gerenciar')" style="font-size:11px" data-perm="gerenciar_usuarios">🛠️ Gerenciar Usuários</button>
+      <button class="btn btn-cinza btn-sm" id="usr-tab-historico" onclick="_usrTab('historico')" style="font-size:11px">📋 Histórico</button>
+    </div>
+
+    <!-- === Aba: Meu Perfil === -->
+    <div id="usr-painel-perfil">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:10px;text-transform:uppercase">Meu Perfil</div>
+          <div id="meu-perfil-box" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:14px">
+            <div style="text-align:center;margin-bottom:12px">
+              <div class="usuario-avatar" id="meu-avatar" style="width:52px;height:52px;font-size:20px;margin:0 auto 8px">?</div>
+              <div style="font-size:14px;font-weight:700;color:#1e293b" id="meu-nome">—</div>
+              <div style="font-size:11px;color:#6b7280" id="meu-email">—</div>
+              <div style="margin-top:6px" id="meu-perfil-badge">—</div>
+            </div>
+            <div style="font-size:10px;color:#6b7280;border-top:1px solid #bae6fd;padding-top:10px">
+              <div>UID: <span id="meu-uid" style="font-family:monospace">—</span></div>
+              <div style="margin-top:3px">Último acesso: <span id="meu-ultimo-acesso">—</span></div>
+            </div>
+            <div style="margin-top:10px">
+              <button class="btn btn-cinza btn-sm" onclick="fbLogout()">🚪 Sair do Sistema</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:10px;text-transform:uppercase">Usuários Cadastrados</div>
+          <div id="lista-usuarios">
+            <div style="color:#9ca3af;font-size:12px;padding:10px">Carregando usuários...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- === Aba: Gerenciar Usuários (Admin) === -->
+    <div id="usr-painel-gerenciar" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Gerenciamento de Permissões</div>
+        <button class="btn btn-verde btn-sm" onclick="_usrAbrirModal('novo')" data-perm="criar_usuario">➕ Novo Usuário</button>
+      </div>
+      <div class="usr-mgmt-grid">
+        <div class="usr-list-panel" id="usr-mgmt-lista">
+          <div style="color:#9ca3af;font-size:12px;padding:10px">Carregando...</div>
+        </div>
+        <div class="usr-detail-panel" id="usr-mgmt-detalhe">
+          <div style="color:#9ca3af;font-size:12px;padding:20px;text-align:center">Selecione um usuário para ver/editar permissões</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- === Aba: Histórico === -->
+    <div id="usr-painel-historico" style="display:none">
+      <div style="margin-top:0">
+        <div class="titulo-secao" style="margin-bottom:10px">📋 Histórico de Alterações Recentes</div>
+        <div id="historico-alteracoes">
+          <div style="color:#9ca3af;font-size:12px;padding:10px">Carregando histórico...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     AUDITORIA (v25 — Nível 1)
+═══════════════════════════════════════ -->
+<div id="auditoria" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div class="titulo-secao" style="margin:0;border:none;padding:0">🔍 Log de Auditoria</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-cinza btn-sm" onclick="_auditExportar('pdf')">📄 Exportar PDF</button>
+        <button class="btn btn-cinza btn-sm" onclick="_auditExportar('excel')">📊 Exportar Excel</button>
+      </div>
+    </div>
+    <div class="audit-filters">
+      <label style="font-size:10px;font-weight:700;color:var(--text-muted)">FILTROS:</label>
+      <select id="audit-filtro-usuario" onchange="_auditFiltrar()">
+        <option value="">Todos os Usuários</option>
+      </select>
+      <select id="audit-filtro-modulo" onchange="_auditFiltrar()">
+        <option value="">Todos os Módulos</option>
+        <option value="BM">Boletim de Medição</option>
+        <option value="Memória">Memória de Cálculo</option>
+        <option value="Diário">Diário de Obras</option>
+        <option value="Notificação">Notificações</option>
+        <option value="Obra">Cadastro de Obras</option>
+        <option value="Financeiro">Financeiro</option>
+        <option value="Configuração">Configurações</option>
+        <option value="Usuário">Usuários</option>
+        <option value="Documento">Documentos</option>
+      </select>
+      <select id="audit-filtro-acao" onchange="_auditFiltrar()">
+        <option value="">Todas as Ações</option>
+        <option value="criacao">Criação</option>
+        <option value="edicao">Edição</option>
+        <option value="exclusao">Exclusão</option>
+      </select>
+      <input type="date" id="audit-filtro-ini" onchange="_auditFiltrar()" title="Data Inicial">
+      <input type="date" id="audit-filtro-fim" onchange="_auditFiltrar()" title="Data Final">
+      <button class="btn btn-cinza btn-sm" onclick="_auditLimparFiltros()" style="font-size:10px">✕ Limpar</button>
+    </div>
+    <div style="font-size:10.5px;color:var(--text-muted);margin-bottom:6px">
+      <span id="audit-count">0</span> registros encontrados
+      <span style="margin-left:10px;color:var(--red);font-weight:600">⚠ Registros de auditoria não podem ser excluídos</span>
+    </div>
+    <div class="audit-scroll">
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th style="width:130px">Data / Hora</th>
+            <th style="width:120px">Usuário</th>
+            <th style="width:70px">Ação</th>
+            <th style="width:100px">Módulo</th>
+            <th>Descrição</th>
+            <th style="width:180px">Alterações</th>
+          </tr>
+        </thead>
+        <tbody id="audit-tbody">
+          <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:20px">Nenhum registro de auditoria</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     BACKUP (v25 — Nível 1)
+═══════════════════════════════════════ -->
+<div id="backup" class="pagina">
+  <div class="card">
+    <div class="titulo-secao">💾 Sistema de Backup</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:10px 14px;background:var(--accent-glow);border:1px solid rgba(212,168,67,.2);border-radius:var(--radius)">
+      <span style="font-size:18px">📅</span>
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:600">Último Backup</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text-primary)" id="bkp-ultimo-ts">Nenhum backup realizado</div>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <span class="usr-status-dot" id="bkp-auto-dot" style="width:8px;height:8px;border-radius:50%;background:var(--green)"></span>
+        <span style="font-size:10.5px;color:var(--text-muted)" id="bkp-auto-label">Backup automático ativo</span>
+      </div>
+    </div>
+
+    <div class="bkp-grid">
+      <div class="bkp-card" onclick="_bkpExportar()">
+        <div class="bkp-card-icon">📦</div>
+        <div class="bkp-card-title">Exportar Banco Completo</div>
+        <div class="bkp-card-desc">Baixa todos os dados de todas as obras em um arquivo JSON</div>
+        <button class="btn btn-azul btn-sm">⬇ Exportar Agora</button>
+      </div>
+      <div class="bkp-card" onclick="document.getElementById('bkp-restore-input').click()">
+        <div class="bkp-card-icon">🔄</div>
+        <div class="bkp-card-title">Restaurar Backup</div>
+        <div class="bkp-card-desc">Importa arquivo de backup JSON para restaurar dados</div>
+        <button class="btn btn-verde btn-sm">⬆ Selecionar Arquivo</button>
+        <input type="file" id="bkp-restore-input" accept=".json" style="display:none" onchange="_bkpRestaurar(event)">
+      </div>
+      <div class="bkp-card" onclick="_bkpManual()">
+        <div class="bkp-card-icon">💾</div>
+        <div class="bkp-card-title">Backup Manual</div>
+        <div class="bkp-card-desc">Salva um ponto de restauração no armazenamento local</div>
+        <button class="btn btn-cinza btn-sm">📸 Criar Snapshot</button>
+      </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Histórico de Backups</div>
+        <div style="display:flex;align-items:center;gap:12px;font-size:10.5px;color:var(--text-muted)">
+          <span><span class="bkp-dot auto" style="display:inline-block;vertical-align:middle;margin-right:3px"></span> Automático</span>
+          <span><span class="bkp-dot manual" style="display:inline-block;vertical-align:middle;margin-right:3px"></span> Manual</span>
+          <span><span class="bkp-dot restore" style="display:inline-block;vertical-align:middle;margin-right:3px"></span> Restauração</span>
+        </div>
+      </div>
+      <div id="bkp-historico" style="border:1px solid var(--border-subtle);border-radius:var(--radius);max-height:300px;overflow-y:auto">
+        <div style="padding:14px;color:#9ca3af;font-size:12px;text-align:center">Nenhum backup registrado</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     DOCUMENTOS (v14)
+═══════════════════════════════════════ -->
+<div id="documentos" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="titulo-secao" style="margin:0;border:none;padding:0">📂 Gestão de Documentos</div>
+        <!-- v21: Seletor de obra -->
+        <select id="doc-obra-sel" onchange="_docTrocarObra(this.value)"
+          style="background:var(--bg-panel);border:1px solid var(--border-dark);border-radius:6px;color:var(--text-on-dark);padding:6px 12px;font-size:12px;cursor:pointer;font-family:var(--font-body);min-width:200px;font-weight:600;letter-spacing:.1px">
+          <option value="" style="background:var(--bg-panel);color:var(--text-on-dark)">— Todas as obras —</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-verde btn-sm" onclick="abrirModalNovoDoc()">➕ Novo Documento</button>
+        <button class="btn btn-azul btn-sm" onclick="abrirModalNovoGrupo()">📁 Novo Conjunto</button>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <input id="doc-filtro-texto" placeholder="🔍 Buscar documento..." oninput="renderDocumentos()" style="max-width:240px">
+      <select id="doc-filtro-tipo" onchange="renderDocumentos()" style="width:auto;padding:6px 10px;font-size:12px">
+        <option value="">Todos os tipos</option>
+        <option value="ART">ART / RRT</option>
+        <option value="Alvará">Alvará / Licença</option>
+        <option value="Projeto">Projeto Técnico</option>
+        <option value="Memorial">Memorial Descritivo</option>
+        <option value="Planilha Orçamentária">Planilha Orçamentária</option>
+        <option value="Cronograma">Cronograma Físico-Financeiro</option>
+        <option value="Contrato">Contrato</option>
+        <option value="Aditivo">Termo Aditivo</option>
+        <option value="Ordem de Serviço">Ordem de Serviço</option>
+        <option value="Nota Fiscal">Nota Fiscal</option>
+        <option value="Diário de Obras">Diário de Obras</option>
+        <option value="Boletim de Medição">Boletim de Medição</option>
+        <option value="Relatório Fotográfico">Relatório Fotográfico</option>
+        <option value="Laudo Técnico">Laudo / Parecer Técnico</option>
+        <option value="Notificação">Notificação</option>
+        <option value="Ensaio Tecnológico">Ensaio Tecnológico</option>
+        <option value="CAT">CAT (Certidão Acervo)</option>
+        <option value="Habite-se">Habite-se / CVCO</option>
+        <option value="Seguro Garantia">Seguro / Garantia</option>
+        <option value="Correspondência">Correspondência Oficial</option>
+        <option value="Outros">Outros</option>
+      </select>
+      <select id="doc-filtro-grupo" onchange="renderDocumentos()" style="width:auto;padding:6px 10px;font-size:12px">
+        <option value="">Todos os conjuntos</option>
+      </select>
+    </div>
+
+    <!-- Conjuntos -->
+    <div id="doc-grupos-lista"></div>
+
+    <!-- Documentos sem grupo -->
+    <div class="titulo-secao" style="margin-top:14px">Todos os Documentos</div>
+    <div id="doc-todos-lista"></div>
+    <div id="doc-vazio" style="text-align:center;padding:30px;color:#9ca3af;display:none">
+      📂 Nenhum documento cadastrado. Clique em "Novo Documento" para começar.
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Novo Documento -->
+<div id="modal-novo-doc" class="modal-overlay" style="z-index:650">
+  <div class="modal" style="width:560px;max-width:97vw;max-height:92vh;overflow-y:auto">
+    <div class="modal-header">
+      <div class="modal-titulo">📄 Cadastrar Documento</div>
+      <button class="modal-fechar" onclick="fecharModalDoc()">×</button>
+    </div>
+    <div class="modal-corpo" style="padding:18px">
+      <div class="form-grid">
+        <div class="campo cheio"><label>Nome do Documento *</label><input id="doc-nome" placeholder="Ex: NF 001234 - Janeiro/2026"></div>
+        <div class="campo"><label>Tipo *</label>
+          <select id="doc-tipo">
+            <option value="ART">ART / RRT</option>
+            <option value="Alvará">Alvará / Licença</option>
+            <option value="Projeto">Projeto Técnico</option>
+            <option value="Memorial">Memorial Descritivo</option>
+            <option value="Planilha Orçamentária">Planilha Orçamentária</option>
+            <option value="Cronograma">Cronograma Físico-Financeiro</option>
+            <option value="Contrato">Contrato</option>
+            <option value="Aditivo">Termo Aditivo</option>
+            <option value="Ordem de Serviço">Ordem de Serviço</option>
+            <option value="Nota Fiscal">Nota Fiscal</option>
+            <option value="Diário de Obras">Diário de Obras</option>
+            <option value="Boletim de Medição">Boletim de Medição</option>
+            <option value="Relatório Fotográfico">Relatório Fotográfico</option>
+            <option value="Laudo Técnico">Laudo / Parecer Técnico</option>
+            <option value="Notificação">Notificação</option>
+            <option value="Ensaio Tecnológico">Ensaio Tecnológico</option>
+            <option value="CAT">CAT (Certidão Acervo)</option>
+            <option value="Habite-se">Habite-se / CVCO</option>
+            <option value="Seguro Garantia">Seguro / Garantia</option>
+            <option value="Correspondência">Correspondência Oficial</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+        <div class="campo"><label>Data</label><input id="doc-data" type="date"></div>
+        <div class="campo cheio"><label>Conjunto (Grupo)</label>
+          <select id="doc-grupo-sel">
+            <option value="">— Sem conjunto —</option>
+          </select>
+        </div>
+        <div class="campo cheio"><label>Observação</label><textarea id="doc-obs" rows="2" placeholder="Observações sobre o documento..."></textarea></div>
+        <div class="campo cheio">
+          <label>Arquivo (PDF, IMG, DOC, XLS, DWG, DXF) *</label>
+          <div class="doc-upload-zone" onclick="document.getElementById('doc-file-input').click()">
+            <div style="font-size:28px;margin-bottom:6px">📎</div>
+            <div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:3px">Clique para selecionar arquivo</div>
+            <div style="font-size:10.5px;color:#6b7280">PDF, JPG, PNG, DOC/DOCX, XLS/XLSX, DWG, DXF · Máx 10MB</div>
+            <input type="file" id="doc-file-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.zip,.rar" style="display:none" onchange="docFilePreview(event)">
+          </div>
+          <div id="doc-file-info" style="font-size:11px;color:#2A2A2A;margin-top:4px;display:none"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-rodape">
+      <button class="btn btn-cinza btn-sm" onclick="fecharModalDoc()">✕ Cancelar</button>
+      <button class="btn btn-verde" onclick="salvarDocumento()">💾 Salvar Documento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Novo Conjunto -->
+<div id="modal-novo-grupo" class="modal-overlay" style="z-index:650">
+  <div class="modal" style="width:420px">
+    <div class="modal-header">
+      <div class="modal-titulo">📁 Criar Conjunto Documental</div>
+      <button class="modal-fechar" onclick="document.getElementById('modal-novo-grupo').classList.remove('aberto')">×</button>
+    </div>
+    <div class="modal-corpo" style="padding:18px">
+      <div class="campo"><label>Nome do Conjunto *</label><input id="grupo-nome" placeholder="Ex: Notas Fiscais - Janeiro"></div>
+      <div class="campo" style="margin-top:10px"><label>Descrição</label><textarea id="grupo-desc" rows="2" placeholder="Descrição opcional..."></textarea></div>
+    </div>
+    <div class="modal-rodape">
+      <button class="btn btn-cinza btn-sm" onclick="document.getElementById('modal-novo-grupo').classList.remove('aberto')">✕ Cancelar</button>
+      <button class="btn btn-verde" onclick="salvarGrupoDoc()">💾 Criar Conjunto</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Macro Item -->
+<div id="modal-macro-item" class="modal-overlay" style="z-index:620">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <div class="modal-titulo">📦 Criar Macro Item (Grupo Hierárquico)</div>
+      <button class="modal-fechar" onclick="document.getElementById('modal-macro-item').classList.remove('aberto')">×</button>
+    </div>
+    <div class="modal-corpo" style="padding:18px">
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:10px;margin-bottom:14px;font-size:11px;color:#92400e;line-height:1.6">
+        <b>📌 Macro Item</b> é um agrupador hierárquico sem valor próprio.<br>
+        Seu valor total será a <b>soma automática dos subitens</b> que tiverem o mesmo prefixo.<br>
+        Ex: Item <b>15</b> agrupará automaticamente 15.1, 15.2, 15.3, etc.
+      </div>
+      <div class="campo"><label>Código do Macro Item *</label><input id="macro-item-cod" placeholder="Ex: 15, 16, 17..."></div>
+      <div class="campo" style="margin-top:10px"><label>Descrição do Macro Item *</label><input id="macro-item-desc" placeholder="Ex: SERVIÇOS COMPLEMENTARES"></div>
+    </div>
+    <div class="modal-rodape">
+      <button class="btn btn-cinza btn-sm" onclick="document.getElementById('modal-macro-item').classList.remove('aberto')">✕ Cancelar</button>
+      <button class="btn btn-verde" onclick="salvarMacroItem()">💾 Criar Macro Item</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /conteudo -->
+
+<!-- ═══════════════════════════════════════
+     RESUMO GERAL DAS OBRAS (v12)
+═══════════════════════════════════════ -->
+<div id="resumo-geral" class="pagina">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div class="titulo-secao" style="margin:0;border:none;padding:0">🏗️ Resumo Geral das Obras</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-pdf btn-sm" onclick="imprimirResumoGeral()">📄 Exportar PDF</button>
+        <button class="btn btn-cinza btn-sm" onclick="renderResumoGeral()">🔄 Atualizar</button>
+      </div>
+    </div>
+    <div id="resumo-geral-conteudo"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     DASHBOARD GLOBAL (v12)
+═══════════════════════════════════════ -->
+<div id="dash-global" class="pagina">
+  <!-- v37: Dashboard Global reconstruído do zero -->
+  <div id="dg-mount"></div>
+</div>
+<div id="modal-crud-item-bm" class="modal-overlay" style="z-index:600">
+  <div class="modal" style="width:640px;max-width:97vw;max-height:92vh;overflow-y:auto">
+    <div class="modal-header" id="crud-item-header">
+      <div class="modal-titulo" id="crud-item-titulo">➕ Adicionar Item ao Boletim</div>
+      <button class="modal-fechar" onclick="fecharCrudItemBM()">×</button>
+    </div>
+    <div class="modal-corpo" style="padding:20px">
+      <div id="crud-item-banner" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:10px 14px;margin-bottom:16px;font-size:11.5px;color:#1e40af;line-height:1.6">
+        O item será inserido no contrato e sincronizado automaticamente com a Memória de Cálculo.
+        A fórmula dimensional será aplicada conforme a unidade escolhida.
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <!-- Coluna 1 -->
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="campo">
+            <label>Código do Item <span style="color:#6b7280;font-weight:400;font-size:9px">(ex: 15, 15.1, 15.1.2)</span></label>
+            <input id="crud-item-cod" placeholder="Ex: 15.1" autocomplete="off">
+            <div id="crud-item-cod-erro" style="font-size:10px;color:#dc2626;margin-top:2px;display:none">⚠ Código já existe</div>
+          </div>
+          <div class="campo">
+            <label>Código SINAPI / ORSE / Banco</label>
+            <input id="crud-item-sinapi" placeholder="Ex: 100001 (opcional)">
+          </div>
+          <div class="campo">
+            <label>Banco de Preço</label>
+            <select id="crud-item-banco">
+              <option value="">— Sem banco —</option>
+              <option value="SINAPI">SINAPI</option>
+              <option value="ORSE">ORSE</option>
+              <option value="SEINFRA">SEINFRA</option>
+              <option value="SEDOP">SEDOP</option>
+              <option value="SETOP">SETOP</option>
+              <option value="OUTRA">OUTRA</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label>Unidade de Medida *</label>
+            <select id="crud-item-und" onchange="crudRecalcTotal()">
+              <option value="M²">M² — metro quadrado</option>
+              <option value="M³">M³ — metro cúbico</option>
+              <option value="M">M — metro linear</option>
+              <option value="UN">UN — unidade</option>
+              <option value="VB">VB — verba</option>
+              <option value="PT">PT — ponto</option>
+              <option value="CJ">CJ — conjunto</option>
+              <option value="KG">KG — quilograma</option>
+              <option value="HORA">HORA</option>
+              <option value="MÊS">MÊS</option>
+              <option value="M3XKM">M3XKM</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Coluna 2 -->
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="campo" style="grid-column:1/-1">
+            <label>Descrição do Serviço *</label>
+            <textarea id="crud-item-desc" rows="4" placeholder="Descrição completa do serviço conforme contrato..." style="resize:vertical"></textarea>
+          </div>
+          <div class="campo">
+            <label>Quantidade Contratual *</label>
+            <input id="crud-item-qtd" type="number" step="any" min="0" placeholder="0,00" oninput="crudRecalcTotal()">
+          </div>
+          <div class="campo">
+            <label>Preço Unitário SEM BDI (R$) *</label>
+            <input id="crud-item-up" type="number" step="0.01" min="0" placeholder="0,00" oninput="crudRecalcTotal()">
+          </div>
+          <div class="campo">
+            <label>BDI Aplicado (%)</label>
+            <input id="crud-item-bdi" type="number" step="0.01" value="25" oninput="crudRecalcTotal()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Linha de cálculo ao vivo -->
+      <div id="crud-item-calc" style="margin-top:16px;background:#0f172a;border-radius:6px;padding:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center">
+        <div>
+          <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Qtd Contratual</div>
+          <div id="crud-calc-qtd" style="font-family:'Courier New',monospace;font-size:14px;font-weight:700;color:#f1f5f9">—</div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">P.Unit. c/ BDI</div>
+          <div id="crud-calc-upbdi" style="font-family:'Courier New',monospace;font-size:14px;font-weight:700;color:#f1f5f9">—</div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:#4ade80;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Total c/ BDI</div>
+          <div id="crud-calc-total" style="font-family:'Courier New',monospace;font-size:16px;font-weight:900;color:#4ade80">—</div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Fórmula Memória</div>
+          <div id="crud-calc-formula" style="font-size:11px;color:#94a3b8;margin-top:2px">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-rodape" style="justify-content:space-between">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div id="crud-item-modo-badge" style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;background:#e5e7eb;color:#374151">NOVO ITEM</div>
+        <button class="btn btn-laranja btn-sm" id="crud-item-btn-macro" onclick="converterItemEmMacro()" style="display:none" title="Transforma este item em um Macro Item agrupador de subitens">📦 Converter em Macro Item</button>
+        <button class="btn btn-azul btn-sm" id="crud-item-btn-reverter" onclick="reverterMacroItem(_crudItemIdOrig)" style="display:none" title="Converter Macro Item de volta para item normal">↩️ Converter em Item Normal</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-cinza btn-sm" onclick="fecharCrudItemBM()">✕ Cancelar</button>
+        <button class="btn btn-verde" id="crud-item-btn-salvar" onclick="salvarCrudItemBM()">💾 Salvar e Sincronizar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CLIMA -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-titulo" id="modalTitulo">Registrar Clima</div>
+      <button class="modal-fechar" onclick="fecharModal()">×</button>
+    </div>
+    <div class="modal-corpo">
+      <div class="periodo-label">Manhã</div>
+      <div class="clima-opcoes">
+        <button class="clima-btn" data-per="manha" data-val="Sol"        onclick="selecionarClima(this)"><span class="clima-icone">☀️</span>Sol</button>
+        <button class="clima-btn" data-per="manha" data-val="Parcial"    onclick="selecionarClima(this)"><span class="clima-icone">⛅</span>Parcial</button>
+        <button class="clima-btn" data-per="manha" data-val="Chuva"      onclick="selecionarClima(this)"><span class="clima-icone">🌧️</span>Chuva</button>
+        <button class="clima-btn" data-per="manha" data-val="Tempestade" onclick="selecionarClima(this)"><span class="clima-icone">⛈️</span>Tempestade</button>
+      </div>
+      <div class="periodo-label">Tarde</div>
+      <div class="clima-opcoes">
+        <button class="clima-btn" data-per="tarde" data-val="Sol"        onclick="selecionarClima(this)"><span class="clima-icone">☀️</span>Sol</button>
+        <button class="clima-btn" data-per="tarde" data-val="Parcial"    onclick="selecionarClima(this)"><span class="clima-icone">⛅</span>Parcial</button>
+        <button class="clima-btn" data-per="tarde" data-val="Chuva"      onclick="selecionarClima(this)"><span class="clima-icone">🌧️</span>Chuva</button>
+        <button class="clima-btn" data-per="tarde" data-val="Tempestade" onclick="selecionarClima(this)"><span class="clima-icone">⛈️</span>Tempestade</button>
+      </div>
+      <div class="periodo-label">Noite</div>
+      <div class="clima-opcoes">
+        <button class="clima-btn" data-per="noite" data-val="Sol"        onclick="selecionarClima(this)"><span class="clima-icone">☀️</span>Sol</button>
+        <button class="clima-btn" data-per="noite" data-val="Parcial"    onclick="selecionarClima(this)"><span class="clima-icone">⛅</span>Parcial</button>
+        <button class="clima-btn" data-per="noite" data-val="Chuva"      onclick="selecionarClima(this)"><span class="clima-icone">🌧️</span>Chuva</button>
+        <button class="clima-btn" data-per="noite" data-val="Tempestade" onclick="selecionarClima(this)"><span class="clima-icone">⛈️</span>Tempestade</button>
+      </div>
+    </div>
+    <div class="modal-rodape">
+      <button class="btn btn-cinza btn-sm" onclick="limparDia()">🗑️ Limpar</button>
+      <button class="btn btn-cinza btn-sm" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-azul  btn-sm" onclick="salvarClima()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /app-shell -->
+</div><!-- /app-body -->
+<div class="toast" id="toast"></div>
+
+<script>
