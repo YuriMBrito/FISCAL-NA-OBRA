@@ -4,1057 +4,128 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fiscal na Obra · Sistema de Fiscalização de Obras Públicas</title>
-  <meta name="description" content="Sistema de fiscalização de obras públicas conforme Lei 14.133/2021. Boletins de Medição, Aditivos, SINAPI, Diário de Obra, Relatórios TCU/CGU.">
+  <meta name="description" content="Sistema de fiscalização de obras públicas conforme Lei 14.133/2021.">
   <meta name="theme-color" content="#0d111a">
   <meta name="robots" content="noindex, nofollow">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="shortcut icon" type="image/svg+xml" href="favicon.svg">
 
-  <!-- ═══════════════════════════════ PASSO 0 — Console Safety ═══════════════════════════════ -->
-  <script src="js/console-safety.js"></script>
+  <script type="module" src="js/console-safety.js"></script>
 
-  <!-- ═══════════════════════════════ PASSO 1 — Firebase Stub ═══════════════════════════════ -->
-  <script src="js/firebase-stub.js"></script>
+  <script type="module" src="js/firebase-stub.js"></script>
+  <script type="module" src="js/firebase-loader.js"></script>
+  <script type="module" src="firebase-config.js"></script>
 
-  <!-- ═══════════════════════════════ PASSO 1.1 — Firebase Loader ═══════════════════════════ -->
-  <script src="js/firebase-loader.js"></script>
-
-  <!-- ═══════════════════════════════ PASSO 1.2 — Firebase Config (credenciais do projeto) ══ -->
-  <script src="firebase-config.js"></script>
-
-
-
-  <!-- ═══════════════════════════════════════════════════════════════════ BIBLIOTECAS EXTERNAS ══ -->
-  <!-- SRI (Subresource Integrity): protege contra ataques de supply chain via CDN comprometido. -->
-  <!-- Para regenerar os hashes: node scripts/generate-sri.js                                    -->
-  <!-- SheetJS — sem integrity para evitar falha de SRI em ambientes locais/proxies.
-       Fallback automático para jsDelivr se cdnjs falhar. Igual à estratégia do PDF.js. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+  
   <script>
+    /* Carregamento dinâmico de bibliotecas pesadas para performance */
     (function() {
-      var primary = document.createElement('script');
-      primary.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-      primary.crossOrigin = 'anonymous';
-      primary.onerror = function() {
-        console.warn('[SheetJS] cdnjs falhou — carregando fallback jsDelivr');
-        var fallback = document.createElement('script');
-        fallback.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-        document.head.appendChild(fallback);
-      };
-      document.head.appendChild(primary);
-    })();
-  </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
-          integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw=="
-          crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-  <!-- PDF.js — sem integrity para evitar falha de SRI em ambientes locais/proxies.
-       Fallback automático para jsDelivr se cdnjs falhar. -->
-  <script>
-    (function() {
-      var primary = document.createElement('script');
-      primary.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-      primary.crossOrigin = 'anonymous';
-      primary.onerror = function() {
-        console.warn('[PDF.js] cdnjs falhou — carregando fallback jsDelivr');
-        var fallback = document.createElement('script');
-        fallback.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
-        fallback.onload = function() {
-          if (typeof pdfjsLib !== 'undefined') {
-            pdfjsLib.GlobalWorkerOptions.workerSrc =
-              'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-          }
+      const loadScript = (src, fallbackSrc, onLoad) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.onerror = () => {
+          const f = document.createElement('script');
+          f.src = fallbackSrc;
+          if(onLoad) f.onload = onLoad;
+          document.head.appendChild(f);
         };
-        document.head.appendChild(fallback);
+        if(onLoad) s.onload = onLoad;
+        document.head.appendChild(s);
       };
-      primary.onload = function() {
-        if (typeof pdfjsLib !== 'undefined') {
-          pdfjsLib.GlobalWorkerOptions.workerSrc =
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+      loadScript(
+        'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+        'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
+      );
+
+      loadScript(
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+        () => {
+          if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          }
         }
-      };
-      document.head.appendChild(primary);
+      );
     })();
   </script>
 
-  <!-- ═══════════════════════════════ CSS ═══════════════════════════════ -->
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/ux-enhancements.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <!-- ═══ PREMIUM DESIGN SYSTEM — must be last for override priority ═══ -->
   <link rel="stylesheet" href="css/design-system.css">
 </head>
 
 <body>
+  <a href="#paginas-container" class="skip-link">Ir para o conteúdo principal</a>
 
-<!-- Acessibilidade: link de atalho para conteúdo principal (e-MAG 2.2) -->
-<a href="#paginas-container"
-   style="position:absolute;top:-40px;left:0;z-index:999999;background:#2563eb;color:#fff;
-          padding:8px 16px;font-size:13px;font-weight:700;border-radius:0 0 8px 0;
-          transition:top .2s;text-decoration:none;"
-   onfocus="this.style.top='0'" onblur="this.style.top='-40px'"
-   class="skip-link">
-  Ir para o conteúdo principal
-</a>
-
-<!-- ═══════════ LOADER ═══════════ -->
-<div id="app-loader" style="position:fixed;inset:0;z-index:99999;background:#0d111a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .4s">
-  <div style="font-size:42px">🏗️</div>
-  <div style="color:#f1f5f9;font-size:16px;font-weight:700">Fiscal na Obra v15</div>
-  <div style="color:#6b7280;font-size:12px">Carregando módulos...</div>
-  <div style="width:200px;height:3px;background:#1e2330;border-radius:3px;overflow:hidden;margin-top:8px">
-    <div style="height:100%;background:#2563eb;border-radius:3px;animation:loaderBar 1.5s ease-in-out infinite alternate"></div>
+  <div id="app-loader">
+    <div style="font-size:42px">🏗️</div>
+    <div class="loader-text">Fiscal na Obra v15</div>
+    <div class="loader-bar-container">
+      <div class="loader-bar-fill"></div>
+    </div>
   </div>
-  <style>@keyframes loaderBar{from{width:20%}to{width:90%}}</style>
-</div>
 
-<!-- ═══════════ TELA DE LOGIN ═══════════ -->
-<div id="tela-login" style="display:none">
-
-  <!-- ═══ CARD PRETO — ESQUERDA ═══ -->
-  <div class="login-painel-form">
-
-    <!-- Logo FO -->
-    <div style="text-align:center;margin-bottom:28px;">
-      <div style="width:56px;height:56px;background:#000;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;border:1px solid #222;box-shadow:0 4px 20px rgba(0,0,0,0.4);">
-        <span style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-1px;font-family:system-ui,sans-serif;">FO</span>
+  <div id="tela-login" style="display:none">
+    <div class="login-painel-form">
+      <div class="login-header">
+        <div class="logo-box">FO</div>
+        <h1>Fiscal na Obra</h1>
+        <p>Lei 14.133/2021</p>
       </div>
-      <div style="font-size:19px;font-weight:800;color:#f1f5f9;letter-spacing:-.3px;">Fiscal na Obra</div>
-      <div style="font-size:11px;color:#4b5563;margin-top:3px;">Sistema de Fiscalização de Obras · Lei 14.133/2021</div>
+
+      <div class="login-tabs">
+        <button id="aba-entrar" data-action="_abaLogin" data-arg0='entrar' class="active">Entrar</button>
+        <button id="aba-cadastrar" data-action="_abaLogin" data-arg0='cadastrar'>Cadastrar</button>
+      </div>
+
+      <div class="login-form-fields">
+        <div class="input-group">
+          <label for="login-email">E-mail</label>
+          <input id="login-email" type="email" placeholder="seu@email.com">
+        </div>
+        <div class="input-group">
+          <label for="login-senha">Senha</label>
+          <input id="login-senha" type="password" placeholder="••••••••">
+        </div>
+        
+        <button id="login-btn" data-action="_loginAction" class="btn-primary">🔐 ENTRAR NO SISTEMA</button>
+      </div>
     </div>
 
-    <!-- Abas Entrar / Cadastrar -->
-    <div style="display:flex;background:#111;border-radius:10px;padding:4px;margin-bottom:22px;gap:4px;">
-      <button id="aba-entrar" data-action="_abaLogin" data-arg0='entrar'
-        style="flex:1;padding:9px;border:none;border-radius:7px;background:#fff;color:#000;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;">Entrar</button>
-      <button id="aba-cadastrar" data-action="_abaLogin" data-arg0='cadastrar'
-        style="flex:1;padding:9px;border:none;border-radius:7px;background:transparent;color:#555;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;">Cadastrar</button>
-    </div>
-
-    <!-- Campos -->
-    <div style="display:flex;flex-direction:column;gap:14px;" role="form" aria-label="Formulário de acesso">
-      <div>
-        <label for="login-email" style="font-size:11px;font-weight:600;color:#555;letter-spacing:.6px;text-transform:uppercase;display:block;margin-bottom:6px;">E-mail</label>
-        <input id="login-email" type="email" placeholder="seu@email.com" autocomplete="email"
-          aria-label="Endereço de e-mail" aria-required="true"
-          style="width:100%;background:#0d0d0d;border:1px solid #222;color:#f1f5f9;border-radius:8px;padding:11px 14px;font-size:14px;box-sizing:border-box;transition:border-color .2s;outline:none;"
-          onfocus="this.style.borderColor='#fff'" onblur="this.style.borderColor='#222'">
-      </div>
-      <div>
-        <label for="login-senha" style="font-size:11px;font-weight:600;color:#555;letter-spacing:.6px;text-transform:uppercase;display:block;margin-bottom:6px;">Senha</label>
-        <input id="login-senha" type="password" placeholder="••••••••" autocomplete="current-password"
-          aria-label="Senha de acesso" aria-required="true"
-          style="width:100%;background:#0d0d0d;border:1px solid #222;color:#f1f5f9;border-radius:8px;padding:11px 14px;font-size:14px;box-sizing:border-box;transition:border-color .2s;outline:none;"
-          onfocus="this.style.borderColor='#fff'" onblur="this.style.borderColor='#222'"
-          onkeydown="if(event.key==='Enter')window._loginAction?.()">
-      </div>
-
-      <!-- Toggle salvar login -->
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;" data-action="_toggleSalvar">
-          <div id="toggle-salvar" style="width:36px;height:20px;background:#fff;border-radius:10px;position:relative;cursor:pointer;transition:background .2s;">
-            <div id="toggle-thumb" style="width:16px;height:16px;background:#000;border-radius:50%;position:absolute;top:2px;left:18px;transition:left .2s;"></div>
-          </div>
-          <span style="font-size:12px;color:#555;">Salvar login</span>
-        </label>
-        <span id="login-salvo-label" style="font-size:11px;color:#444;display:none;">e-mail salvo</span>
-      </div>
-
-      <!-- Erro -->
-      <div id="login-erro" style="color:#ef4444;font-size:12px;min-height:16px;margin:-4px 0 0;display:flex;align-items:center;gap:6px;"></div>
-
-      <!-- Botão entrar -->
-      <button id="login-btn" data-action="_loginAction"
-        style="width:100%;padding:13px;background:#fff;color:#000;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.3px;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px;"
-        onmouseover="if(!this.disabled)this.style.background='#e5e5e5'" onmouseout="if(!this.disabled)this.style.background='#fff'">
-        🔐 ENTRAR NO SISTEMA
-      </button>
-
-      <!-- Divider -->
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="flex:1;height:1px;background:#1a1a1a;"></div>
-        <span style="font-size:11px;color:#444;">ou</span>
-        <div style="flex:1;height:1px;background:#1a1a1a;"></div>
-      </div>
-
-      <!-- Google -->
-      <button data-action="_loginGoogle"
-        style="width:100%;padding:11px;background:#0d0d0d;color:#ccc;border:1px solid #222;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:border-color .2s;"
-        onmouseover="this.style.borderColor='#444'" onmouseout="this.style.borderColor='#222'">
-        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66 2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        Entrar com Google
-      </button>
-
-      <!-- Links rodapé -->
-      <div style="display:flex;justify-content:center;gap:16px;margin-top:2px;">
-        <a href="#" data-action="_abrirConfigFirebase" style="font-size:11px;color:#333;text-decoration:none;display:flex;align-items:center;gap:4px;">🔥 Configurar Firebase</a>
-        <a href="#" data-action="_modoOffline" style="font-size:11px;color:#333;text-decoration:none;display:flex;align-items:center;gap:4px;">📴 Modo Offline</a>
-      </div>
-
-      <!-- Rodapé -->
-      <div style="text-align:center;margin-top:4px;border-top:1px solid #111;padding-top:14px;">
-        <div style="font-size:11px;color:#333;">🔒 Acesso restrito a usuários autorizados</div>
-        <div style="font-size:11px;color:#444;margin-top:2px;font-weight:600;">Fiscal na Obra · Yuri Moreira</div>
-        <div style="font-size:10px;color:#2a2a2a;margin-top:6px;line-height:1.6;">© 2025 Fiscal na Obra — Todos os direitos reservados.<br>Sistema desenvolvido por Yuri Moreira. Reprodução proibida.</div>
+    <div class="login-painel-visual">
+      <img src="login-bg.webp" alt="Background">
+      <div class="visual-overlay"></div>
+      <div class="visual-content">
+        <span>FISCAL NA OBRA</span>
+        <h2>Controle de Obras Simplificado</h2>
       </div>
     </div>
   </div>
 
-  <!-- ═══ PAINEL IMAGEM — DIREITA ═══ -->
-  <div class="login-painel-visual">
-    <img src="login-bg.webp" loading="lazy" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;">
-    <!-- Overlay escuro para garantir legibilidade do texto -->
-    <div style="position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,0.45),rgba(0,0,0,0.45));"></div>
-    <!-- Texto central -->
-    <div style="position:relative;z-index:2;text-align:center;padding:0 48px;">
-      <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.6);letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 2px 10px rgba(0,0,0,0.7);">Fiscal na Obra</div>
-      <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-.5px;line-height:1.2;text-shadow:0 2px 20px rgba(0,0,0,0.7);">Controle de Obras<br>Simplificado</div>
-      <div style="font-size:14px;color:rgba(255,255,255,0.65);margin-top:12px;text-shadow:0 2px 10px rgba(0,0,0,0.7);letter-spacing:.3px;">Boletins · Medições · Fiscalização</div>
-    </div>
-    <!-- Marca d'água -->
-    <div style="position:absolute;bottom:28px;right:32px;font-size:48px;font-weight:900;color:rgba(255,255,255,0.04);letter-spacing:-2px;pointer-events:none;user-select:none;white-space:nowrap;">Fiscal na Obra</div>
-  </div>
-
-</div>
-
-<script src="js/login-controller.js"></script>
-
-<!-- spinner keyframe -->
-<style>
-@keyframes spin { to { transform: rotate(360deg); } }
-</style>
-
-<!-- ═══════════ APP SHELL ═══════════ -->
-<div id="app-shell" style="display:none" role="application" aria-label="Fiscal na Obra">
-
-  <!-- Sidebar (preenchida por SidebarComponent.init()) -->
-  <aside id="sidebar" class="sidebar" role="navigation" aria-label="Menu principal"></aside>
-
-  <!-- Área principal -->
-  <div class="app-main">
-
-    <!-- Indicador de saúde dos módulos (atualizado pelo ModuleMonitor) -->
-  <div id="fo-health-indicator"
-    role="status" aria-live="polite" aria-label="Saúde dos módulos do sistema"
-    style="position:fixed;bottom:14px;right:14px;z-index:8000;display:flex;align-items:center;gap:5px;
-           background:#1e2330;border:1px solid #2d3748;border-radius:20px;padding:4px 10px;
-           font-size:11px;cursor:pointer;user-select:none;box-shadow:0 2px 8px rgba(0,0,0,.4)"
-    data-action="verPagina" data-arg0="diagnostico"
-    title="Saúde dos módulos — clique para diagnóstico">
-    <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block" aria-hidden="true"></span>
-    <span style="color:#22c55e;font-weight:700">18/18</span>
-  </div>
-
-  <!-- Topbar (preenchida por TopbarComponent.init()) -->
-    <header id="topbar" class="topbar" role="banner"></header>
-
-    <!-- ═══════════════════════════════════════
-         CONTEÚDO — PÁGINAS DA APLICAÇÃO
-    ═══════════════════════════════════════ -->
-    <main class="conteudo" id="paginas-container" role="main" aria-label="Conteúdo principal">
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  DASHBOARD (página inicial/padrão)   ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="dashboard" class="pagina">
-        <!-- DashboardModule injeta todo o conteúdo em .dash-dark via _render() -->
-        <div class="dash-dark">
-          <!-- #dash-tab-header e #dash-tab-body são criados dinamicamente pelo controller -->
-        </div>
-      </div><!-- /dashboard -->
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  CONFIGURAÇÕES                       ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="config" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">Dados do Contrato</div>
-          <div class="form-grid">
-            <div class="campo"><label>Nº Contrato</label><input id="cfgContrato" value=""></div>
-            <div class="campo"><label>BDI Integral — Serviços (%)</label><input id="cfgBdi" type="number" step="0.01" value="25"></div>
-            <div class="campo"><label>BDI Reduzido — Equipamentos/Materiais (%) <span style="font-size:9px;color:#6b7280;font-weight:400">TCU Acórdão 2.622/2013</span></label><input id="cfgBdiReduzido" type="number" step="0.01" value="10" placeholder="Ex: 10"></div>
-            <div class="campo">
-              <label>Modo de Cálculo Numérico</label>
-              <select id="cfgModoCalculo" style="width:100%">
-                <option value="truncar">✂️ Truncar valores (2 casas) — Recomendado TCU</option>
-                <option value="arredondar">🔢 Arredondar valores</option>
-              </select>
-            </div>
-            <div class="campo cheio"><label>Objeto (nome completo)</label><input id="cfgObjeto" value=""></div>
-            <div class="campo cheio"><label>Apelido da Obra <span style="font-size:10px;color:var(--text-muted);font-weight:400">(nome curto para gráficos e listas)</span></label><input id="cfgApelido" value="" placeholder="Ex: Av. Rio Mucuri, Escola Central..."></div>
-            <div class="campo"><label>Contratante</label><input id="cfgContratante" value=""></div>
-            <div class="campo"><label>Contratada</label><input id="cfgContratada" value=""></div>
-            <div class="campo"><label>CNPJ Contratada</label><input id="cfgCnpj" value=""></div>
-            <div class="campo"><label>Valor Contratual (R$)</label><input id="cfgValor" type="number" step="0.01"></div>
-            <div class="campo"><label>Início Previsto</label><input id="cfgInicioPrev" type="date"></div>
-            <div class="campo"><label>Início Real</label><input id="cfgInicioReal" type="date"></div>
-            <div class="campo"><label>Duração (dias)</label><input id="cfgDuracaoDias" type="number" min="0"></div>
-            <div class="campo"><label>Término Previsto</label><input id="cfgTermino" type="date"></div>
-            <div class="campo"><label>Fiscal do Contrato</label><input id="cfgFiscal" value=""></div>
-            <div class="campo"><label>CREA / CAU (Fiscal)</label><input id="cfgCreaFiscal" value=""></div>
-            <div class="campo"><label>Resp. Técnico (Contratada)</label><input id="cfgRT" value=""></div>
-            <div class="campo"><label>CREA / CAU (RT)</label><input id="cfgCreaRT" value=""></div>
-          </div>
-          <div class="acoes">
-            <button class="btn btn-azul" data-action="salvarConfig">💾 Salvar Configurações</button>
-          </div>
-        </div>
-
-        <!-- Logo da Obra -->
-        <div class="card">
-          <div class="titulo-secao">Logo da Obra</div>
-          <div id="logoPreviewWrap" style="display:none;margin-bottom:10px">
-            <img id="logoPreviewImg" style="max-height:80px;max-width:240px;object-fit:contain;border:1px solid var(--border);border-radius:6px;padding:4px">
-          </div>
-          <input type="file" id="logoInput" accept="image/*" style="display:none" onchange="window.carregarLogo?.(event)">
-          <div class="acoes">
-            <button class="btn btn-cinza btn-sm" data-action="_cfgClickLogoInput">📁 Carregar Logo</button>
-            <button class="btn btn-vermelho btn-sm" data-action="removerLogo">🗑️ Remover</button>
-          </div>
-        </div>
-
-        <!-- Status da Obra -->
-        <div class="card">
-          <div class="titulo-secao">Status da Obra</div>
-          <div id="cfg-status-obra-info"></div>
-          <div id="cfg-status-obra-acoes" class="acoes" style="margin-top:10px"></div>
-        </div>
-
-        <!-- Boletins de Medição na Config -->
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-            <div class="titulo-secao" style="margin:0;border:none;padding:0">Boletins de Medição</div>
-            <button class="btn btn-verde btn-sm" data-action="adicionarBM">➕ Novo BM</button>
-          </div>
-          <div class="tabela-wrap">
-            <table><thead><tr>
-              <th>Boletim</th><th>Mês Referência</th><th>Data</th>
-              <th class="td-r">Valor Med. (R$)</th><th class="td-r">Acumulado (R$)</th>
-              <th class="td-c" style="width:100px">Ações</th>
-            </tr></thead>
-            <tbody id="config-bms-lista"></tbody></table>
-          </div>
-        </div>
-
-        <!-- Firebase -->
-        <div class="card">
-          <div class="titulo-secao">🔥 Conexão Firebase</div>
-          <div class="form-grid">
-            <div class="campo cheio"><label>API Key</label><input id="fb-apikey" placeholder="AIzaSy..."></div>
-            <div class="campo"><label>Auth Domain</label><input id="fb-authdomain" placeholder="projeto.firebaseapp.com"></div>
-            <div class="campo"><label>Project ID</label><input id="fb-projectid" placeholder="meu-projeto"></div>
-            <div class="campo"><label>Storage Bucket</label><input id="fb-storagebucket" placeholder="meu-projeto.appspot.com"></div>
-            <div class="campo"><label>Messaging Sender ID</label><input id="fb-senderid" placeholder="123456789"></div>
-            <div class="campo"><label>App ID</label><input id="fb-appid" placeholder="1:123:web:abc"></div>
-          </div>
-          <div class="acoes">
-            <button class="btn btn-azul btn-sm" data-action="salvarFirebaseConfig">🔥 Conectar Firebase</button>
-            <button class="btn btn-cinza btn-sm" data-action="testarFirebase">🔍 Testar Conexão</button>
-          </div>
-          <div id="fb-status-info" style="margin-top:10px;font-size:12px;color:var(--text-muted)"></div>
-        </div>
-
-        <!-- Exportar Documentação da Obra -->
-        <div class="card">
-          <div class="titulo-secao">📦 Exportar Documentação da Obra</div>
-          <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
-            Gera um arquivo ZIP com todos os documentos da obra selecionada (PDFs, CSVs e relatórios organizados por pasta).
-          </p>
-          <div class="acoes">
-            <button class="btn btn-azul" data-action="exportarDocumentacaoObra" title="Exportar todos os documentos em ZIP">
-              📦 Exportar Documentação da Obra (ZIP)
-            </button>
-          </div>
-          <div id="cfg-export-progress" style="display:none;margin-top:12px;font-size:12px;color:var(--text-muted)"></div>
-        </div>
-
-        <!-- Log de Auditoria -->
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-            <div class="titulo-secao" style="margin:0;border:none;padding:0">🔍 Log de Auditoria</div>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-cinza btn-sm" data-action="renderAuditLog">🔄 Atualizar</button>
-              <button class="btn btn-cinza btn-sm" data-action="exportarCSVAudit" title="Exportar log em CSV">📊 Exportar CSV</button>
-            </div>
-          </div>
-          <div id="cfg-audit-log" style="font-size:11px;max-height:300px;overflow-y:auto">
-            <div style="text-align:center;padding:20px;color:var(--text-muted)">Carregando log...</div>
-          </div>
-        </div>
-
-        <!-- ═══════════════════════════════════════════════════════
-             🗑️  ITENS EXCLUÍDOS — LIXEIRA DO SISTEMA
-             ═══════════════════════════════════════════════════════ -->
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-            <div style="display:flex;align-items:center;gap:10px">
-              <div style="width:32px;height:32px;background:#dc262618;border:1px solid #dc262644;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px">🗑️</div>
-              <div>
-                <div class="titulo-secao" style="margin:0;border:none;padding:0">Itens Excluídos</div>
-                <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Registros movidos para a lixeira — podem ser restaurados ou excluídos permanentemente</div>
-              </div>
-            </div>
-            <button class="btn btn-cinza btn-sm" data-action="_cfgRenderLixeira">🔄 Atualizar</button>
-          </div>
-          <div id="cfg-lixeira-lista">
-            <div style="text-align:center;padding:30px;color:var(--text-muted);font-size:12px">⏳ Carregando lixeira...</div>
-          </div>
-        </div>
-
-      </div><!-- /config -->
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  BOLETIM DE MEDIÇÃO                  ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="boletim" class="pagina">
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-            <div class="titulo-secao" style="margin:0;border:none;padding:0">Boletim de Medição</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-              <select id="sel-bol-bm" onchange="window.renderBoletim?.()" style="width:auto;padding:6px 10px;font-size:12px"></select>
-              <button class="btn btn-verde btn-sm" data-action="abrirCrudItemBM" data-arg0="novo">➕ Adicionar Item</button>
-              <button class="btn btn-laranja btn-sm" data-action="abrirCrudMacroItem">📦 Macro Item</button>
-              <button class="btn btn-azul btn-sm" data-action="imprimirBoletim">🖨️ Gerar PDF</button>
-              <button class="btn btn-cinza btn-sm" data-action="exportarCSVBoletim" title="Exportar Boletim em CSV">📊 Exportar CSV</button>
-              <button class="btn btn-verde btn-sm" id="btn-salvar-medicao-bol" data-action="salvarMedicaoBol" title="Salvar dados da medição">💾 Salvar</button>
-              <button class="btn btn-sm" id="btn-marcar-bol" data-action="marcarSalvoBol" style="background:#2563eb;color:#fff;border:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer" title="Bloquear documento para edição">🔒 Marcar como Salvo</button>
-              <button class="btn btn-sm" id="btn-desmarcar-bol" data-action="desmarcarSalvoBol" style="display:none;background:#d97706;color:#fff;border:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer" title="Remover bloqueio e liberar edição">🔓 Desmarcar como Salvo</button>
-              <span id="bol-status-badge" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid"></span>
-            </div>
-          </div>
-          <div class="bm-infos" id="bol-infos"></div>
-          <div style="overflow-x:auto;overflow-y:auto;max-height:65vh;width:100%">
-            <div id="bol-table-wrap" style="min-width:max-content">
-              <div style="padding:40px;text-align:center;color:var(--text-muted)">⏳ Carregando boletim...</div>
-            </div>
-          </div>
-          <div class="card" style="margin-top:12px;margin-bottom:0">
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px;text-align:center">
-              <div>
-                <div style="height:45px"></div>
-                <div style="border-top:1px solid #000;padding-top:8px;font-size:10.5px;color:#6b7280">
-                  <div style="font-weight:700;color:#1e293b" id="sig-fiscal-bol">FISCAL DO CONTRATO</div>
-                  <div id="sig-crea-bol"></div>
-                  <div style="margin-top:3px">Data: ___/___/______</div>
-                </div>
-              </div>
-              <div>
-                <div style="height:45px"></div>
-                <div style="border-top:1px solid #000;padding-top:8px;font-size:10.5px;color:#6b7280">
-                  <div style="font-weight:700;color:#1e293b" id="sig-contratada-bol">RESPONSÁVEL TÉCNICO</div>
-                  <div id="sig-cnpj-bol"></div>
-                  <div style="margin-top:3px">Data: ___/___/______</div>
-                </div>
-              </div>
-              <div>
-                <div style="height:45px"></div>
-                <div style="border-top:1px solid #000;padding-top:8px;font-size:10.5px;color:#6b7280">
-                  <div style="font-weight:700;color:#1e293b" id="sig-contratante-bol">CONTRATANTE</div>
-                  <div>GESTORA DO CONTRATO</div>
-                  <div style="margin-top:3px">Data: ___/___/______</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+  <div id="app-shell" style="display:none">
+    <aside id="sidebar" class="sidebar"></aside>
+    <div class="app-main">
+      <div id="fo-health-indicator" data-action="verPagina" data-arg0="diagnostico">
+        <span class="dot"></span> <span>18/18</span>
       </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  MEMÓRIA DE CÁLCULO                  ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="memoria" class="pagina">
-        <!-- ── Cabeçalho melhorado ─────────────────────────────── -->
-        <div class="card" style="padding:14px 18px;margin-bottom:0">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-              <div>
-                <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">
-                  📐 Memória de Cálculo
-                </div>
-                <div style="font-size:18px;font-weight:800;color:var(--text-primary);margin-top:1px">
-                  Lançamento de Medição
-                </div>
-              </div>
-              <div style="display:flex;align-items:center;gap:8px;background:var(--bg-surface);
-                border:1px solid var(--border);border-radius:8px;padding:6px 12px">
-                <span style="font-size:11px;font-weight:600;color:var(--text-muted)">Boletim:</span>
-                <select id="sel-mem-bm" style="background:transparent;border:none;font-size:13px;
-                  font-weight:700;color:var(--text-primary);cursor:pointer;outline:none;min-width:140px"
-                  onchange="window.renderMemoria?.()"></select>
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn btn-cinza btn-sm" data-action="renderMemoria" title="Recarregar">
-                🔄 Atualizar
-              </button>
-              <button class="btn btn-cinza btn-sm" data-action="_memImportarBmAnterior" title="Importar memória do BM anterior">
-                📋 Importar BM Anterior
-              </button>
-              <button class="btn btn-pdf btn-sm" data-action="imprimirMemoria">
-                🖨️ Gerar PDF
-              </button>
-              <button class="btn btn-cinza btn-sm" data-action="exportarCSVMemoria" title="Exportar Memória em CSV">
-                📊 Exportar CSV
-              </button>
-              <button class="btn btn-verde btn-sm" id="btn-salvar-medicao-mem" data-action="salvarMedicaoMem" title="Salvar dados da medição"> 💾 Salvar </button>
-              <button class="btn btn-sm" id="btn-marcar-mem" data-action="marcarSalvoMem" style="background:#2563eb;color:#fff;border:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer" title="Bloquear documento para edição">🔒 Marcar como Salvo</button>
-              <button class="btn btn-sm" id="btn-desmarcar-mem" data-action="desmarcarSalvoMem" style="display:none;background:#d97706;color:#fff;border:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer" title="Remover bloqueio e liberar edição">🔓 Desmarcar como Salvo</button>
-              <span id="mem-status-badge" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid"></span>
-            </div>
-          </div>
-        </div>
-        <!-- ── KPIs ────────────────────────────────────────────── -->
-        <div class="kpi-grid" id="mem-kpis" style="margin:8px 0"></div>
-        <!-- ── Tabela ──────────────────────────────────────────── -->
-        <div class="card" style="padding:0">
-          <div class="tabela-wrap" id="mem-table-wrap" style="border-radius:12px;overflow-x:auto;overflow-y:auto;max-height:65vh">
-            <div style="padding:48px;text-align:center;color:var(--text-muted)">
-              <div style="font-size:40px;margin-bottom:12px">📐</div>
-              <div style="font-size:15px;font-weight:700;margin-bottom:6px">Carregando memória de cálculo...</div>
-              <div style="font-size:12px">Selecione uma obra ativa no menu lateral.</div>
-            </div>
-          </div>
-        </div>
-        <!-- Modal Fórmula Especial (fx) -->
-        <div id="mfx-overlay" class="modal-overlay">
-          <div class="modal" style="max-width:560px">
-            <div class="modal-header">
-              <div class="modal-title">𝑓𝑥 Fórmula Especial de Cálculo</div>
-              <button class="modal-close" data-action="_mfxFechar">✕</button>
-            </div>
-            <div class="modal-body">
-              <div id="mfx-info-item" style="font-size:11px;color:var(--text-muted);margin-bottom:12px;padding:8px 10px;background:var(--bg-warm,#1e2330);border-radius:4px;font-family:monospace"></div>
-              <div class="campo">
-                <label>Fórmula (variáveis: C = Comprimento, L = Largura, H = Altura, Q = Quantidade)</label>
-                <input id="mfx-input" type="text" placeholder="Ex: C*L*Q ou (C*L + C*H)*2*Q" oninput="window._mfxRecalc?.()"
-                  style="font-family:monospace;font-size:14px;padding:10px;border:2px solid var(--border);border-radius:6px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)">
-                <div id="mfx-err-msg" style="color:#ef4444;font-size:11px;margin-top:4px;min-height:16px"></div>
-              </div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
-                <button class="btn btn-cinza btn-sm" data-action="_mfxInserir" data-arg0="C">C</button>
-                <button class="btn btn-cinza btn-sm" data-action="_mfxInserir" data-arg0="L">L</button>
-                <button class="btn btn-cinza btn-sm" data-action="_mfxInserir" data-arg0="H">H</button>
-                <button class="btn btn-cinza btn-sm" data-action="_mfxInserir" data-arg0="Q">Q</button>
-                <button class="btn btn-cinza btn-sm" data-action="_mfxInserir" data-arg0="*">×</button>
-                <button class="btn btn-cinza btn-sm" data-action="_mfxInserir" data-arg0="("> ( </button>
-                <button class="btn btn-cinza btn-sm" data-action="_mfxInserir" data-arg0=")"> ) </button>
-                <button class="btn btn-cinza btn-sm" data-action="_mfxInserir" data-arg0="+" style="margin-left:6px">+</button>
-                <button class="btn btn-cinza btn-sm" data-action="_mfxInserir" data-arg0="-">−</button>
-                <button class="btn btn-cinza btn-sm" data-action="_mfxInserir" data-arg0="/">÷</button>
-              </div>
-              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">Teste em tempo real</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:8px">
-                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">C (Comprimento)</label><input id="mfx-tc" type="number" value="1" oninput="window._mfxRecalc?.()" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
-                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">L (Largura)</label><input id="mfx-tl" type="number" value="1" oninput="window._mfxRecalc?.()" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
-                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">H (Altura)</label><input id="mfx-ta" type="number" value="1" oninput="window._mfxRecalc?.()" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
-                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Q (Quantidade)</label><input id="mfx-tq" type="number" value="1" oninput="window._mfxRecalc?.()" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
-              </div>
-              <div id="mfx-preview" style="padding:10px 14px;background:var(--bg-warm,#1e2330);border-radius:6px;font-size:16px;font-weight:700;font-family:monospace;text-align:center;min-height:42px;border:2px solid var(--border)">—</div>
-              <div id="mfx-remover-wrap" style="margin-top:10px;display:none">
-                <button class="btn btn-vermelho btn-sm" style="width:100%" data-action="_mfxRemover">🗑️ Remover Fórmula Especial</button>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-cinza" data-action="_mfxFechar">Cancelar</button>
-              <button class="btn btn-azul" data-action="_mfxSalvar">✅ Aplicar Fórmula</button>
-            </div>
-          </div>
-        </div>
-      </div><!-- /memoria -->
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  ADITIVOS CONTRATUAIS                ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="aditivos" class="pagina">
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-            <div class="titulo-secao" style="margin:0;border:none;padding:0">Aditivos Contratuais</div>
-            <button class="btn btn-azul btn-sm" data-action="abrirModalNovoAditivo">➕ Novo Aditivo</button>
-          </div>
-          <div id="aditivos-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  PAINEL CONTRATUAL                   ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="painel-contratual" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">📊 Painel Contratual</div>
-          <div id="painel-contratual-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  QUADRO DE CHUVA                     ║
-           ╚══════════════════════════════════════╝ -->
-            <div id="chuva" class="pagina">
-        <div class="card">
-          <div class="titulo-secao" style="margin-bottom:16px">☁️ Quadro de Chuvas</div>
-          <div id="chuva-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  OCORRÊNCIAS                         ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="ocorrencias" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">⚠️ Ocorrências e Checklist</div>
-          <div id="ocorrencias-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  RELATÓRIO MENSAL                    ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="relatorio" class="pagina">
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-            <div class="titulo-secao" style="margin:0;border:none;padding:0">Relatório Mensal de Acompanhamento</div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <select id="sel-rel-bm" style="width:auto;padding:6px 10px;font-size:12px" onchange="window.renderRelatorio?.()"></select>
-              <span style="font-size:10px;font-weight:700;color:#6b7280">PERÍODO:</span>
-              <input type="date" id="rel-data-ini" style="width:auto;padding:5px 8px;font-size:11px" onchange="window.renderRelatorio?.()">
-              <span style="font-size:10px;color:#6b7280">até</span>
-              <input type="date" id="rel-data-fim" style="width:auto;padding:5px 8px;font-size:11px" onchange="window.renderRelatorio?.()">
-              <button class="btn btn-cinza btn-sm" data-action="limparFiltroRelatorio">✕ Limpar</button>
-              <button class="btn btn-azul btn-sm" data-action="imprimirRelatorio">🖨️ Gerar PDF</button>
-              <button class="btn btn-cinza btn-sm" data-action="exportarCSVRelatorio" title="Exportar Relatório em CSV">📊 Exportar CSV</button>
-            </div>
-          </div>
-          <div id="rel-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  NOTIFICAÇÕES                        ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="notificacoes" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">Registro de Notificações</div>
-          <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:5px;padding:14px;margin-bottom:14px">
-            <div style="font-size:11px;font-weight:700;color:#0369a1;text-transform:uppercase;margin-bottom:10px">Nova Notificação</div>
-            <div class="form-grid">
-              <div class="campo"><label>Número da Notificação</label><input id="notif-num" placeholder="Ex: NOT-001/2026"></div>
-              <div class="campo"><label>Data da Notificação</label><input id="notif-data" type="date"></div>
-              <div class="campo cheio"><label>Descrição da Notificação</label><textarea id="notif-desc" rows="3" placeholder="Descreva o objeto da notificação..."></textarea></div>
-            </div>
-            <div class="acoes" style="margin-top:10px">
-              <button class="btn btn-azul btn-sm" data-action="adicionarNotificacao">➕ Registrar Notificação</button>
-            </div>
-          </div>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-            <div style="font-size:11px;font-weight:700">Filtrar por período:</div>
-            <input type="date" id="notif-filtro-ini" style="width:auto" onchange="window.renderNotificacoes?.()">
-            <span style="font-size:11px;color:#6b7280">até</span>
-            <input type="date" id="notif-filtro-fim" style="width:auto" onchange="window.renderNotificacoes?.()">
-            <button class="btn btn-cinza btn-sm" data-action="limparFiltroNotif">✕ Limpar</button>
-            <button class="btn btn-pdf btn-sm" data-action="gerarPDFNotificacoes" style="margin-left:auto">📄 Gerar PDF</button>
-            <button class="btn btn-cinza btn-sm" data-action="exportarCSVNotificacoes" title="Exportar Notificações em CSV">📊 Exportar CSV</button>
-          </div>
-          <div id="notif-lista"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  DIÁRIO DE OBRAS                     ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="diario" class="pagina">
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-            <div class="titulo-secao" style="margin:0;border:none;padding:0">📓 Diário de Obras</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-              <button class="btn btn-pdf btn-sm" data-action="gerarPDFDiario" title="Gerar PDF do Diário de Obras">🖨️ Gerar PDF</button>
-              <button class="btn btn-cinza btn-sm" data-action="exportarCSVDiario" title="Exportar Diário em CSV">📊 Exportar CSV</button>
-            </div>
-          </div>
-          <div id="diario-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  DOCUMENTOS                          ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="documentos" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">📂 Documentos da Obra</div>
-          <div id="documentos-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  HISTÓRICO DE ALTERAÇÕES             ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="historico" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">🕐 Histórico de Alterações</div>
-          <div id="historico-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  USUÁRIOS                            ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="usuarios" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">👥 Usuários da Obra</div>
-          <div id="usuarios-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  OBRAS CONCLUÍDAS                    ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="obras-concluidas" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">🏆 Obras Concluídas</div>
-          <div id="obras-conc-lista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  GERENCIADOR DE OBRAS                ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="obras-manager" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">🏗️ Gerenciador de Obras</div>
-          <div id="obras-manager-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  IMPORTAÇÃO DE PLANILHAS             ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="importacao" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">📥 Importar Planilha</div>
-          <div id="importacao-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  DASHBOARD GLOBAL                    ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="dash-global" class="pagina ativa">
-        <div id="dash-global-conteudo"></div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  FISCAL DE OBRAS                     ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="fiscal-obras" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">👷 Fiscal de Obras</div>
-          <div id="fiscal-obras-conteudo"></div>
-        </div>
-      </div>
-
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  DIAGNÓSTICO DO SISTEMA              ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="diagnostico" class="pagina">
-        <!-- preenchido por DiagnosticoModule.onEnter() -->
-        <div style="padding:40px;text-align:center;color:var(--text-muted)">⏳ Carregando diagnóstico...</div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  ACESSO À OBRA — FIX E1.4            ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="acesso-obra" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">🔑 Acesso à Obra</div>
-          <div id="cfg-acesso-obra-container"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  LEI 14.133/2021 — RESPONSÁVEIS      ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="responsaveis" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">👷 Responsáveis do Contrato</div>
-          <div id="responsaveis-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  LEI 14.133/2021 — SANÇÕES           ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="sancoes" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">⚖️ Sanções Administrativas</div>
-          <div id="sancoes-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  LEI 14.133/2021 — PRAZOS            ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="prazos" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">📅 Controle de Prazos Contratuais</div>
-          <div id="prazos-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  LEI 14.133/2021 — RECEBIMENTO       ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="recebimento" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">✅ Recebimento Provisório e Definitivo</div>
-          <div id="recebimento-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  LEI 14.133/2021 — RISCOS            ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="riscos" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">🎯 Matriz de Riscos</div>
-          <div id="riscos-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  PAC — IMPORTAÇÃO SINAPI             ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="sinapi" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">📊 Importação SINAPI</div>
-          <div id="sinapi-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  PAC — FOTOS DE MEDIÇÃO COM GPS      ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="fotos-medicao" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">📷 Fotos de Medição</div>
-          <div id="fotos-medicao-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  PAC — CHECKLIST TÉCNICO             ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="checklist-tecnico" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">📋 Checklist Técnico de Inspeção</div>
-          <div id="checklist-tecnico-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  PAC — ETAPAS / MARCOS FÍSICOS       ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="etapas-pac" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">🇧🇷 Etapas PAC — Marcos Físicos</div>
-          <div id="etapas-pac-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  PAC — RELATÓRIO FEDERAL CGU/TCU     ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="relatorio-federal" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">📄 Relatório Federal — CGU / TCU</div>
-          <div id="relatorio-federal-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  MODO CAMPO (mobile simplificado)    ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="modo-campo" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">📱 Modo Campo</div>
-          <div id="modo-campo-conteudo"></div>
-        </div>
-      </div>
-
-      <!-- ╔══════════════════════════════════════╗
-           ║  QUALIDADE — LAUDOS E CERTIFICADOS   ║
-           ╚══════════════════════════════════════╝ -->
-      <div id="qualidade" class="pagina">
-        <div class="card">
-          <div class="titulo-secao">🔬 Controle de Qualidade de Materiais</div>
-          <div id="qualidade-conteudo"></div>
-        </div>
-      </div>
-
-    </main><!-- /conteudo -->
-  </div><!-- /app-main -->
-</div><!-- /app-shell -->
-
-<!-- ════════════════════════════════════════════════════════════════
-     MODAL DE CONFIRMAÇÃO DE LOGOUT
-════════════════════════════════════════════════════════════════ -->
-<div id="logout-modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title">
-  <div class="modal" style="max-width:380px;text-align:center">
-    <div class="modal-header" style="justify-content:center;border-bottom:none;padding-bottom:0">
-      <div style="font-size:40px;line-height:1;margin-bottom:4px">👋</div>
-    </div>
-    <div class="modal-body" style="padding-top:12px;padding-bottom:8px">
-      <h2 id="logout-modal-title" style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--text-primary,#eee)">Sair da conta?</h2>
-      <p style="font-size:12px;color:var(--text-muted,#888);line-height:1.5" id="logout-modal-user"></p>
-    </div>
-    <div class="modal-footer" style="justify-content:center;gap:10px;padding-top:8px">
-      <button class="btn btn-cinza" id="logout-modal-cancelar" style="min-width:100px">Cancelar</button>
-      <button class="btn btn-danger" id="logout-modal-confirmar" style="min-width:100px;display:flex;align-items:center;justify-content:center;gap:6px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-        </svg>
-        Sair
-      </button>
+      <header id="topbar" class="topbar"></header>
+      <main class="conteudo" id="paginas-container">
+        <div id="dash-global" class="pagina ativa"></div>
+        <div id="dashboard" class="pagina"></div>
+        <div id="boletim" class="pagina"></div>
+        <div id="memoria" class="pagina"></div>
+        <div id="config" class="pagina"></div>
+        </main>
     </div>
   </div>
-</div>
 
-<!-- ════════════════════════════════════════════════════════════════
-     ESTILOS INLINE MÍNIMOS (layout base que não dependem de CSS externo)
-════════════════════════════════════════════════════════════════ -->
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%;overflow:hidden}
-  #app-shell{height:100vh;display:flex;overflow:hidden}
-  .app-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-  .conteudo{flex:1;overflow-y:auto;padding:14px 18px}
-  .sidebar{width:220px;flex-shrink:0;overflow:hidden;display:flex;flex-direction:column;height:100%;transition:width .25s;background:#111111}
-  #sidebar{background:#111111!important}
-  #sidebar>.sidebar-brand{background:#111111!important;min-height:60px;display:flex;align-items:center;padding:0 14px;border-bottom:1px solid #222222;flex-shrink:0;position:sticky;top:0;z-index:1}
-  .sidebar.collapsed{width:52px}
-  .pagina{display:none}
-  .pagina.ativa{display:block}
-  .modal-overlay{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.65);align-items:center;justify-content:center}
-  .modal-overlay.aberto{display:flex}
-  .modal{background:var(--bg-card,#1e2330);border-radius:10px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-  .modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border,#2d3748)}
-  .modal-title{font-weight:800;font-size:14px;color:var(--text-primary,#f1f5f9)}
-  .modal-close{background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted,#9ca3af);padding:4px 8px}
-  .modal-body{padding:18px}
-  .modal-footer{display:flex;gap:8px;justify-content:flex-end;padding:14px 18px;border-top:1px solid var(--border,#2d3748)}
-  .fx-badge{background:#d97706;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px}
-  .mfx-preview{padding:10px 14px;border-radius:6px;font-size:16px;font-weight:700;font-family:monospace;text-align:center;min-height:42px;border:2px solid var(--border,#2d3748)}
-  .mfx-preview.err{color:#ef4444;border-color:#ef4444}
-  /* ── Dash-global: tabela sempre escura (contorna cache CSS) ── */
-  #dash-global .dg-tbl,
-  #dash-global .dg-tbl thead,
-  #dash-global .dg-tbl tbody,
-  #dash-global .dg-tbl tfoot,
-  #dash-global .dg-tbl tr,
-  #dash-global .dg-tbl th,
-  #dash-global .dg-tbl td{background:#111111!important;color:inherit}
-  #dash-global .dg-tbl tr:hover td{background:#1c1c1c!important}
-  #dash-global div[style*="overflow-x"]{background:#111111!important}
-</style>
-
-<!-- ════════════════════════════════════════════════════════════════
-     PONTO DE ENTRADA ES6 — ÚNICO SCRIPT NA INDEX.HTML
-════════════════════════════════════════════════════════════════ -->
-<script type="module" src="js/inline-entry.js"></script>
-
-<!-- ═══════════ MODAL LGPD — Consentimento ═══════════ -->
-<!-- Lei 13.709/2018 — Art. 8º: consentimento deve ser livre, informado e inequívoco -->
-<div id="lgpd-overlay" style="display:none;position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.82);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:24px">
-  <div id="lgpd-modal" style="background:#111213;border:1px solid #2e2e2e;border-radius:14px;padding:32px 36px;max-width:620px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.7)">
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid #222">
-      <span style="font-size:26px;flex-shrink:0">🔒</span>
-      <div>
-        <div style="font-size:15px;font-weight:800;color:#f0f0f0;letter-spacing:-.2px">Privacidade e Proteção de Dados</div>
-        <div style="font-size:11px;color:#666;margin-top:3px">Lei Geral de Proteção de Dados — LGPD (Lei 13.709/2018)</div>
-      </div>
-    </div>
-    <p style="font-size:13px;color:#aaa;line-height:1.75;margin-bottom:16px">
-      Este sistema coleta e armazena dados necessários à fiscalização de obras públicas:
-      <strong style="color:#ddd">nome, e-mail e identificador único de autenticação</strong> dos usuários.
-      Esses dados são utilizados exclusivamente para rastreabilidade de ações no sistema,
-      em conformidade com a Lei 14.133/2021 (Nova Lei de Licitações) e a LGPD.
-    </p>
-    <ul style="font-size:12px;color:#777;line-height:1.9;margin-bottom:24px;padding-left:16px">
-      <li>Os dados são armazenados no Firebase (Google Cloud), com criptografia em trânsito e em repouso.</li>
-      <li>Você pode solicitar a exclusão dos seus dados a qualquer momento pelo menu <em>Configurações → Minha Conta</em>.</li>
-      <li>Os registros de auditoria são imutáveis por exigência legal (TCU/CGU) e não podem ser apagados individualmente.</li>
-      <li>Não compartilhamos dados com terceiros para fins comerciais.</li>
-    </ul>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button id="lgpd-aceitar"
-        style="flex:1;padding:13px;background:#f0f0f0;border:none;border-radius:8px;color:#111;font-size:13px;font-weight:800;cursor:pointer;min-width:180px;transition:background .15s"
-        onmouseover="this.style.background='#fff'" onmouseout="this.style.background='#f0f0f0'"
-        data-action="_lgpdAceitar">
-        ✅ Entendi e aceito
-      </button>
-      <button
-        style="flex:1;padding:13px;background:transparent;border:1px solid #333;border-radius:8px;color:#888;font-size:13px;font-weight:600;cursor:pointer;min-width:120px;transition:border-color .15s,color .15s"
-        onmouseover="this.style.borderColor='#555';this.style.color='#bbb'" onmouseout="this.style.borderColor='#333';this.style.color='#888'"
-        data-action="_lgpdVerPolitica">
-        📄 Política completa
-      </button>
-    </div>
-    <p style="font-size:10px;color:#3a3a3a;margin-top:14px;text-align:center">
-      Responsável pelo tratamento: sua organização pública. DPO: designado pelo órgão. Contato via canal oficial.
-    </p>
-  </div>
-</div>
-
-<!-- ═══════════ MODAL LGPD — Política de Privacidade Completa ═══════════ -->
-<div id="lgpd-politica-overlay" style="display:none;position:fixed;inset:0;z-index:9999999;background:rgba(0,0,0,.85);overflow-y:auto;padding:32px 16px">
-  <div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;padding:32px;max-width:700px;margin:0 auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-      <div style="font-size:18px;font-weight:800;color:#f1f5f9">🔒 Política de Privacidade</div>
-      <button data-action="_lgpdFecharPolitica"
-        style="background:transparent;border:1px solid #374151;border-radius:8px;color:#9ca3af;padding:6px 12px;cursor:pointer;font-size:12px">✕ Fechar</button>
-    </div>
-    <div style="font-size:13px;color:#cbd5e1;line-height:1.8">
-      <p style="font-size:11px;color:#64748b;margin-bottom:20px">Versão 1.0 — vigente a partir de março/2026 — conforme Lei 13.709/2018 (LGPD)</p>
-
-      <h3 style="color:#f1f5f9;font-size:14px;margin:20px 0 8px">1. Quem somos</h3>
-      <p>O <strong>Fiscal na Obra</strong> é um sistema de gestão de fiscalização de obras públicas utilizado por órgãos e entidades da Administração Pública. O controlador dos dados é o próprio órgão público que implantou o sistema.</p>
-
-      <h3 style="color:#f1f5f9;font-size:14px;margin:20px 0 8px">2. Dados coletados</h3>
-      <p>Coletamos apenas os dados estritamente necessários:</p>
-      <ul style="padding-left:20px;margin:8px 0">
-        <li><strong>Identificação:</strong> nome completo, e-mail e UID de autenticação (Google/Firebase).</li>
-        <li><strong>Atividade:</strong> registro de ações realizadas no sistema (data, hora, módulo, tipo de operação) para fins de auditoria contratual.</li>
-        <li><strong>Dados técnicos:</strong> não coletamos cookies de rastreamento, não usamos analytics de terceiros, não coletamos localização geográfica.</li>
-      </ul>
-
-      <h3 style="color:#f1f5f9;font-size:14px;margin:20px 0 8px">3. Finalidade e base legal</h3>
-      <p>Os dados são tratados com base no <strong>cumprimento de obrigação legal</strong> (Lei 14.133/2021, art. 169; Instrução Normativa CGU nº 5/2017) para fins de fiscalização contratual, rastreabilidade de medições e prestação de contas ao TCU/CGU. A base legal é o Art. 7º, II da LGPD.</p>
-
-      <h3 style="color:#f1f5f9;font-size:14px;margin:20px 0 8px">4. Armazenamento e segurança</h3>
-      <p>Os dados são armazenados no <strong>Firebase (Google Cloud Platform, região us-east1)</strong> com criptografia TLS em trânsito e AES-256 em repouso. O acesso é controlado por autenticação Firebase com regras de segurança granulares. Backups automáticos são mantidos pelo Firebase conforme política Google.</p>
-
-      <h3 style="color:#f1f5f9;font-size:14px;margin:20px 0 8px">5. Compartilhamento</h3>
-      <p>Os dados <strong>não são compartilhados com terceiros</strong> para fins comerciais. Poderão ser acessados por autoridades competentes (CGU, TCU, Ministério Público) no exercício de suas atribuições legais de controle.</p>
-
-      <h3 style="color:#f1f5f9;font-size:14px;margin:20px 0 8px">6. Seus direitos (Art. 18 LGPD)</h3>
-      <p>Você tem direito a: confirmação do tratamento, acesso aos dados, correção de dados incompletos, portabilidade, eliminação dos dados tratados com consentimento, e revogação do consentimento. Para exercê-los, contate o DPO do seu órgão. <strong>Atenção:</strong> registros de auditoria são imutáveis por exigência legal (TCU/CGU) e não podem ser eliminados individualmente.</p>
-
-      <h3 style="color:#f1f5f9;font-size:14px;margin:20px 0 8px">7. Retenção de dados</h3>
-      <p>Os dados são retidos pelo prazo mínimo exigido pela legislação (5 anos conforme Decreto 10.540/2020 para documentos de fiscalização de contratos) e pelo prazo adicional determinado pelo órgão controlador.</p>
-
-      <h3 style="color:#f1f5f9;font-size:14px;margin:20px 0 8px">8. Contato</h3>
-      <p>Encarregado de Dados (DPO): designado pelo órgão público. Contato via canal oficial de atendimento do órgão. ANPD: <a href="https://www.gov.br/anpd" style="color:#60a5fa" target="_blank" rel="noopener">www.gov.br/anpd</a>.</p>
-    </div>
-    <div style="margin-top:24px;text-align:center">
-      <button data-action="_lgpdAceitar"
-        style="padding:12px 32px;background:#2563eb;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
-        ✅ Aceitar e continuar
-      </button>
-    </div>
-  </div>
-</div>
-
-<script src="js/lgpd-consent.js"></script>
+  <script type="module" src="js/login-controller.js"></script>
+  <script type="module" src="js/lgpd-consent.js"></script>
+  <script type="module" src="js/inline-entry.js"></script>
 
 </body>
 </html>
