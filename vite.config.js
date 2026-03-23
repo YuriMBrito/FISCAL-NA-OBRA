@@ -1,12 +1,23 @@
 import { defineConfig } from 'vite';
-import { resolve } from 'path'; // adicione isso se necessário
+import { resolve } from 'path';
 
 export default defineConfig({
-  // Suas configurações do Vite aqui
   build: {
     outDir: 'dist',
     rollupOptions: {
-      input: resolve(__dirname, 'index.html') // caminho absoluto
-    }
-  }
+      input: resolve(__dirname, 'index.html'),
+    },
+  },
+
+  test: {
+    coverage: {
+      provider: 'v8',
+      thresholds: {
+        lines:      65,
+        statements: 65,
+        branches:   80,
+        functions:  75,
+      },
+    },
+  },
 });
