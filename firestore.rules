@@ -1,8 +1,500 @@
 rules_version = '2';
+
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  FISCAL NA OBRA v15.1 — Regras de Segurança Firestore                  ║
+// ║  RBAC completo: admin | gestor | fiscal | engenheiro | tecnico |        ║
+// ║                 visualizador                                            ║
+// ║                                                                         ║
+// ║  PRINCÍPIOS:                                                            ║
+// ║   1. Deny-by-default — tudo bloqueado exceto o explicitamente liberado  ║
+// ║   2. Autenticação obrigatória em TODAS as operações                     ║
+// ║   3. Validação de campos críticos server-side                           ║
+// ║   4. Auditoria/histórico APPEND-ONLY — update/delete bloqueados        ║
+// ║   5. Hierarquia de papéis aplicada nas subcoleções críticas             ║
+// ║                                                                         ║
+// ║  HIERARQUIA DE PAPÉIS (do mais ao menos privilegiado):                  ║
+// ║   administrador > gestor > fiscal ≈ engenheiro > tecnico > visualizador║
+// ║                                                                         ║
+// ║  SUBCOLEÇÕES SENSÍVEIS (exigem papel mínimo específico):                ║
+// ║   aditivos       → fiscal ou superior (impacto financeiro)              ║
+// ║   sancoes        → gestor ou superior (impacto jurídico)                ║
+// ║   responsaveis   → gestor ou superior (Art. 117 Lei 14.133)            ║
+// ║   prazos         → gestor ou superior (Art. 111 Lei 14.133)            ║
+// ║   usuarios       → administrador ou dono da obra                        ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ═══════════════════════════════════════════════════════════════
+    //  FUNÇÕES AUXILIARES
+    // ═══════════════════════════════════════════════════════════════
+
+    function estaAutenticado() {
+      return request.auth != null;
+    }
+
+    function meuUid() {
+      return request.auth.uid;
+    }
+
+    // Carrega perfil do usuário logado — resultado cacheado pelo Firestore
+    function meuPerfil() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    // ── Verificações de papel global ────────────────────────────
+
+    function souAdmin() {
+      return estaAutenticado()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && meuPerfil().perfil == 'administrador';
+    }
+
+    // ── Verificações de vínculo com obra ───────────────────────
+
+    function souDonoDaObra(obraId) {
+      return estaAutenticado()
+        && get(/databases/$(database)/documents/obras/$(obraId)).data.uid == meuUid();
+    }
+
+    // Retorna dados da lista de usuários da obra (reutilizado em várias funções)
+    function listaUsuariosObra(obraId) {
+      return get(/databases/$(database)/documents/obras/$(obraId)/usuarios/lista).data;
+    }
+
+    function listaExiste(obraId) {
+      return exists(/databases/$(database)/documents/obras/$(obraId)/usuarios/lista);
+    }
+
+    // ── Papéis na obra ─────────────────────────────────────────
+    //
+    // CORREÇÃO CRÍTICA v15.3:
+    // As funções anteriores usavam sintaxe inválida no DSL do Firestore:
+    //   lista.where()          → não existe no DSL
+    //   .toSet().toList().map() → não existe no DSL
+    // Isso causaria falha no deploy das rules ou bloqueio de todas as escritas.
+    //
+    // SOLUÇÃO: O Firestore Rules DSL suporta List.hasAny() com lista estática.
+    // Usamos hasAny() passando cada combinação {uid, perfil} explicitamente —
+    // sintaxe 100% válida e documentada pela Firebase.
+
+    // Membro ativo = dono da obra | admin global | está na lista de usuários
+    function souMembroDaObra(obraId) {
+      let listaOk = listaExiste(obraId)
+        && listaUsuariosObra(obraId).lista.hasAny([{'uid': meuUid()}]);
+      return estaAutenticado() && (
+        souDonoDaObra(obraId) ||
+        souAdmin() ||
+        listaOk
+      );
+    }
+
+    // Visualizador = membro com perfil 'visualizador' (somente leitura)
+    function souVisualizadorDaObra(obraId) {
+      return estaAutenticado()
+        && listaExiste(obraId)
+        && listaUsuariosObra(obraId).lista.hasAny([
+             {'uid': meuUid(), 'perfil': 'visualizador'}
+           ]);
+    }
+
+    // Pode escrever = membro com perfil acima de visualizador
+    // (tecnico, fiscal, engenheiro, gestor ou administrador)
+    function podeEscreverNaObra(obraId) {
+      return estaAutenticado() && (
+        souDonoDaObra(obraId) ||
+        souAdmin() ||
+        (listaExiste(obraId) && listaUsuariosObra(obraId).lista.hasAny([
+           {'uid': meuUid(), 'perfil': 'tecnico'},
+           {'uid': meuUid(), 'perfil': 'fiscal'},
+           {'uid': meuUid(), 'perfil': 'engenheiro'},
+           {'uid': meuUid(), 'perfil': 'gestor'},
+           {'uid': meuUid(), 'perfil': 'administrador'}
+         ]))
+      );
+    }
+
+    // ── Papéis mínimos para subcoleções críticas ───────────────
+
+    // Papel mínimo: fiscal, engenheiro, gestor, administrador
+    // Tecnico e visualizador NÃO podem criar/editar aditivos (impacto financeiro)
+    // CORREÇÃO: usa hasAny com lista estática — sintaxe válida no DSL
+    function podeGerirAditivos(obraId) {
+      return estaAutenticado() && (
+        souDonoDaObra(obraId) ||
+        souAdmin() ||
+        (listaExiste(obraId) && listaUsuariosObra(obraId).lista.hasAny([
+           {'uid': meuUid(), 'perfil': 'fiscal'},
+           {'uid': meuUid(), 'perfil': 'engenheiro'},
+           {'uid': meuUid(), 'perfil': 'gestor'},
+           {'uid': meuUid(), 'perfil': 'administrador'}
+         ]))
+      );
+    }
+
+    // Papel mínimo: gestor ou administrador (impacto jurídico — Art. 117/125/156)
+    function podeGerirDocumentosJuridicos(obraId) {
+      return estaAutenticado() && (
+        souDonoDaObra(obraId) ||
+        souAdmin() ||
+        (listaExiste(obraId) && listaUsuariosObra(obraId).lista.hasAny([
+           {'uid': meuUid(), 'perfil': 'gestor'},
+           {'uid': meuUid(), 'perfil': 'administrador'}
+         ]))
+      );
+    }
+
+    // ── Validação de dados de entrada ──────────────────────────
+
+    // Valida campos de texto para evitar injeção de strings gigantes
+    function camposTextoValidos(data) {
+      return
+        (!('nome'         in data) || data.nome.size()         <= 500) &&
+        (!('tipo'         in data) || data.tipo.size()         <= 200) &&
+        (!('statusObra'   in data) || data.statusObra.size()   <= 100) &&
+        (!('atualizadoEm' in data) || data.atualizadoEm.size() <= 50)  &&
+        (!('criadoEm'     in data) || data.criadoEm.size()     <= 50);
+    }
+
+    // Valida campos de uma medição (evita valores negativos injetados)
+    function medicaoValida(data) {
+      return data.v is int && data.v >= 1
+        && data.atualizadoEm is string
+        && data.atualizadoEm.size() <= 50;
+    }
+
+    // Valida campos de um aditivo (campos financeiros críticos)
+    function aditivoValido(data) {
+      return data.keys().hasAll(['id', 'tipo'])
+        && data.id is string && data.id.size() > 0
+        && data.tipo.size() <= 100
+        && (!('acrescimos' in data) || data.acrescimos is number)
+        && (!('supressoes' in data) || data.supressoes is number);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  /usuarios/{uid} — Perfis de usuário
+    // ═══════════════════════════════════════════════════════════════
+    match /usuarios/{uid} {
+      // Cada usuário lê apenas seu próprio perfil; admin lê qualquer um
+      allow read: if estaAutenticado() && (meuUid() == uid || souAdmin());
+
+      // Criação: apenas o próprio usuário (no primeiro login via Admin SDK)
+      allow create: if estaAutenticado()
+        && meuUid() == uid
+        && request.resource.data.keys().hasAll(['perfil'])
+        && request.resource.data.perfil in
+           ['fiscal','engenheiro','tecnico','gestor','administrador','visualizador'];
+
+      // Atualização pelo próprio usuário: não pode se auto-promover
+      allow update: if estaAutenticado()
+        && meuUid() == uid
+        && (!('perfil' in request.resource.data) ||
+            request.resource.data.perfil in
+            ['fiscal','engenheiro','tecnico','visualizador']);
+
+      // Administrador pode atualizar qualquer perfil
+      allow update: if souAdmin();
+
+      // Ninguém deleta perfil (proteção de auditoria — inativar, não deletar)
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  /obras/{obraId} — Documento raiz da obra
+    // ═══════════════════════════════════════════════════════════════
+    match /obras/{obraId} {
+
+      // Leitura: membros e visualizadores
+      allow read: if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+
+      // Criação: qualquer usuário autenticado pode criar uma obra
+      allow create: if estaAutenticado()
+        && request.resource.data.uid == meuUid()
+        && camposTextoValidos(request.resource.data)
+        && request.resource.data.keys().hasAll(['id', 'nome', 'uid']);
+
+      // Atualização: dono da obra ou admin
+      allow update: if (souDonoDaObra(obraId) || souAdmin())
+        && camposTextoValidos(request.resource.data);
+
+      // Exclusão: somente dono ou admin (soft-delete gravado pelo backend)
+      allow delete: if souDonoDaObra(obraId) || souAdmin();
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/cfg/cfg — Configuração da obra
+      // ────────────────────────────────────────────────────────────
+      match /cfg/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        // Apenas gestor/admin/dono alteram configurações contratuais
+        allow write:  if podeGerirDocumentosJuridicos(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/bms/bms — Boletins de Medição
+      // ────────────────────────────────────────────────────────────
+      match /bms/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        // Fiscal, engenheiro, gestor, admin podem gerenciar BMs
+        allow write:  if podeGerirAditivos(obraId); // mesmo nível mínimo
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/itens/{chunkId} — Itens contratuais
+      // ────────────────────────────────────────────────────────────
+      match /itens/{chunkId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeGerirAditivos(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/medicoes/{bmId} — Medições detalhadas
+      //  Validação: impede injeção de valores negativos ou v ausente
+      // ────────────────────────────────────────────────────────────
+      match /medicoes/{bmId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow create: if podeEscreverNaObra(obraId) && medicaoValida(request.resource.data);
+        allow update: if podeEscreverNaObra(obraId) && medicaoValida(request.resource.data);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/aditivos/{aditivoId}
+      //  Papel mínimo: fiscal (impacto financeiro — Art. 125 Lei 14.133)
+      //  Validação: campos obrigatórios e tipos numéricos
+      // ────────────────────────────────────────────────────────────
+      match /aditivos/{aditivoId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow create: if podeGerirAditivos(obraId) && aditivoValido(request.resource.data);
+        allow update: if podeGerirAditivos(obraId) && aditivoValido(request.resource.data);
+        // Aditivos nunca são deletados (integridade contratual) — apenas admin por exceção
+        allow delete: if souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/ocorrencias — Registro de ocorrências
+      // ────────────────────────────────────────────────────────────
+      match /ocorrencias/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/chuva — Dados pluviométricos
+      // ────────────────────────────────────────────────────────────
+      match /chuva/{ano} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/diario — Diário de obra
+      // ────────────────────────────────────────────────────────────
+      match /diario/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/notificacoes — Notificações contratuais
+      // ────────────────────────────────────────────────────────────
+      match /notificacoes/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/documentos — Documentos vinculados
+      // ────────────────────────────────────────────────────────────
+      match /documentos/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/historico — Histórico APPEND-ONLY
+      //  Update e delete VEDADOS — imutabilidade de auditoria (TCU/CGU)
+      // ────────────────────────────────────────────────────────────
+      match /historico/{docId} {
+        allow read:    if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow create:  if podeEscreverNaObra(obraId);
+        allow update:  if false; // IMUTÁVEL — nunca alterado
+        allow delete:  if souAdmin(); // Admin pode apagar ao excluir a obra permanentemente
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/usuarios/lista — Usuários vinculados à obra
+      //  Apenas dono e admin gerenciam membros da obra
+      // ────────────────────────────────────────────────────────────
+      match /usuarios/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if souDonoDaObra(obraId) || souAdmin();
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/versoes — Versões contratuais (aditivos)
+      // ────────────────────────────────────────────────────────────
+      match /versoes/{versaoId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeGerirAditivos(obraId);
+        allow delete: if souAdmin(); // versões não são deletadas por usuários comuns
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/auditoria — Trilha APPEND-ONLY
+      //  Update e delete VEDADOS — imutabilidade absoluta (TCU/CGU)
+      // ────────────────────────────────────────────────────────────
+      match /auditoria/{docId} {
+        allow read:    if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow create:  if souMembroDaObra(obraId);
+        allow update:  if false; // IMUTÁVEL — nunca alterado
+        allow delete:  if souAdmin(); // Admin pode apagar ao excluir a obra permanentemente
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/sancoes — Sanções Administrativas (Art. 156)
+      //  Papel mínimo: gestor (impacto jurídico severo)
+      // ────────────────────────────────────────────────────────────
+      match /sancoes/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeGerirDocumentosJuridicos(obraId);
+        allow delete: if souAdmin(); // sanções não são deletadas
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/responsaveis — Responsáveis (Art. 117)
+      //  Papel mínimo: gestor (designação formal de fiscal/gestor)
+      // ────────────────────────────────────────────────────────────
+      match /responsaveis/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeGerirDocumentosJuridicos(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/prazos — Prorrogações contratuais (Art. 111)
+      //  Papel mínimo: gestor
+      // ────────────────────────────────────────────────────────────
+      match /prazos/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeGerirDocumentosJuridicos(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/recebimentos — Recebimento Prov./Def. (Art. 140)
+      //  Papel mínimo: gestor (ato formal com consequências jurídicas)
+      // ────────────────────────────────────────────────────────────
+      match /recebimentos/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeGerirDocumentosJuridicos(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/riscos — Matriz de Riscos
+      // ────────────────────────────────────────────────────────────
+      match /riscos/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  Subcoleções PAC / Obras Federais
+      // ────────────────────────────────────────────────────────────
+      match /fotos-medicao/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      match /checklist-tecnico/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      match /etapas-pac/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      match /qualidade/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/lei14133/{docId} — Módulos Lei 14.133/2021
+      //  Documentos: responsaveis, sancoes, prorrogacoes, recebimentos, riscos
+      //  Leitura: qualquer membro ou visualizador da obra
+      //  Escrita: membros com perfil técnico ou superior
+      // ────────────────────────────────────────────────────────────
+      match /lei14133/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/fiscais/{docId} — Fiscais de Obras (módulo próprio)
+      //  Leitura: qualquer membro ou visualizador da obra
+      //  Escrita: membros com perfil técnico ou superior
+      // ────────────────────────────────────────────────────────────
+      match /fiscais/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if podeEscreverNaObra(obraId);
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  /obras/{obraId}/acesso/{docId} — Controle de Acesso à Obra
+      //  Leitura: qualquer membro da obra
+      //  Escrita: apenas dono ou admin
+      // ────────────────────────────────────────────────────────────
+      match /acesso/{docId} {
+        allow read:   if souMembroDaObra(obraId) || souVisualizadorDaObra(obraId);
+        allow write:  if souDonoDaObra(obraId) || souAdmin();
+        allow delete: if souDonoDaObra(obraId) || souAdmin();
+      }
+
+      // ────────────────────────────────────────────────────────────
+      //  SUBCOLEÇÕES FUTURAS — Deny-by-default
+      //  Toda nova subcoleção deve ter regra explícita ACIMA desta.
+      // ────────────────────────────────────────────────────────────
+      match /{subcolecao}/{docId} {
+        allow read, write: if false;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  /lixeira/{itemId} — Soft-delete por usuário
+    // ═══════════════════════════════════════════════════════════════
+    match /lixeira/{itemId} {
+      allow read:   if estaAutenticado() && resource.data.uid == meuUid();
+      allow create: if estaAutenticado() && request.resource.data.uid == meuUid();
+      allow delete: if estaAutenticado() && (resource.data.uid == meuUid() || souAdmin());
+      allow update: if false; // itens da lixeira são imutáveis
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  BLOQUEIO GLOBAL — Deny-by-default para tudo não mapeado
+    // ═══════════════════════════════════════════════════════════════
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }

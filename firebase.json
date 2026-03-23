@@ -77,8 +77,6 @@
     ]
   },
   "firestore": {
-    "database": "(default)",
-    "location": "southamerica-east1",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
@@ -111,14 +109,5 @@
       "protegerHistorico → firestore.rules (allow update: if false — já implementado)",
       "exportarDadosPublicosObra → exportacao-obra-controller.js (leitura direta Firestore)"
     ]
-  },
-  "auth": {
-    "providers": {
-      "emailPassword": true,
-      "googleSignIn": {
-        "oAuthBrandDisplayName": "Fiscal na Obra",
-        "supportEmail": "akutamig85@gmail.com"
-      }
-    }
   }
 }

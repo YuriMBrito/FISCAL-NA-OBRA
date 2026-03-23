@@ -31,13 +31,9 @@
   }
 
   function loadCDN(cdn) {
-    // Carrega firebase-app-compat primeiro (os outros dependem dele),
-    // depois carrega auth/firestore/storage em paralelo — mais rápido.
-    return loadScript(cdn.base + M[0] + cdn.sfx).then(function () {
-      return Promise.all(M.slice(1).map(function (m) {
-        return loadScript(cdn.base + m + cdn.sfx);
-      }));
-    });
+    return M.reduce(function (p, m) {
+      return p.then(function () { return loadScript(cdn.base + m + cdn.sfx); });
+    }, Promise.resolve());
   }
 
   function tryAll(i) {

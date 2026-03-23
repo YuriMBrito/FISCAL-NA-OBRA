@@ -40,7 +40,7 @@ import FallbackUI    from './fallback-ui.js';
 
 import { ToastComponent }   from '../components/toast.js';
 import { SidebarComponent } from '../components/sidebar.js';
-import { TopbarComponent }  from '../components/topbar.jsx';
+import { TopbarComponent }  from '../components/topbar.js';
 import { ConfirmComponent } from '../components/confirm.js';
 import { formatters }       from '../utils/formatters.js';
 import { FirebaseService }  from '../firebase/firebase-service.js';
@@ -549,36 +549,24 @@ class App {
     FirebaseService.init();
     logger.info('App', '✅ FirebaseService OK.');
 
-    // Aguarda o Firebase resolver quem está autenticado.
-    // Firebase lê a sessão do IndexedDB e dispara onAuthStateChanged:
-    //   - com o usuário real → resolve imediatamente (usuário logado)
-    //   - com null após ~500ms → resolve imediatamente (nenhum usuário)
-    // Timeout máximo reduzido para 3s (era 6s) para não travar o boot.
+    // Aguarda o Firebase resolver quem está autenticado (até 6s).
+    // Firebase v9/v10 armazena a sessão no IndexedDB e dispara
+    // onAuthStateChanged com null primeiro, depois com o usuário real.
+    // NÃO cancelamos o listener na chamada null — esperamos o user real
+    // ou o timeout de 6s antes de prosseguir.
     if (window.firebase && window.firebase.apps && window.firebase.apps.length > 0) {
       await new Promise(resolve => {
         try {
           let timer;
-          let nullTimer;
           const unsub = window.firebase.auth().onAuthStateChanged(user => {
             if (user) {
-              // Usuário autenticado — resolve imediatamente
               clearTimeout(timer);
-              clearTimeout(nullTimer);
               unsub();
               resolve(user);
-            } else {
-              // null: pode ser transição inicial do IndexedDB ou sessão inexistente.
-              // Aguarda 500ms — se não vier usuário real, resolve (não está logado).
-              clearTimeout(nullTimer);
-              nullTimer = setTimeout(() => {
-                clearTimeout(timer);
-                unsub();
-                resolve(null);
-              }, 500);
             }
+            // null = Firebase ainda não terminou de ler o IndexedDB, aguarda
           });
-          // Timeout de segurança: 3s (era 6s)
-          timer = setTimeout(() => { clearTimeout(nullTimer); unsub(); resolve(null); }, 3000);
+          timer = setTimeout(() => { unsub(); resolve(null); }, 6000);
         } catch(e) { resolve(null); }
       });
     }
