@@ -25,12 +25,12 @@
   'use strict';
 
   var firebaseConfig = {
-    apiKey:            "AIzaSyATdXIm3QminEMvHzJEALcMZv6mdGgFFxI",
-    authDomain:        "fiscal-nota-100.firebaseapp.com",
-    projectId:         "fiscal-nota-100",
-    storageBucket:     "fiscal-nota-100.firebasestorage.app",
-    messagingSenderId: "389772418485",
-    appId:             "1:389772418485:web:e25f8e60893249b6b88dfc"
+    apiKey:            "AIzaSyCgY5I0bpGvSkonPLh1DEuN3_GtSijQf6M",
+    authDomain:        "fiscal-na-obra-6030f.firebaseapp.com",
+    projectId:         "fiscal-na-obra-6030f",
+    storageBucket:     "fiscal-na-obra-6030f.firebasestorage.app",
+    messagingSenderId: "597455740659",
+    appId:             "1:597455740659:web:c3d724ed5d33c99fdc2186"
   };
 
   // Disponibiliza para o FirebaseService via window (sem localStorage)
