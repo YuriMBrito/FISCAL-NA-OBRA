@@ -40,7 +40,7 @@ import FallbackUI    from './fallback-ui.js';
 
 import { ToastComponent }   from '../components/toast.js';
 import { SidebarComponent } from '../components/sidebar.js';
-import { TopbarComponent }  from '../components/topbar.js';
+import { TopbarComponent }  from '../components/topbar.jsx';
 import { ConfirmComponent } from '../components/confirm.js';
 import { formatters }       from '../utils/formatters.js';
 import { FirebaseService }  from '../firebase/firebase-service.js';
