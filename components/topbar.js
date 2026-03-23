@@ -109,7 +109,7 @@ export const TopbarComponent = {
     EventBus.on('firebase:conectado',    () => this._setFbStatus(true),  'topbar');
     EventBus.on('firebase:desconectado', () => this._setFbStatus(false), 'topbar');
     // Se Firebase já estava conectado antes da topbar registrar o listener
-    import('../../firebase/firebase-service.js').then(({ default: FB }) => {
+    import('../firebase/firebase-service.js').then(({ default: FB }) => {
       if (FB._ready) this._setFbStatus(true);
     }).catch(() => {});
 
