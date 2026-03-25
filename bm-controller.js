@@ -16,7 +16,7 @@ import storageUtils    from '../../utils/storage.js';
 import { formatters }  from '../../utils/formatters.js';
 import { validarCapMedicao } from '../../utils/server-validators.js';
 import {
-  getMedicoes, salvarMedicoes, invalidarCacheMedicoes, _injetarCacheMedicoes,
+  getMedicoes, salvarMedicoes, invalidarCacheMedicoes, _injetarCacheMedicoes, _clearAcumCache,
   getValorAcumuladoTotal, getValorAcumuladoAnterior, getValorMedicaoAtual,
   getLinhasItem, getFxFormula, sumLinhasQtd,
   getQtdAcumuladoAnteriorItem, getQtdAcumuladoTotalItem,
@@ -428,8 +428,9 @@ export class BoletimModule {
       }
 
       state.set('itensContrato', novosItens);
-      // Invalida cache de valores acumulados — necessário quando upBdi ou up muda
-      invalidarCacheMedicoes(obraId);
+      // Limpa apenas cache de totais acumulados (recalcula valores com novo up/upBdi)
+      // NÃO invalida as medições brutas — isso zeraria os % medidos já registrados
+      _clearAcumCache(obraId);
       // Persiste
       import('../../firebase/firebase-service.js').then(m => m.default.setItens?.(obraId, novosItens)).catch(()=>{});
 
