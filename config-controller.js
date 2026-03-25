@@ -437,18 +437,6 @@ export class ConfigModule {
       grauSigilo:        g('cfgGrauSigilo') || '#PUBLICO',
     };
 
-    // ── Validação CNPJ client-side (substitui Cloud Function validarCNPJContratado)
-    // Migrado para client-side para funcionar no plano Spark (gratuito) do Firebase.
-    if (cfgNova.cnpj && !validarCNPJ(cfgNova.cnpj)) {
-      window.toast?.('⚠️ CNPJ da Contratada inválido. Verifique os dígitos e tente novamente.', 'warn');
-      document.getElementById('cfgCnpj')?.focus();
-      return;
-    }
-    if (cfgNova.cnpjContratante && !validarCNPJ(cfgNova.cnpjContratante)) {
-      window.toast?.('⚠️ CNPJ da Contratante inválido. Verifique os dígitos e tente novamente.', 'warn');
-      document.getElementById('cfgCnpjContratante')?.focus();
-      return;
-    }
 
     const obrasLista = state.get('obrasLista') || [];
     // FIX-3: passar o statusObra real da obra, não o tipoObra.
@@ -916,7 +904,7 @@ export class ConfigModule {
     window.novaObra                   = ()    => { try { window.verPagina?.('importacao');   } catch(e){} };
     window._cfgSalvarStatus           = ()    => { if (!window.requirePerfil?.('fiscal','administrador')) return; try { this._salvarStatus();              } catch(e){} };
     window._cfgExcluirObra            = ()    => { if (!window.requirePerfil?.('administrador')) return; try { this._excluirObra();               } catch(e){} };
-    window._cfgEditarBM               = num   => { if (!window.requirePerfil?.('fiscal','administrador','engenheiro')) return; try { this._editarBM(num);               } catch(e){} };
+    window._cfgEditarBM               = num   => { if (!window.requirePerfil?.('fiscal','administrador','engenheiro')) return; this._editarBM(num).catch(e => console.error('[cfg:editarBM]', e)); };
     window._cfgExcluirBM              = num   => { if (!window.requirePerfil?.('administrador')) return; try { this._excluirBM(num);              } catch(e){} };
     window._cfgLixeiraRestaurar       = id    => { if (!window.requirePerfil?.('fiscal','administrador')) return; try { this._lixeiraRestaurar(id);        } catch(e){} };
     window._cfgLixeiraDeletarPermanente = id  => { if (!window.requirePerfil?.('administrador')) return; try { this._lixeiraDeletarPermanente(id);} catch(e){} };
