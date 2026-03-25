@@ -378,19 +378,31 @@ export class BoletimModule {
     // Salvar item
     window._bmSalvarItem = (modo, itemId) => {
       const g     = id => document.getElementById(id);
+      // Helper: converte número formatado em pt-BR (ex: "1.968,86" ou "88,80") para float
+      const parsePtBR = str => {
+        if (!str) return 0;
+        // Remove pontos de milhar, troca vírgula decimal por ponto
+        const limpo = String(str).replace(/\./g,'').replace(',','.');
+        return parseFloat(limpo) || 0;
+      };
       const idNew = (g('bm-item-id')?.value||'').trim();
       const desc  = (g('bm-item-desc')?.value||'').trim();
       const und   = (g('bm-item-und')?.value||'').trim();
-      const qtd   = parseFloat((g('bm-item-qtd')?.value||'0').replace(',','.'))||0;
-      const up    = parseFloat((g('bm-item-up')?.value||'0').replace(',','.'))||0;
-      const upBdi = parseFloat((g('bm-item-upbdi')?.value||'0').replace(',','.').replace(/[^0-9.]/g,''))||0;
+      const qtd   = parsePtBR(g('bm-item-qtd')?.value);
+      const up    = parsePtBR(g('bm-item-up')?.value);
+      const upBdi = parsePtBR(g('bm-item-upbdi')?.value);
       const cod   = (g('bm-item-cod')?.value||'').trim();
       const banco = (g('bm-item-banco')?.value||'').trim();
       // TCU Acórdão 2.622/2013: tipo de BDI por item e preço de referência SINAPI/ORSE
       const tipoBdi = (g('bm-item-tipobdi')?.value||'').trim();
-      const upRef   = parseFloat((g('bm-item-upref')?.value||'0').replace(',','.'))||0;
+      const upRef   = parsePtBR(g('bm-item-upref')?.value);
       const tipoAgr = g('bm-item-tipo')?.value||'';
       const ehGrupo = tipoAgr === 'G' || tipoAgr === 'SG';
+
+      // Cálculo automático: se só um dos dois preços foi preenchido, calcula o outro
+      const bdiEfetivo = tipoBdi === 'zero' ? 0 : tipoBdi === 'reduzido' ? (cfg.bdiReduzido || 0.10) : (cfg.bdi || 0.25);
+      const upFinal    = up > 0 ? up : (upBdi > 0 && bdiEfetivo > 0 ? Math.round(upBdi / (1 + bdiEfetivo) * 10000) / 10000 : up);
+      const upBdiFinal = upBdi > 0 ? upBdi : (upFinal > 0 ? Math.round(upFinal * (1 + bdiEfetivo) * 100) / 100 : 0);
 
       if (!idNew) { window.toast?.('⚠️ Informe o código do item.','warn'); return; }
       if (!desc)  { window.toast?.('⚠️ Informe a descrição.','warn'); return; }
@@ -401,7 +413,7 @@ export class BoletimModule {
       let novosItens;
       if (modo === 'editar') {
         novosItens = itens.map(i => i.id === itemId
-          ? { ...i, id:idNew, desc, und, qtd, up, upBdi: upBdi||undefined, cod, banco, tipoBdi: tipoBdi||undefined, upRef: upRef||undefined, t: ehGrupo?(tipoAgr||'G'):undefined }
+          ? { ...i, id:idNew, desc, und, qtd, up: upFinal, upBdi: upBdiFinal||undefined, cod, banco, tipoBdi: tipoBdi||undefined, upRef: upRef||undefined, t: ehGrupo?(tipoAgr||'G'):undefined }
           : i);
 
         // FIX-2: se o código (id) do item mudou, migra medições do id antigo para o novo
@@ -423,7 +435,7 @@ export class BoletimModule {
           } catch (_e) { console.warn('[BM] migrar medicoes:', _e); }
         }
       } else {
-        const novoItem = { id:idNew, desc, und: ehGrupo?'':und, qtd: ehGrupo?0:qtd, up: ehGrupo?0:up, upBdi: (!ehGrupo&&upBdi)?upBdi:undefined, cod, banco, bdi: cfg.bdi||0.25, tipoBdi: tipoBdi||undefined, upRef: upRef||undefined, t: ehGrupo?'G':undefined };
+        const novoItem = { id:idNew, desc, und: ehGrupo?'':und, qtd: ehGrupo?0:qtd, up: ehGrupo?0:upFinal, upBdi: (!ehGrupo&&upBdiFinal)?upBdiFinal:undefined, cod, banco, bdi: cfg.bdi||0.25, tipoBdi: tipoBdi||undefined, upRef: upRef||undefined, t: ehGrupo?'G':undefined };
         novosItens = this._inserirItemOrdenado([...itens], novoItem);
       }
 
@@ -530,24 +542,30 @@ export class BoletimModule {
       return 0;
     };
 
-    // Um item é "pertencente ao bloco de idRef" se seu id começa com idRef + '.'
-    // Ou seja, é descendente de idRef.
     const isDescendente = (id, ancestorId) => id.startsWith(ancestorId + '.');
 
     const idNovo = novoItem.id;
 
     // Encontra o índice de inserção:
-    // Percorre a lista e avança enquanto o item atual é menor que o novo
-    // OU é descendente de um item que é menor — assim 4.5.8 pula também os filhos de 4.5.7.
+    // - Para imediatamente se o item atual é filho do novo (ex: 14.2.1 ao criar 14.2)
+    //   pois o novo deve vir ANTES dos seus próprios filhos existentes.
+    // - Avança enquanto o item atual é menor que o novo, pulando também os filhos
+    //   do item menor (ex: pula 14.1.1, 14.1.2 ao posicionar 14.2).
+    // - Para quando encontra item >= novo que não seja filho do novo.
     let insertAfter = -1;
     for (let i = 0; i < itens.length; i++) {
       const id = itens[i].id;
+      // Se este item é filho do novo, o novo deve vir antes — para aqui
+      if (isDescendente(id, idNovo)) break;
       if (cmp(id, idNovo) < 0) {
-        // id < idNovo: marca posição candidata
         insertAfter = i;
       } else if (insertAfter >= 0 && isDescendente(id, itens[insertAfter].id)) {
-        // id > idNovo mas é filho do último candidato — avança junto
+        // Filho do último candidato (ex: 14.1.2 depois de 14.1) — avança junto
+        // mas só se não for filho do novo
         insertAfter = i;
+      } else {
+        // Item >= novo e não é filho do novo nem filho do candidato — para
+        break;
       }
     }
 
