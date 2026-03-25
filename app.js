@@ -461,7 +461,7 @@ class App {
     });
 
     // auth:login — esconde tela de login e carrega dados completos da obra ativa
-    EventBus.on('auth:login', async ({ user } = {}) => {
+    EventBus.on('auth:login', async () => {
       // FIX-E1.2: idempotência — garante execução única por sessão.
       // Sem este guard, os 3 listeners auth:login disparam em paralelo ao
       // login, causando race conditions onde carregamentos posteriores
@@ -474,15 +474,11 @@ class App {
       if (shell) shell.style.display = 'flex';
 
       // Carrega a lista de obras do Firebase e popula o state.
-      // FIX-SAFARI: passa o uid recebido no evento para evitar race condition
-      // onde currentUser ainda é null no Safari/Firefox no momento do disparo.
       try {
-        const lista = await FirebaseService.getObrasLista(user?.uid);
-        // Sempre atualiza o state, mesmo com lista vazia, para limpar dados antigos/stale.
-        // Antes, quando lista = [] o state nunca era atualizado, deixando obras fantasmas visíveis.
-        if (Array.isArray(lista)) {
+        const lista = await FirebaseService.getObrasLista();
+        if (Array.isArray(lista) && lista.length > 0) {
           state.set('obrasLista', lista);
-          if (lista.length > 0) EventBus.emit('obras:lista-atualizada', {});
+          EventBus.emit('obras:lista-atualizada', {});
         }
       } catch (e) {
         console.warn('[App] auth:login — erro ao carregar obras:', e);
@@ -659,6 +655,25 @@ class App {
       '_adtFecharModal':       ()       => safeExecuteSync(() => window._adtFecharModal?.(), { source: 'adt:fechar' }),
       '_adtFecharPlanilhaEditor': ()    => safeExecuteSync(() => window._adtFecharPlanilhaEditor?.(), { source: 'adt:fecharPlanilha' }),
 
+      // Aditivos Contratuais — CRUD principal
+      '_adtSalvar':                ()       => safeExecuteSync(() => window._adtSalvar?.(),                   { source: 'adt:salvar' }),
+      '_adtEditar':                (id)     => safeExecuteSync(() => window._adtEditar?.(id),                 { source: 'adt:editar' }),
+      '_adtExcluir':               (id)     => safeExecuteSync(() => window._adtExcluir?.(id),                { source: 'adt:excluir' }),
+      '_adtVerPlanilha':           (id)     => safeExecuteSync(() => window._adtVerPlanilha?.(id),            { source: 'adt:verPlanilha' }),
+      '_adtVerVersao':             (n)      => safeExecuteSync(() => window._adtVerVersao?.(n),               { source: 'adt:verVersao' }),
+      '_adtGerarPDF':              ()       => safeExecuteSync(() => window._adtGerarPDF?.(),                 { source: 'adt:pdf' }),
+      // Aditivos — editor de planilha (BUG-FIX: estava ausente do registerAll, causando
+      // "Action não tem handler registrado" ao clicar em "Editar Planilha do Aditivo")
+      '_adtAbrirPlanilhaEditor':   ()       => safeExecuteSync(() => window._adtAbrirPlanilhaEditor?.(),      { source: 'adt:abrirPlanilha' }),
+      '_adtPlanilhaReset':         ()       => safeExecuteSync(() => window._adtPlanilhaReset?.(),            { source: 'adt:planilhaReset' }),
+      '_adtPlanilhaAplicar':       ()       => safeExecuteSync(() => window._adtPlanilhaAplicar?.(),          { source: 'adt:planilhaAplicar' }),
+      '_adtPlanilhaAdicionarItem': ()       => safeExecuteSync(() => window._adtPlanilhaAdicionarItem?.(),    { source: 'adt:planilhaAdd' }),
+      '_adtPlanilhaRemover':       (i)      => safeExecuteSync(() => window._adtPlanilhaRemover?.(i),         { source: 'adt:planilhaRemover' }),
+      '_adtPlanilhaRestaurar':     (i)      => safeExecuteSync(() => window._adtPlanilhaRestaurar?.(i),       { source: 'adt:planilhaRestaurar' }),
+      // Aditivos — modal de novo item na planilha
+      '_adtNovoItemFechar':        ()       => safeExecuteSync(() => window._adtNovoItemFechar?.(),           { source: 'adt:novoItemFechar' }),
+      '_adtNovoItemConfirmar':     ()       => safeExecuteSync(() => window._adtNovoItemConfirmar?.(),        { source: 'adt:novoItemConfirmar' }),
+
       // Boletim de Medição — fechar modais
       '_bmFecharItemModal':    ()       => {
         document.getElementById('bm-item-modal-overlay')?.remove();
@@ -770,25 +785,7 @@ class App {
       '_riscoCancelar':            ()       => safeExecuteSync(() => window._riscoCancelar?.(),               { source: 'risco:cancelar' }),
       '_riscoSalvarForm':          (id)     => safeExecuteSync(() => window._riscoSalvarForm?.(id),           { source: 'risco:salvar' }),
 
-      // Aditivos Contratuais — CRUD principal
-      '_adtSalvar':                ()       => safeExecuteSync(() => window._adtSalvar?.(),                   { source: 'adt:salvar' }),
-      '_adtEditar':                (id)     => safeExecuteSync(() => window._adtEditar?.(id),                 { source: 'adt:editar' }),
-      '_adtExcluir':               (id)     => safeExecuteSync(() => window._adtExcluir?.(id),                { source: 'adt:excluir' }),
-      '_adtVerPlanilha':           (id)     => safeExecuteSync(() => window._adtVerPlanilha?.(id),            { source: 'adt:verPlanilha' }),
-      '_adtVerVersao':             (n)      => safeExecuteSync(() => window._adtVerVersao?.(n),               { source: 'adt:verVersao' }),
-      '_adtGerarPDF':              ()       => safeExecuteSync(() => window._adtGerarPDF?.(),                 { source: 'adt:pdf' }),
-      // Aditivos — editor de planilha (BUG-FIX: estava ausente do registerAll, causando
-      // "Action não tem handler registrado" ao clicar em "Editar Planilha do Aditivo")
-      '_adtAbrirPlanilhaEditor':   ()       => safeExecuteSync(() => window._adtAbrirPlanilhaEditor?.(),      { source: 'adt:abrirPlanilha' }),
-      '_adtPlanilhaReset':         ()       => safeExecuteSync(() => window._adtPlanilhaReset?.(),            { source: 'adt:planilhaReset' }),
-      '_adtPlanilhaAplicar':       ()       => safeExecuteSync(() => window._adtPlanilhaAplicar?.(),          { source: 'adt:planilhaAplicar' }),
-      '_adtPlanilhaAdicionarItem': ()       => safeExecuteSync(() => window._adtPlanilhaAdicionarItem?.(),    { source: 'adt:planilhaAdd' }),
-      '_adtPlanilhaRemover':       (i)      => safeExecuteSync(() => window._adtPlanilhaRemover?.(i),         { source: 'adt:planilhaRemover' }),
-      '_adtPlanilhaRestaurar':     (i)      => safeExecuteSync(() => window._adtPlanilhaRestaurar?.(i),       { source: 'adt:planilhaRestaurar' }),
-      // Aditivos — modal de novo item na planilha
-      '_adtNovoItemFechar':        ()       => safeExecuteSync(() => window._adtNovoItemFechar?.(),           { source: 'adt:novoItemFechar' }),
-      '_adtNovoItemConfirmar':     ()       => safeExecuteSync(() => window._adtNovoItemConfirmar?.(),        { source: 'adt:novoItemConfirmar' }),
-      // Aditivos — handlers de cálculo e status
+      // Aditivos Contratuais — handlers de cálculo e status (complementam os já registrados)
       '_adtCalcVariacao':          ()       => safeExecuteSync(() => window._adtCalcVariacao?.(),             { source: 'adt:calcVar' }),
       '_adtCalcTermino':           ()       => safeExecuteSync(() => window._adtCalcTermino?.(),              { source: 'adt:calcTerm' }),
       '_adtOnStatusChange':        (v)      => safeExecuteSync(() => window._adtOnStatusChange?.(v),          { source: 'adt:status' }),
