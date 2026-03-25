@@ -24,6 +24,20 @@ import {
   getBdiEfetivo,
 } from './bm-calculos.js';
 
+// Soma o valor total contratado dos itens (qtd × upBdi).
+// Usado como fallback quando cfg.valor não está configurado.
+function _calcTotalContratado(itens, cfg) {
+  const rnd2 = v => Math.round(v * 100) / 100;
+  let total = 0;
+  itens.forEach(it => {
+    if (it.t) return; // ignora agregadores
+    const bdiEf = getBdiEfetivo(it, cfg);
+    const upBdi = it.upBdi ? it.upBdi : rnd2((it.up || 0) * (1 + bdiEf));
+    total += rnd2((it.qtd || 0) * upBdi);
+  });
+  return Math.round(total * 100) / 100;
+}
+
 export class BoletimUI {
 
   injectPage() {
@@ -91,10 +105,12 @@ export class BoletimUI {
     const { R$, n4, n2, pct, fmtNum } = this._fmt(cfg);
 
     // KPIs do cabeçalho (bm-infos)
+    // Usa cfg.valor se configurado; caso contrário, soma os itens contratados
+    const vContratual = (cfg.valor && cfg.valor > 0) ? cfg.valor : _calcTotalContratado(itens, cfg);
     const vAcumAnt  = getValorAcumuladoAnterior(obraId, bmNum, itens, cfg);
     const vAcumTot  = getValorAcumuladoTotal(obraId, bmNum, itens, cfg);
     const vMedAtual = vAcumTot - vAcumAnt;
-    const saldo     = (cfg.valor || 0) - vAcumTot;
+    const saldo     = vContratual - vAcumTot;
 
     // Assinaturas
     const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v || ''; };
@@ -117,7 +133,7 @@ export class BoletimUI {
         <div class="bm-info-box"><div class="bm-info-label">Período</div><div class="bm-info-val">${bm.mes}</div></div>
         <div class="bm-info-box"><div class="bm-info-label">Data Medição</div><div class="bm-info-val">${bm.data || '—'}</div></div>
         <div class="bm-info-box"><div class="bm-info-label">Contrato</div><div class="bm-info-val">${cfg.contrato || '—'}</div></div>
-        <div class="bm-info-box"><div class="bm-info-label">Valor Total Contratual</div><div class="bm-info-val">${R$(cfg.valor || 0)}</div></div>
+        <div class="bm-info-box"><div class="bm-info-label">Valor Total Contratual</div><div class="bm-info-val">${R$(vContratual)}</div></div>
         <div class="bm-info-box"><div class="bm-info-label">Acumulado Anterior</div><div class="bm-info-val">${R$(vAcumAnt)}</div></div>
         <div class="bm-info-box bm-info-medatual"><div class="bm-info-label">Medição Atual</div>
           <div class="bm-info-val" style="color:${vMedAtual < 0 ? '#8B3A2A' : '#1A5E3A'}">${R$(vMedAtual)}</div></div>
