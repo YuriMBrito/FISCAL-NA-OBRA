@@ -407,7 +407,14 @@ export class DashboardModule {
       // Usa retry para garantir que Chart.js (carregado com defer) esteja disponível
       const _renderCharts = (tentativa = 0) => {
         if (typeof Chart === 'undefined') {
-          if (tentativa < 20) setTimeout(() => _renderCharts(tentativa + 1), 150);
+          // FIX-CHARTS-CDN: tenta carregar de jsDelivr como fallback se cdnjs falhar
+          if (tentativa === 10 && !document.querySelector('script[src*="jsdelivr"][src*="chart"]')) {
+            const fb = document.createElement('script');
+            fb.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+            fb.defer = true;
+            document.head.appendChild(fb);
+          }
+          if (tentativa < 40) setTimeout(() => _renderCharts(tentativa + 1), 200);
           return;
         }
         // FIX-CHARTS-V3: re-lê bms/itens/cfg do state no momento da execução
@@ -754,7 +761,9 @@ export class DashboardModule {
     const promises = [];
     for (let n = 1; n <= totalBMs; n++) {
       const cached = getMedicoes(obraId, n);
-      if (Object.keys(cached).length > 0) continue; // já no cache, pula
+      // FIX-3: ignora chaves de metadados (_salva, _obs_*, etc.) — exige dados reais de itens
+      const temDadosReais = Object.keys(cached).some(k => !k.startsWith('_'));
+      if (temDadosReais) continue;
       promises.push(
         FirebaseService.getMedicoes(obraId, n)
           .then(med => {
