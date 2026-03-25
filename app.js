@@ -461,7 +461,7 @@ class App {
     });
 
     // auth:login — esconde tela de login e carrega dados completos da obra ativa
-    EventBus.on('auth:login', async () => {
+    EventBus.on('auth:login', async ({ user } = {}) => {
       // FIX-E1.2: idempotência — garante execução única por sessão.
       // Sem este guard, os 3 listeners auth:login disparam em paralelo ao
       // login, causando race conditions onde carregamentos posteriores
@@ -474,21 +474,18 @@ class App {
       if (shell) shell.style.display = 'flex';
 
       // Carrega a lista de obras do Firebase e popula o state.
+      // FIX-SAFARI: passa o uid recebido no evento para evitar race condition
+      // onde currentUser ainda é null no Safari/Firefox no momento do disparo.
       try {
-        const lista = await FirebaseService.getObrasLista();
-        if (Array.isArray(lista) && lista.length > 0) {
+        const lista = await FirebaseService.getObrasLista(user?.uid);
+        // Sempre atualiza o state, mesmo com lista vazia, para limpar dados antigos/stale.
+        // Antes, quando lista = [] o state nunca era atualizado, deixando obras fantasmas visíveis.
+        if (Array.isArray(lista)) {
           state.set('obrasLista', lista);
-          EventBus.emit('obras:lista-atualizada', {});
+          if (lista.length > 0) EventBus.emit('obras:lista-atualizada', {});
         }
       } catch (e) {
         console.warn('[App] auth:login — erro ao carregar obras:', e);
-      }
-
-      // ── Restaura última obra ativa salva no perfil do usuário ──
-      // state.hydrate() é noop — a obra ativa é lida direto do Firestore
-      const obraIdSalva = await FirebaseService.getObraAtivaId().catch(() => null);
-      if (obraIdSalva && !state.get('obraAtivaId')) {
-        state.set('obraAtivaId', obraIdSalva);
       }
 
       // ── Carrega cfg / bms / itens da obra ativa direto do Firebase ──

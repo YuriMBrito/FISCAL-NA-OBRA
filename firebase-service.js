@@ -176,24 +176,16 @@ class FirebaseServiceClass {
     }
   }
 
-  async getObraAtivaId() {
-    // Lê a última obra ativa salva no perfil do usuário no Firestore
-    const uid = this._auth?.currentUser?.uid;
-    if (!this._ready || !uid) return null;
-    try {
-      const snap = await this._db.collection('usuarios').doc(uid).get();
-      return snap.exists ? (snap.data()?.obraAtivaId || null) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  async getObrasLista() {
+  async getObrasLista(uidOverride) {
     // P4 — cache em memória: evita consulta repetida ao Firebase
     const cached = MemCache.get('obras', null);
     if (cached !== null) return cached;
 
-    const uid = this._auth?.currentUser?.uid;
+    // FIX-SAFARI: em Safari/Firefox, currentUser pode estar null no momento exato
+    // em que auth:login é emitido pelo onAuthStateChanged, pois o IndexedDB ainda
+    // não completou a hidratação da sessão. Aceitamos um uid externo do evento
+    // para contornar essa race condition sem alterar o fluxo de autenticação.
+    const uid = uidOverride || this._auth?.currentUser?.uid;
     if (!this._ready || !uid) {
       return []; // Sem Firebase disponível: retorna lista vazia (offline usa cache Firestore nativo)
     }
