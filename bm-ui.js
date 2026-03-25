@@ -105,8 +105,16 @@ export class BoletimUI {
     const { R$, n4, n2, pct, fmtNum } = this._fmt(cfg);
 
     // KPIs do cabeçalho (bm-infos)
-    // Usa cfg.valor se configurado; caso contrário, soma os itens contratados
-    const vContratual = (cfg.valor && cfg.valor > 0) ? cfg.valor : _calcTotalContratado(itens, cfg);
+    // Calcula o total contratado percorrendo os itens com a mesma lógica da tabela
+    // para garantir que o card "Valor Total Contratual" sempre bata com o TOTAL GERAL
+    let _gContCards = 0;
+    itens.forEach(it => {
+      if (it.t) return; // ignora agregadores
+      if (itens.some(x => x.id !== it.id && it.id.startsWith(x.id + '.'))) return; // ignora filhos de grupos
+      const _upBdi = fmtNum((it.up || 0) * (1 + getBdiEfetivo(it, cfg)));
+      _gContCards += Math.round(fmtNum((it.qtd || 0) * _upBdi) * 100);
+    });
+    const vContratual = (cfg.valor && cfg.valor > 0) ? cfg.valor : Math.round(_gContCards) / 100;
     const vAcumAnt  = getValorAcumuladoAnterior(obraId, bmNum, itens, cfg);
     const vAcumTot  = getValorAcumuladoTotal(obraId, bmNum, itens, cfg);
     const vMedAtual = vAcumTot - vAcumAnt;
