@@ -416,6 +416,34 @@ export class AditivosModule {
       await this._aplicarVersaoContratual(aditivo, obraId);
     }
 
+    // ── Sync automático com módulo de Prazos ─────────────────────────────
+    // Se o aditivo tem prazo adicional (tipo prazo ou misto), cria/atualiza
+    // automaticamente uma prorrogação no controle de prazos.
+    if (aditivo.prazoAdicionalDias && parseInt(aditivo.prazoAdicionalDias) > 0) {
+      try {
+        const prorrs = await FirebaseService.getProrrogacoes(obraId) || [];
+        const syncId = `adt_sync_${aditivo.id}`;
+        const jaExiste = prorrs.find(p => p.id === syncId);
+        const novaProrr = {
+          id:             syncId,
+          ato:            `Aditivo Nº ${String(aditivo.numero).padStart(2,'0')}`,
+          dias:           parseInt(aditivo.prazoAdicionalDias),
+          data:           aditivo.data || new Date().toISOString().slice(0,10),
+          fundamentoLegal:'fato_administracao',
+          justificativa:  aditivo.descricao || `Aditivo contratual Nº ${aditivo.numero}`,
+          _origemAditivo: aditivo.id,
+          criadoEm:       jaExiste?.criadoEm || new Date().toISOString(),
+        };
+        const novaLista = jaExiste
+          ? prorrs.map(p => p.id === syncId ? novaProrr : p)
+          : [...prorrs, novaProrr];
+        await FirebaseService.salvarProrrogacoes(obraId, novaLista);
+        EventBus.emit('prazos:atualizado', { obraId });
+      } catch (e) {
+        console.warn('[AditivosModule] sync prazos:', e);
+      }
+    }
+
     this._ui.fecharModal();
     this._render();
 
