@@ -667,25 +667,26 @@ export class AditivosUI {
 
       const upFormatted = upD > 0 ? upD.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
 
-      return `<tr class="${trClass}" style="border-bottom:1px solid var(--border-subtle);${trInlineBg}${removido ? 'opacity:.55;text-decoration:line-through;' : ''}">
-        <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;background-color:inherit">${it.id || ''}</td>
-        <td style="padding:6px 10px;background-color:inherit">
+      const tdBg = trBg ? `background-color:${trBg};` : '';
+      return `<tr class="${trClass}" style="border-bottom:1px solid var(--border-subtle);${removido ? 'opacity:.55;text-decoration:line-through;' : ''}">
+        <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;${tdBg}">${it.id || ''}</td>
+        <td style="padding:6px 10px;${tdBg}">
           <input value="${(it.desc || '').replace(/"/g,"'")}" onchange="window._adtPlanilhaEditDesc?.(${idx},this.value)"
             style="background:transparent;border:none;width:100%;font-size:11.5px;color:var(--text-primary);outline:none;padding:0" ${removido ? 'disabled' : ''}>
         </td>
-        <td style="padding:6px 10px;text-align:center;font-family:var(--font-mono);font-size:10px;background-color:inherit">${it.un || ''}</td>
-        <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono);color:var(--text-muted);font-size:10px;background-color:inherit">${base !== undefined ? fmtN(qtdB) : '—'}</td>
-        <td style="padding:6px 10px;text-align:right;background-color:inherit">
+        <td style="padding:6px 10px;text-align:center;font-family:var(--font-mono);font-size:10px;${tdBg}">${it.un || ''}</td>
+        <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono);color:var(--text-muted);font-size:10px;${tdBg}">${base !== undefined ? fmtN(qtdB) : '—'}</td>
+        <td style="padding:6px 10px;text-align:right;${tdBg}">
           <input type="number" value="${qtdD || ''}" step="0.0001" onchange="window._adtPlanilhaEditQtd?.(${idx},parseFloat(this.value)||0)"
             style="background:transparent;border:1px solid var(--border);border-radius:4px;width:72px;text-align:right;padding:3px 6px;font-size:11.5px;font-family:var(--font-mono);color:var(--text-primary)" ${removido ? 'disabled' : ''}>
         </td>
-        <td style="padding:6px 10px;text-align:right;background-color:inherit">${deltaBadge}</td>
-        <td style="padding:6px 10px;text-align:right;background-color:inherit">
+        <td style="padding:6px 10px;text-align:right;${tdBg}">${deltaBadge}</td>
+        <td style="padding:6px 10px;text-align:right;${tdBg}">
           <input type="text" value="${upFormatted}" onchange="window._adtPlanilhaEditUp?.(${idx},(v=>parseFloat(v.replace(/[R$\\s]/g,'').replace(/\\./g,'').replace(',','.'))||0)(this.value))"
             style="background:transparent;border:1px solid var(--border);border-radius:4px;width:105px;text-align:right;padding:3px 6px;font-size:11.5px;font-family:var(--font-mono);color:var(--text-primary)" ${removido ? 'disabled' : ''}>
         </td>
-        <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px;background-color:inherit">${removido ? '<span style="color:var(--red)">EXCLUÍDO</span>' : R$(total)}</td>
-        <td style="padding:6px 10px;text-align:center;white-space:nowrap;background-color:inherit">
+        <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px;${tdBg}">${removido ? '<span style="color:var(--red)">EXCLUÍDO</span>' : R$(total)}</td>
+        <td style="padding:6px 10px;text-align:center;white-space:nowrap;${tdBg}">
           ${removido
             ? `<button data-action="_adtPlanilhaRestaurar" data-arg0="${idx}" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px" title="Restaurar item">♻️</button>`
             : `<button data-action="_adtPlanilhaRemover" data-arg0="${idx}" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px" title="Remover item">✕</button>`}
