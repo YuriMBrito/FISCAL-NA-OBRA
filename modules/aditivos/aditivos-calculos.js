@@ -193,11 +193,11 @@ export function classeRealce(upAditivo, upOriginal, qtdAditivo, qtdOriginal) {
   const q1  = parseFloat(qtdAditivo)  || 0;
   const q0  = parseFloat(qtdOriginal) || 0;
 
-  if (up1 > up0 + 0.001)           return 'linha-aumento-valor';
-  if (up1 < up0 - 0.001)           return 'linha-diminuiu-valor';
+  if (q1 === 0 && q0 > 0)          return 'linha-suprimiu-item';
   if (q1 < q0 - 0.0001 && q1 > 0)  return 'linha-diminuiu-qtd';
   if (q1 > q0 + 0.0001)            return 'linha-aumento-qtd';
-  if (q1 === 0 && q0 > 0)          return 'linha-suprimiu-item';
+  if (up1 > up0 + 0.001)           return 'linha-aumento-valor';
+  if (up1 < up0 - 0.001)           return 'linha-diminuiu-valor';
   return '';
 }
 

@@ -380,7 +380,7 @@ export class AditivosUI {
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1200;display:none;align-items:center;justify-content:center;padding:12px';
 
     overlay.innerHTML = `
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:24px;width:100%;max-width:1100px;height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.5)">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:24px;width:min(1240px,96vw);height:min(880px,94vh);aspect-ratio:297/210;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.5)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0">
           <div>
             <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Planilha do Aditivo</div>
@@ -396,10 +396,10 @@ export class AditivosUI {
 
         <!-- Legenda -->
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;flex-shrink:0;font-size:10px">
+          <span style="background:#fecaca;color:#b91c1c;border:1px solid #fca5a5;padding:2px 8px;border-radius:4px;font-weight:600">🔴 Quantidade Reduzida</span>
+          <span style="background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;padding:2px 8px;border-radius:4px;font-weight:600">🔵 Quantidade Aumentada / Novo</span>
           <span style="background:#bbf7d0;color:#15803d;border:1px solid #86efac;padding:2px 8px;border-radius:4px;font-weight:600">🟢 Valor Unitário Aumentado</span>
           <span style="background:#e9d5ff;color:#7e22ce;border:1px solid #d8b4fe;padding:2px 8px;border-radius:4px;font-weight:600">🟣 Valor Unitário Reduzido</span>
-          <span style="background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;padding:2px 8px;border-radius:4px;font-weight:600">🔵 Quantidade Aumentada / Novo</span>
-          <span style="background:#fecaca;color:#b91c1c;border:1px solid #fca5a5;padding:2px 8px;border-radius:4px;font-weight:600">🔴 Quantidade Reduzida</span>
           <span style="background:#fef08a;color:#854d0e;border:1px solid #fde047;padding:2px 8px;border-radius:4px;font-weight:600">🟡 Suprimido (Qtd=0)</span>
           <span style="background:var(--bg-warm);color:var(--text-muted);border:1px solid var(--border);padding:2px 8px;border-radius:4px;font-weight:600">⬜ Sem alteração</span>
         </div>
@@ -775,10 +775,10 @@ export class AditivosUI {
         </div>
         <!-- Legenda cores -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;flex-shrink:0;font-size:10px">
+          <span style="background:#fecaca;color:#b91c1c;border:1px solid #fca5a5;padding:2px 8px;border-radius:4px;font-weight:600">🔴 Quantidade Reduzida</span>
+          <span style="background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;padding:2px 8px;border-radius:4px;font-weight:600">🔵 Quantidade Aumentada / Novo</span>
           <span style="background:#bbf7d0;color:#15803d;border:1px solid #86efac;padding:2px 8px;border-radius:4px;font-weight:600">🟢 Valor Unitário Aumentado</span>
           <span style="background:#e9d5ff;color:#7e22ce;border:1px solid #d8b4fe;padding:2px 8px;border-radius:4px;font-weight:600">🟣 Valor Unitário Reduzido</span>
-          <span style="background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;padding:2px 8px;border-radius:4px;font-weight:600">🔵 Quantidade Aumentada / Novo</span>
-          <span style="background:#fecaca;color:#b91c1c;border:1px solid #fca5a5;padding:2px 8px;border-radius:4px;font-weight:600">🔴 Quantidade Reduzida</span>
           <span style="background:#fef08a;color:#854d0e;border:1px solid #fde047;padding:2px 8px;border-radius:4px;font-weight:600">🟡 Suprimido (Qtd=0)</span>
           <span style="background:var(--bg-warm);color:var(--text-muted);border:1px solid var(--border);padding:2px 8px;border-radius:4px;font-weight:600">⬜ Sem alteração</span>
         </div>
