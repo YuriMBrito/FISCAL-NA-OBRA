@@ -557,14 +557,21 @@ body.light-mode .bkp-card { background: #FFFFFF; border-color: #EBEBEB; }
 .alerta-item:hover { border-colo
 
 /* ═══ ADITIVOS — Realce de linhas da planilha ═══════════════════════════════
-   Seletores duplicados (.x.x) para garantir especificidade maior que
-   as regras globais do design-system (tr:nth-child(even) td !important)
-   que são carregadas depois e sobrescrevem seletores de menor especificidade. */
-.linha-aumento-valor.linha-aumento-valor   td { background-color: #bbf7d0 !important; }
-.linha-diminuiu-valor.linha-diminuiu-valor td { background-color: #e9d5ff !important; }
-.linha-diminuiu-qtd.linha-diminuiu-qtd     td { background-color: #fecaca !important; }
-.linha-aumento-qtd.linha-aumento-qtd       td { background-color: #dbeafe !important; }
-.linha-suprimiu-item.linha-suprimiu-item   td { background-color: #fef08a !important; }
+   Usa o ID #adt-pl-tbody (especificidade 1-1-1) para garantir prioridade
+   absoluta sobre qualquer regra global td/tr do design-system, que é
+   carregado depois deste arquivo e usa !important com menor especificidade. */
+#adt-pl-tbody tr.linha-aumento-valor  td { background-color: #bbf7d0 !important; }
+#adt-pl-tbody tr.linha-diminuiu-valor td { background-color: #e9d5ff !important; }
+#adt-pl-tbody tr.linha-diminuiu-qtd   td { background-color: #fecaca !important; }
+#adt-pl-tbody tr.linha-aumento-qtd    td { background-color: #dbeafe !important; }
+#adt-pl-tbody tr.linha-suprimiu-item  td { background-color: #fef08a !important; }
+
+/* Hover: mantém a cor de realce mesmo com o tr:hover do design-system */
+#adt-pl-tbody tr.linha-aumento-valor:hover  td { background-color: #86efac !important; }
+#adt-pl-tbody tr.linha-diminuiu-valor:hover td { background-color: #d8b4fe !important; }
+#adt-pl-tbody tr.linha-diminuiu-qtd:hover   td { background-color: #fca5a5 !important; }
+#adt-pl-tbody tr.linha-aumento-qtd:hover    td { background-color: #bfdbfe !important; }
+#adt-pl-tbody tr.linha-suprimiu-item:hover  td { background-color: #fde047 !important; }
 
 /* ═══ SIDEBAR — TOGGLE OCULTAR/MOSTRAR ═════════════════════════════════════
    Controlado pelo botão ☰ na topbar.
