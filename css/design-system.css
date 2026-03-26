@@ -680,6 +680,13 @@ tr:last-child td { border-bottom: none !important; }
 tr:nth-child(even) td { background: #FAFAFA !important; }
 tr:hover td { background: #F5F5F5 !important; }
 
+/* ── Exceção: editor de planilha de aditivos ──────────────────────────────
+   Neutraliza as regras zebra e hover globais para que as cores de realce
+   definidas no bloco "ADITIVOS — Realce" abaixo possam ser aplicadas.    */
+#adt-pl-tbody tr:nth-child(even) td { background: inherit !important; }
+#adt-pl-tbody tr:hover td           { background: inherit !important; }
+#adt-pl-tbody td                    { background: inherit !important; }
+
 /* Linha de grupo */
 .linha-grupo td {
   background: #0A0A0A !important;
@@ -2164,3 +2171,15 @@ code, pre {
   background: #FFFFFF !important;
   color: #111111 !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ADITIVOS — Realce de linhas do editor de planilha contratual
+   Definidas no fim deste arquivo (último carregado) para garantia absoluta
+   de precedência. O tr recebe a classe; o background vai direto no tr para
+   que o inherit dos tds acima funcione corretamente.
+   ══════════════════════════════════════════════════════════════════════════ */
+#adt-pl-tbody tr.linha-aumento-qtd    { background-color: #dbeafe !important; }
+#adt-pl-tbody tr.linha-diminuiu-qtd   { background-color: #fecaca !important; }
+#adt-pl-tbody tr.linha-aumento-valor  { background-color: #bbf7d0 !important; }
+#adt-pl-tbody tr.linha-diminuiu-valor { background-color: #e9d5ff !important; }
+#adt-pl-tbody tr.linha-suprimiu-item  { background-color: #fef08a !important; }
