@@ -410,6 +410,17 @@ export class AditivosUI {
         <!-- Tabela -->
         <div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:8px">
           <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+            <colgroup>
+              <col style="width:80px">
+              <col style="min-width:320px">
+              <col style="width:48px">
+              <col style="width:72px">
+              <col style="width:82px">
+              <col style="width:68px">
+              <col style="width:115px">
+              <col style="width:115px">
+              <col style="width:44px">
+            </colgroup>
             <thead style="position:sticky;top:0;background:var(--bg-card-alt);z-index:5">
               <tr>
                 <th style="padding:8px 10px;text-align:left;color:var(--text-on-panel);white-space:nowrap">Cód.</th>
@@ -609,6 +620,14 @@ export class AditivosUI {
       return;
     }
 
+    const BG_MAP = {
+      'linha-aumento-valor':  '#bbf7d0',
+      'linha-diminuiu-valor': '#e9d5ff',
+      'linha-aumento-qtd':    '#dbeafe',
+      'linha-diminuiu-qtd':   '#fecaca',
+      'linha-suprimiu-item':  '#fef08a',
+    };
+
     const rows = planilhaDraft.map((it, idx) => {
       if (it.t === 'G' || it.t === 'SG') {
         const indent = it.t === 'SG' ? 'padding-left:24px' : '';
@@ -635,6 +654,9 @@ export class AditivosUI {
           ? classeRealce(upD, upB, qtdD, qtdB)
           : (qtdD > 0 ? 'linha-aumento-qtd' : '');   // item novo
 
+      const trBg = BG_MAP[trClass] || '';
+      const trInlineBg = trBg ? `background-color:${trBg};` : '';
+
       let deltaBadge = '';
       if (!base) {
         deltaBadge = `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;padding:1px 5px;border-radius:3px;font-weight:700">NOVO</span>`;
@@ -643,25 +665,27 @@ export class AditivosUI {
         deltaBadge = `<span style="font-size:10px;font-weight:700;color:${col}">${delta > 0 ? '+' : ''}${fmtN(delta)}</span>`;
       }
 
-      return `<tr class="${trClass}" style="border-bottom:1px solid var(--border-subtle);${removido ? 'opacity:.55;text-decoration:line-through;' : ''}">
-        <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap">${it.id || ''}</td>
-        <td style="padding:6px 10px;max-width:220px">
+      const upFormatted = upD > 0 ? upD.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
+
+      return `<tr class="${trClass}" style="border-bottom:1px solid var(--border-subtle);${trInlineBg}${removido ? 'opacity:.55;text-decoration:line-through;' : ''}">
+        <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;background-color:inherit">${it.id || ''}</td>
+        <td style="padding:6px 10px;background-color:inherit">
           <input value="${(it.desc || '').replace(/"/g,"'")}" onchange="window._adtPlanilhaEditDesc?.(${idx},this.value)"
             style="background:transparent;border:none;width:100%;font-size:11.5px;color:var(--text-primary);outline:none;padding:0" ${removido ? 'disabled' : ''}>
         </td>
-        <td style="padding:6px 10px;text-align:center;font-family:var(--font-mono);font-size:10px">${it.un || ''}</td>
-        <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono);color:var(--text-muted);font-size:10px">${base !== undefined ? fmtN(qtdB) : '—'}</td>
-        <td style="padding:6px 10px;text-align:right">
+        <td style="padding:6px 10px;text-align:center;font-family:var(--font-mono);font-size:10px;background-color:inherit">${it.un || ''}</td>
+        <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono);color:var(--text-muted);font-size:10px;background-color:inherit">${base !== undefined ? fmtN(qtdB) : '—'}</td>
+        <td style="padding:6px 10px;text-align:right;background-color:inherit">
           <input type="number" value="${qtdD || ''}" step="0.0001" onchange="window._adtPlanilhaEditQtd?.(${idx},parseFloat(this.value)||0)"
-            style="background:transparent;border:1px solid var(--border);border-radius:4px;width:80px;text-align:right;padding:3px 6px;font-size:11.5px;font-family:var(--font-mono);color:var(--text-primary)" ${removido ? 'disabled' : ''}>
+            style="background:transparent;border:1px solid var(--border);border-radius:4px;width:72px;text-align:right;padding:3px 6px;font-size:11.5px;font-family:var(--font-mono);color:var(--text-primary)" ${removido ? 'disabled' : ''}>
         </td>
-        <td style="padding:6px 10px;text-align:right">${deltaBadge}</td>
-        <td style="padding:6px 10px;text-align:right">
-          <input type="number" value="${upD || ''}" step="0.01" onchange="window._adtPlanilhaEditUp?.(${idx},parseFloat(this.value)||0)"
-            style="background:transparent;border:1px solid var(--border);border-radius:4px;width:95px;text-align:right;padding:3px 6px;font-size:11.5px;font-family:var(--font-mono);color:var(--text-primary)" ${removido ? 'disabled' : ''}>
+        <td style="padding:6px 10px;text-align:right;background-color:inherit">${deltaBadge}</td>
+        <td style="padding:6px 10px;text-align:right;background-color:inherit">
+          <input type="text" value="${upFormatted}" onchange="window._adtPlanilhaEditUp?.(${idx},(v=>parseFloat(v.replace(/[R$\\s]/g,'').replace(/\\./g,'').replace(',','.'))||0)(this.value))"
+            style="background:transparent;border:1px solid var(--border);border-radius:4px;width:105px;text-align:right;padding:3px 6px;font-size:11.5px;font-family:var(--font-mono);color:var(--text-primary)" ${removido ? 'disabled' : ''}>
         </td>
-        <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px">${removido ? '<span style="color:var(--red)">EXCLUÍDO</span>' : R$(total)}</td>
-        <td style="padding:6px 10px;text-align:center;white-space:nowrap">
+        <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px;background-color:inherit">${removido ? '<span style="color:var(--red)">EXCLUÍDO</span>' : R$(total)}</td>
+        <td style="padding:6px 10px;text-align:center;white-space:nowrap;background-color:inherit">
           ${removido
             ? `<button data-action="_adtPlanilhaRestaurar" data-arg0="${idx}" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px" title="Restaurar item">♻️</button>`
             : `<button data-action="_adtPlanilhaRemover" data-arg0="${idx}" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px" title="Remover item">✕</button>`}
