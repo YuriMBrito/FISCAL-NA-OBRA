@@ -557,14 +557,14 @@ body.light-mode .bkp-card { background: #FFFFFF; border-color: #EBEBEB; }
 .alerta-item:hover { border-colo
 
 /* ═══ ADITIVOS — Realce de linhas da planilha ═══════════════════════════════
-   Fonte única de verdade para cores de realce.
-   Aplicado via class no <tr> — o seletor "td" garante prioridade sobre
-   qualquer background inline definido pelo tema.                            */
-.linha-aumento-valor  td { background-color: #bbf7d0 !important; }
-.linha-diminuiu-valor td { background-color: #e9d5ff !important; }
-.linha-diminuiu-qtd   td { background-color: #fecaca !important; }
-.linha-aumento-qtd    td { background-color: #dbeafe !important; }
-.linha-suprimiu-item  td { background-color: #fef08a !important; }
+   Seletores duplicados (.x.x) para garantir especificidade maior que
+   as regras globais do design-system (tr:nth-child(even) td !important)
+   que são carregadas depois e sobrescrevem seletores de menor especificidade. */
+.linha-aumento-valor.linha-aumento-valor   td { background-color: #bbf7d0 !important; }
+.linha-diminuiu-valor.linha-diminuiu-valor td { background-color: #e9d5ff !important; }
+.linha-diminuiu-qtd.linha-diminuiu-qtd     td { background-color: #fecaca !important; }
+.linha-aumento-qtd.linha-aumento-qtd       td { background-color: #dbeafe !important; }
+.linha-suprimiu-item.linha-suprimiu-item   td { background-color: #fef08a !important; }
 
 /* ═══ SIDEBAR — TOGGLE OCULTAR/MOSTRAR ═════════════════════════════════════
    Controlado pelo botão ☰ na topbar.
