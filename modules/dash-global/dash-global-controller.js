@@ -31,9 +31,9 @@ const diffDias = iso => iso ? Math.ceil((new Date(iso+'T23:59:59')-new Date())/8
 
 /* ── Paleta dark premium ── */
 const D = {
-  bg:       '#0c0f1a',
-  card:     '#111827',
-  card2:    '#151d2e',
+  bg:       '#000000',
+  card:     '#0a0a0a',
+  card2:    '#111111',
   border:   'rgba(255,255,255,0.07)',
   borderHi: 'rgba(255,255,255,0.14)',
   amber:    '#f59e0b',
@@ -51,7 +51,7 @@ const D = {
   slate:    '#475569',
   textPri:  '#f1f5f9',
   textSec:  '#94a3b8',
-  textMut:  '#475569',
+  textMut:  '#555f71',
 };
 
 const ALERTA = {
@@ -65,7 +65,7 @@ const CSS = `
 #dash-global-conteudo { background:${D.bg}; min-height:100vh; font-family:'Inter',system-ui,sans-serif; }
 .dg2-card { background:${D.card}; border:1px solid ${D.border}; border-radius:14px; padding:18px; }
 .dg2-card:hover { border-color:${D.borderHi}; }
-.dg2-glass { background:rgba(17,24,39,0.7); backdrop-filter:blur(12px); border:1px solid ${D.border}; border-radius:14px; padding:18px; }
+.dg2-glass { background:rgba(0,0,0,0.85); backdrop-filter:blur(12px); border:1px solid ${D.border}; border-radius:14px; padding:18px; }
 .dg2-tab { padding:9px 18px; border:none; background:none; cursor:pointer; font-size:12px; font-weight:700; color:${D.textMut}; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s; white-space:nowrap; letter-spacing:.3px; }
 .dg2-tab.active { color:${D.amber}; border-bottom-color:${D.amber}; }
 .dg2-tab:hover:not(.active) { color:${D.textSec}; }
@@ -249,8 +249,8 @@ export class DashGlobalModule {
     <div style="background:${D.bg};min-height:100vh;padding:0 0 40px">
 
       <!-- HEADER -->
-      <div style="padding:22px 28px 18px;background:linear-gradient(180deg,#0f1729 0%,${D.bg} 100%);border-bottom:1px solid ${D.border};position:relative;overflow:hidden">
-        <div style="position:absolute;top:-60px;left:40%;width:300px;height:200px;background:radial-gradient(circle,rgba(245,158,11,.12) 0%,transparent 70%);pointer-events:none"></div>
+      <div style="padding:22px 28px 18px;background:linear-gradient(180deg,#0d0d0d 0%,${D.bg} 100%);border-bottom:1px solid ${D.border};position:relative;overflow:hidden">
+        <div style="position:absolute;top:-60px;left:40%;width:300px;height:200px;background:radial-gradient(circle,rgba(245,158,11,.08) 0%,transparent 70%);pointer-events:none"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;position:relative">
           <div>
             <div style="font-size:11px;font-weight:700;color:${D.amber};text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">PAINEL EXECUTIVO</div>
@@ -315,8 +315,19 @@ export class DashGlobalModule {
     const aid=this._anim;
     requestAnimationFrame(()=>{
       if(aid!==this._anim)return;
-      if(this._tabAtual==='visao'){try{this._chartAvancoH(calc,aid);}catch(e){}try{this._chartDonut(nSem,nAnd,nProx,nConc,nPar,nSus,aid);}catch(e){}}
-      if(this._tabAtual==='financeiro'){try{this._chartFinV(calc,aid);}catch(e){}try{this._chartFisVsFin(calc,aid);}catch(e){}}
+      if(this._tabAtual==='visao'){
+        try{this._chartAvancoH(calc,aid);}catch(e){}
+        try{this._chartDonut(nSem,nAnd,nProx,nConc,nPar,nSus,aid);}catch(e){}
+        try{this._chartScatter(calc,aid);}catch(e){}
+        try{this._chartGauge(pctExecGlobal,aid);}catch(e){}
+      }
+      if(this._tabAtual==='financeiro'){
+        try{this._chartFinV(calc,aid);}catch(e){}
+        try{this._chartFisVsFin(calc,aid);}catch(e){}
+        try{this._chartSaldoStacked(calc,aid);}catch(e){}
+      }
+      if(this._tabAtual==='prazo'){try{this._chartPrazoH(calc,aid);}catch(e){}}
+      if(this._tabAtual==='empresas'){try{this._chartEmpresasH(calc,aid);}catch(e){}}
     });
   }
 
@@ -332,7 +343,8 @@ export class DashGlobalModule {
 
   /* ─── TAB VISÃO GERAL ─── */
   _htmlVisao(calc,nSem,nAnd,nProx,nConc,nPar,nSus) {
-    return `<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px">
+    return `
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:16px">
       <div class="dg2-card">
         <div class="dg2-section-title" style="color:${D.cyan}"><span style="background:${D.cyan};width:3px;height:14px;border-radius:2px;display:inline-block"></span>AVANÇO FÍSICO POR OBRA</div>
         <canvas id="dg-c1" style="width:100%;height:280px;display:block"></canvas>
@@ -341,6 +353,24 @@ export class DashGlobalModule {
         <div class="dg2-section-title" style="color:${D.purple}"><span style="background:${D.purple};width:3px;height:14px;border-radius:2px;display:inline-block"></span>SITUAÇÃO DAS OBRAS</div>
         <canvas id="dg-c3" style="width:100%;height:200px;display:block"></canvas>
         <div id="dg-leg" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center"></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="dg2-card">
+        <div class="dg2-section-title" style="color:${D.green}"><span style="background:${D.green};width:3px;height:14px;border-radius:2px;display:inline-block"></span>FÍSICO × FINANCEIRO — DISPERSÃO</div>
+        <div style="font-size:10px;color:${D.textMut};margin-bottom:10px">Cada ponto = uma obra · diagonal = execução ideal (físico = financeiro)</div>
+        <canvas id="dg-c5" style="width:100%;height:220px;display:block"></canvas>
+        <div style="display:flex;gap:16px;justify-content:center;margin-top:8px;font-size:10px">
+          <span style="color:${D.green}">⬤ Em dia</span>
+          <span style="color:${D.amber}">⬤ Pagto. adiantado</span>
+          <span style="color:${D.red}">⬤ Atrasada</span>
+          <span style="color:${D.slate}">⬤ Sem dados</span>
+        </div>
+      </div>
+      <div class="dg2-card" style="display:flex;flex-direction:column;align-items:center">
+        <div class="dg2-section-title" style="color:${D.amber};width:100%"><span style="background:${D.amber};width:3px;height:14px;border-radius:2px;display:inline-block"></span>EXECUÇÃO GLOBAL — INDICADOR</div>
+        <canvas id="dg-c6" style="width:100%;max-width:280px;height:200px;display:block;margin:0 auto"></canvas>
+        <div id="dg-gauge-label" style="text-align:center;margin-top:4px"></div>
       </div>
     </div>`;
   }
@@ -377,6 +407,14 @@ export class DashGlobalModule {
           <span><span style="display:inline-block;width:10px;height:10px;background:${D.amber};border-radius:2px;margin-right:5px;vertical-align:middle"></span>Financeiro</span>
         </div>
       </div>
+    </div>
+    <div class="dg2-card" style="margin-top:16px">
+      <div class="dg2-section-title" style="color:${D.green}"><span style="background:${D.green};width:3px;height:14px;border-radius:2px;display:inline-block"></span>CONTRATADO / EXECUTADO / SALDO — EMPILHADO POR OBRA</div>
+      <canvas id="dg-c7" style="width:100%;height:220px;display:block"></canvas>
+      <div style="display:flex;gap:16px;justify-content:center;margin-top:10px;font-size:10px;color:${D.textMut}">
+        <span><span style="display:inline-block;width:10px;height:10px;background:${D.green};border-radius:2px;margin-right:5px;vertical-align:middle"></span>Executado</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:2px;margin-right:5px;vertical-align:middle"></span>Saldo</span>
+      </div>
     </div>`;
   }
 
@@ -409,6 +447,11 @@ export class DashGlobalModule {
           <div style="font-size:9px;color:${D.textMut};text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">${k.l}</div>
           <div style="font-size:28px;font-weight:900;color:${k.c}">${k.v}</div>
         </div>`).join('')}
+    </div>
+    <div class="dg2-card" style="margin-bottom:16px">
+      <div class="dg2-section-title" style="color:${D.amber}"><span style="background:${D.amber};width:3px;height:14px;border-radius:2px;display:inline-block"></span>DIAS RESTANTES / ATRASO POR OBRA</div>
+      <div style="font-size:10px;color:${D.textMut};margin-bottom:10px">Barras verdes = dias restantes · barras vermelhas = dias em atraso</div>
+      <canvas id="dg-cprazo" style="width:100%;height:220px;display:block"></canvas>
     </div>
     <div class="dg2-card" style="padding:0;overflow:hidden">
       <table class="dg2-tbl">
@@ -479,7 +522,12 @@ export class DashGlobalModule {
     });
     const empresas=Object.values(map).map(e=>({...e,pctMed:e.n_pct>0?e.soma_pct/e.n_pct:0})).sort((a,b)=>b.valorTotal-a.valorTotal);
     if(!empresas.length)return`<div style="text-align:center;padding:48px;color:${D.textMut}">Nenhuma empresa cadastrada.</div>`;
-    return `<div class="dg2-card" style="padding:0;overflow:hidden">
+    return `
+    <div class="dg2-card" style="margin-bottom:16px">
+      <div class="dg2-section-title" style="color:${D.purple}"><span style="background:${D.purple};width:3px;height:14px;border-radius:2px;display:inline-block"></span>VALOR POR EMPRESA CONTRATADA</div>
+      <canvas id="dg-cemp" style="width:100%;height:${Math.min(240,empresas.length*34+40)}px;display:block"></canvas>
+    </div>
+    <div class="dg2-card" style="padding:0;overflow:hidden">
       <table class="dg2-tbl">
         <thead><tr><th>#</th><th>Empresa</th><th style="text-align:center">Contratos</th><th style="text-align:right">Valor Total</th><th style="text-align:right">Executado</th><th style="text-align:center">Exec. Média</th><th style="text-align:center">Atrasos</th><th style="text-align:center">Performance</th></tr></thead>
         <tbody>${empresas.map((e,i)=>{
@@ -732,6 +780,250 @@ export class DashGlobalModule {
         ctx.shadowBlur=0;
         ctx.fillStyle=D.textMut;ctx.font='9px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(d.n,cx2,H-mB+6);
       });
+      if(pr<1)requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+  }
+
+
+  /* ─── SCATTER: Físico × Financeiro ─── */
+  _chartScatter(calc,aid) {
+    const cv=document.getElementById('dg-c5');if(!cv)return;
+    const ctx=cv.getContext('2d'),dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.scale(dpr,dpr);
+    const W=r.width,H=r.height;
+    const mL=36,mR=16,mT=16,mB=32,cW=W-mL-mR,cH=H-mT-mB;
+    // Grid
+    ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+    for(let i=0;i<=4;i++){
+      const x=mL+(cW/4)*i,y=mT+(cH/4)*i;
+      ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+cH);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(mL,y);ctx.lineTo(mL+cW,y);ctx.stroke();
+      ctx.fillStyle=D.textMut;ctx.font='8px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+      ctx.fillText(`${i*25}%`,x,mT+cH+4);
+      if(i>0){ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(`${i*25}%`,mL-4,mT+cH-(cH/4)*i);}
+    }
+    // Diagonal ideal
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.moveTo(mL,mT+cH);ctx.lineTo(mL+cW,mT);ctx.stroke();ctx.setLineDash([]);
+    // Pontos
+    const t0=performance.now(),dur=600;
+    const pts=calc.filter(o=>o.c.valorContr>0).map(o=>({
+      x:o.c.pctFisico,y:o.c.pctFinanceiro,
+      n:(o.cfg?.apelido||o.apelido||o.nome||o.cfg?.objeto||'Obra').slice(0,12),
+      a:o.c.atrasada,
+      adiant:o.c.pctFinanceiro>o.c.pctFisico+10,
+    }));
+    const draw=now=>{
+      if(aid!==this._anim)return;
+      const pr=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-pr,3);
+      // Clear pontos area
+      ctx.clearRect(mL,mT,cW,cH);
+      // Reutiliza grid (não redesenha — só pontos)
+      pts.forEach(p=>{
+        const px=mL+(p.x/100)*cW,py=mT+cH-(p.y/100)*cH;
+        const cor=p.a?D.red:p.adiant?D.amber:D.green;
+        const r2=6*e;
+        ctx.shadowColor=cor;ctx.shadowBlur=12*e;
+        ctx.beginPath();ctx.arc(px,py,r2,0,Math.PI*2);ctx.fillStyle=cor+'cc';ctx.fill();
+        ctx.shadowBlur=0;
+        if(pr>.7){ctx.fillStyle=D.textSec;ctx.font='8px sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(p.n,px,py-r2-1);}
+      });
+      if(pr<1)requestAnimationFrame(draw);
+    };
+    // Redraw grid first
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+    for(let i=0;i<=4;i++){
+      const x=mL+(cW/4)*i,y=mT+(cH/4)*i;
+      ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+cH);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(mL,y);ctx.lineTo(mL+cW,y);ctx.stroke();
+      ctx.fillStyle=D.textMut;ctx.font='8px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+      ctx.fillText(`${i*25}%`,x,mT+cH+4);
+      if(i>0){ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(`${i*25}%`,mL-4,mT+cH-(cH/4)*i);}
+    }
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.moveTo(mL,mT+cH);ctx.lineTo(mL+cW,mT);ctx.stroke();ctx.setLineDash([]);
+    // Labels eixos
+    ctx.fillStyle=D.textMut;ctx.font='9px sans-serif';ctx.textAlign='center';
+    ctx.fillText('% Execução Física →',mL+cW/2,H-4);
+    ctx.save();ctx.translate(10,mT+cH/2);ctx.rotate(-Math.PI/2);ctx.fillText('% Financeiro →',0,0);ctx.restore();
+    requestAnimationFrame(draw);
+  }
+
+  /* ─── GAUGE: Execução Global ─── */
+  _chartGauge(pctGlobal,aid) {
+    const cv=document.getElementById('dg-c6');if(!cv)return;
+    const ctx=cv.getContext('2d'),dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.scale(dpr,dpr);
+    const W=r.width,H=r.height;
+    const cx=W/2,cy=H*.65,R=Math.min(W,H)*.42;
+    const startA=Math.PI*.75,endA=Math.PI*2.25,totalA=endA-startA;
+    const cor=pctGlobal>=80?D.green:pctGlobal>=40?D.amber:D.red;
+    const t0=performance.now(),dur=1000;
+    const draw=now=>{
+      if(aid!==this._anim)return;
+      const pr=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-pr,3);
+      ctx.clearRect(0,0,W,H);
+      // Track fundo
+      ctx.beginPath();ctx.arc(cx,cy,R,startA,endA);ctx.strokeStyle='rgba(255,255,255,.07)';ctx.lineWidth=14;ctx.lineCap='round';ctx.stroke();
+      // Arco colorido
+      const curA=startA+totalA*(pctGlobal/100)*e;
+      ctx.shadowColor=cor;ctx.shadowBlur=16*e;
+      ctx.beginPath();ctx.arc(cx,cy,R,startA,curA);ctx.strokeStyle=cor;ctx.lineWidth=14;ctx.lineCap='round';ctx.stroke();
+      ctx.shadowBlur=0;
+      // Ticks
+      for(let i=0;i<=4;i++){
+        const a=startA+(totalA/4)*i;
+        const ix=cx+Math.cos(a)*(R+10),iy=cy+Math.sin(a)*(R+10);
+        const tx=cx+Math.cos(a)*(R+20),ty=cy+Math.sin(a)*(R+20);
+        ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*(R-7),cy+Math.sin(a)*(R-7));ctx.lineTo(ix,iy);
+        ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1.5;ctx.stroke();
+        ctx.fillStyle=D.textMut;ctx.font='8px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(`${i*25}%`,tx,ty);
+      }
+      // Valor central
+      if(pr>.3){
+        ctx.fillStyle=cor;ctx.font=`bold ${Math.round(R*.38)}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(`${(pctGlobal*e).toFixed(1)}%`,cx,cy-6);
+        ctx.fillStyle=D.textMut;ctx.font='10px sans-serif';ctx.fillText('execução global',cx,cy+R*.28);
+      }
+      if(pr<1)requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+    // Label externo
+    const lbl=document.getElementById('dg-gauge-label');
+    if(lbl){
+      const status=pctGlobal>=80?`<span style="color:${D.green};font-weight:800">▲ Acima de 80% — Bom ritmo</span>`:pctGlobal>=40?`<span style="color:${D.amber};font-weight:800">◆ Entre 40-80% — Em progresso</span>`:`<span style="color:${D.red};font-weight:800">▼ Abaixo de 40% — Atenção</span>`;
+      lbl.innerHTML=`<div style="font-size:11px;margin-top:4px">${status}</div>`;
+    }
+  }
+
+  /* ─── STACKED: Contratado / Executado / Saldo ─── */
+  _chartSaldoStacked(calc,aid) {
+    const cv=document.getElementById('dg-c7');if(!cv)return;
+    const ctx=cv.getContext('2d'),dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.scale(dpr,dpr);
+    const W=r.width,H=r.height;
+    const dados=calc.filter(o=>o.c.valorContr>0).slice(0,12).map(o=>({
+      n:(o.cfg?.apelido||o.apelido||o.nome||o.cfg?.objeto||'Obra').slice(0,14),
+      exec:o.c.valorExec,saldo:o.c.saldo,total:o.c.valorContr
+    }));
+    if(!dados.length){ctx.fillStyle=D.textMut;ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('Sem dados',W/2,H/2);return;}
+    const mL=110,mR=16,mT=10,mB=10,cW=W-mL-mR,cH=H-mT-mB;
+    const mx=Math.max(1,...dados.map(d=>d.total));
+    const bH=Math.min(18,(cH/dados.length)-6),gap=6;
+    const t0=performance.now(),dur=700;
+    const draw=now=>{
+      if(aid!==this._anim)return;
+      const pr=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-pr,3);
+      ctx.clearRect(0,0,W,H);
+      dados.forEach((d,i)=>{
+        const y=mT+i*(bH+gap);
+        const wExec=(d.exec/mx)*cW*e,wSaldo=(d.saldo/mx)*cW*e;
+        // Label
+        ctx.fillStyle=D.textMut;ctx.font='10px sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';
+        ctx.fillText(d.n,mL-8,y+bH/2);
+        // Fundo
+        ctx.fillStyle='rgba(255,255,255,.04)';ctx.beginPath();ctx.roundRect(mL,y,cW,bH,3);ctx.fill();
+        // Executado
+        if(wExec>2){ctx.shadowColor=D.green;ctx.shadowBlur=6;ctx.fillStyle=D.green;ctx.beginPath();ctx.roundRect(mL,y,wExec,bH,[3,0,0,3]);ctx.fill();ctx.shadowBlur=0;}
+        // Saldo
+        if(wSaldo>2){ctx.fillStyle='rgba(255,255,255,0.1)';ctx.beginPath();ctx.roundRect(mL+wExec,y,wSaldo,bH,[0,3,3,0]);ctx.fill();}
+        // % texto
+        if(pr>.6){
+          const pF=d.total>0?((d.exec/d.total)*100).toFixed(1):'0';
+          ctx.fillStyle=D.textPri;ctx.font='bold 9px monospace';ctx.textAlign='left';ctx.textBaseline='middle';
+          ctx.fillText(`${pF}%`,mL+wExec+wSaldo+5,y+bH/2);
+        }
+      });
+      if(pr<1)requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+  }
+
+  /* ─── HORIZONTAL BARS: Dias Restantes por Obra ─── */
+  _chartPrazoH(calc,aid) {
+    const cv=document.getElementById('dg-cprazo');if(!cv)return;
+    const ctx=cv.getContext('2d'),dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.scale(dpr,dpr);
+    const W=r.width,H=r.height;
+    const dados=calc.filter(o=>o.c.dataFim&&o.c.statusAtual!=='Concluída')
+      .slice(0,12).map(o=>({
+        n:(o.cfg?.apelido||o.apelido||o.nome||o.cfg?.objeto||'Obra').slice(0,20),
+        dr:o.c.diasRestantes||0, a:o.c.atrasada
+      })).sort((a,b)=>a.dr-b.dr);
+    if(!dados.length){ctx.fillStyle=D.textMut;ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('Sem dados',W/2,H/2);return;}
+    const mL=140,mR=55,mT=8,bH=Math.min(16,(H-mT)/(dados.length)-4),gap=4,cW=W-mL-mR;
+    const mx=Math.max(1,...dados.map(d=>Math.abs(d.dr)));
+    const t0=performance.now(),dur=700;
+    const draw=now=>{
+      if(aid!==this._anim)return;
+      const pr=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-pr,3);
+      ctx.clearRect(0,0,W,H);
+      // Linha central
+      ctx.strokeStyle='rgba(255,255,255,.15)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(mL,mT);ctx.lineTo(mL,mT+(dados.length*(bH+gap)));ctx.stroke();
+      dados.forEach((d,i)=>{
+        const y=mT+i*(bH+gap);
+        const cor=d.a?D.red:d.dr<=ALERTA.diasVencimentoProximo?D.amber:D.green;
+        const bW=Math.abs(d.dr)/mx*cW*e;
+        ctx.fillStyle=D.textMut;ctx.font='9px sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';
+        ctx.fillText(d.n,mL-8,y+bH/2);
+        ctx.fillStyle='rgba(255,255,255,.04)';ctx.beginPath();ctx.roundRect(mL,y,cW,bH,3);ctx.fill();
+        if(bW>1){
+          ctx.shadowColor=cor;ctx.shadowBlur=6;ctx.fillStyle=cor;
+          ctx.beginPath();ctx.roundRect(mL,y,bW,bH,3);ctx.fill();ctx.shadowBlur=0;
+        }
+        if(pr>.6){
+          ctx.fillStyle=D.textPri;ctx.font='bold 9px monospace';ctx.textAlign='left';ctx.textBaseline='middle';
+          ctx.fillText(d.a?`-${Math.abs(d.dr)}d`:`+${d.dr}d`,mL+bW+5,y+bH/2);
+        }
+      });
+      if(pr<1)requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+  }
+
+  /* ─── HORIZONTAL BARS: Empresas por Valor ─── */
+  _chartEmpresasH(calc,aid) {
+    const cv=document.getElementById('dg-cemp');if(!cv)return;
+    const ctx=cv.getContext('2d'),dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.scale(dpr,dpr);
+    const W=r.width,H=r.height;
+    const map={};
+    calc.forEach(o=>{const e=(o.cfg?.contratada||'Não informada').trim();if(!map[e])map[e]={v:0,m:0};map[e].v+=o.c.valorContr;map[e].m+=o.c.valorExec;});
+    const dados=Object.entries(map).map(([n,d])=>({n:n.slice(0,22),v:d.v,m:d.m})).sort((a,b)=>b.v-a.v).slice(0,10);
+    if(!dados.length){ctx.fillStyle=D.textMut;ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('Sem dados',W/2,H/2);return;}
+    const mL=160,mR=60,mT=8,bH=Math.min(16,(H-mT)/(dados.length)-5),gap=5,cW=W-mL-mR;
+    const mx=Math.max(1,...dados.map(d=>d.v));
+    const t0=performance.now(),dur=700;
+    const draw=now=>{
+      if(aid!==this._anim)return;
+      const pr=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-pr,3);
+      ctx.clearRect(0,0,W,H);
+      dados.forEach((d,i)=>{
+        const y=mT+i*(bH+gap),wV=(d.v/mx)*cW*e,wM=(d.m/mx)*cW*e;
+        ctx.fillStyle=D.textMut;ctx.font='9px sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';
+        ctx.fillText(d.n,mL-8,y+bH/2);
+        // Fundo (contratado)
+        ctx.fillStyle='rgba(255,255,255,.05)';ctx.beginPath();ctx.roundRect(mL,y,wV,bH,3);ctx.fill();
+        // Executado
+        if(wM>1){ctx.shadowColor=D.purple;ctx.shadowBlur=6;ctx.fillStyle=D.purple;ctx.beginPath();ctx.roundRect(mL,y,wM,bH,3);ctx.fill();ctx.shadowBlur=0;}
+        if(pr>.6){
+          const Rf=v=>(v/1e6).toFixed(1)+'M';
+          ctx.fillStyle=D.textSec;ctx.font='8px monospace';ctx.textAlign='left';ctx.textBaseline='middle';
+          ctx.fillText(Rf(d.v),mL+wV+5,y+bH/2);
+        }
+      });
+      // Legenda
+      if(pr>.7){
+        const ly=H-10;
+        ctx.fillStyle='rgba(255,255,255,.1)';ctx.fillRect(W/2-65,ly-5,10,8);
+        ctx.fillStyle=D.textMut;ctx.font='8px sans-serif';ctx.textAlign='left';ctx.fillText('Contratado',W/2-50,ly);
+        ctx.fillStyle=D.purple;ctx.fillRect(W/2+30,ly-5,10,8);
+        ctx.fillStyle=D.textMut;ctx.fillText('Executado',W/2+45,ly);
+      }
       if(pr<1)requestAnimationFrame(draw);
     };
     requestAnimationFrame(draw);
