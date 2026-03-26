@@ -28,6 +28,11 @@ const PERIODOS = [
 ];
 
 const PRIO_CLIMAS = ['sem_chuva','sol','parcial','chuva_leve','chuva','tempestade','granizo'];
+
+// Ícone noturno: "sol" à noite vira lua. Demais climas mantêm ícone normal.
+const ICON_NOITE = { sol: '🌙' };
+const iconClima = (key, periodo) =>
+  (periodo === 'noite' && ICON_NOITE[key]) ? ICON_NOITE[key] : (CLIMAS.find(c => c.key === key)?.icon || '');
 const MESES_PT    = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                      'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DIAS_SEM    = ['D','S','T','Q','Q','S','S'];
@@ -228,7 +233,7 @@ export class ChuvaModule {
           ${CLIMAS.map(c=>{const a=sel===c.key; return `<button type="button" title="${c.label}"
             onclick="window._chuva_selecionarPeriodo('${periodo}','${c.key}')"
             style="padding:5px 8px;border-radius:7px;cursor:pointer;font-size:14px;
-              background:${a?c.cor:'var(--bg-surface)'};border:1.5px solid ${a?c.borda:'var(--border)'};transition:all .1s">${c.icon}</button>`;}).join('')}
+              background:${a?c.cor:'var(--bg-surface)'};border:1.5px solid ${a?c.borda:'var(--border)'};transition:all .1s">${iconClima(c.key, periodo)}</button>`;}).join('')}
         </div>
         <div id="chuva-label-${periodo}" style="font-size:10px;color:var(--text-muted);margin-top:3px;min-height:14px">
           ${sel?(CLIMAS.find(c=>c.key===sel)?.label||''):'<em>Não registrado</em>'}
@@ -278,6 +283,7 @@ export class ChuvaModule {
       if (grid) grid.querySelectorAll('button').forEach((btn,idx)=>{
         const c=CLIMAS[idx], a=c.key===climaKey;
         btn.style.background=a?c.cor:'var(--bg-surface)'; btn.style.borderColor=a?c.borda:'var(--border)';
+        btn.textContent = iconClima(c.key, periodo);
       });
       if (label) { const c=CLIMAS.find(x=>x.key===climaKey); label.innerHTML=c?c.label:'<em>Não registrado</em>'; }
     };
