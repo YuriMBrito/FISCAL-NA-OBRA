@@ -1327,6 +1327,18 @@ class FirebaseServiceClass {
     catch (e) { console.error('[Firebase] getEtapasPac:', e); return this._ss.get(`etapas_pac_${obraId}`) || []; }
   }
 
+  // ── Prazos — Cronograma de Atividades (Curva S) ──────────────────────────
+  async salvarCronograma(obraId, lista) {
+    if (!this._ready || !this._db) { this._ss.set(`cronograma_${obraId}`, lista); return; }
+    try { await this._db.collection('obras').doc(obraId).collection('lei14133').doc('cronograma').set({ lista, updatedAt: new Date().toISOString() }); }
+    catch (e) { console.error('[Firebase] salvarCronograma:', e); this._ss.set(`cronograma_${obraId}`, lista); }
+  }
+  async getCronograma(obraId) {
+    if (!this._ready || !this._db) return this._ss.get(`cronograma_${obraId}`) || [];
+    try { const s = await this._db.collection('obras').doc(obraId).collection('lei14133').doc('cronograma').get(); return s.exists ? (s.data().lista || []) : []; }
+    catch (e) { console.error('[Firebase] getCronograma:', e); return this._ss.get(`cronograma_${obraId}`) || []; }
+  }
+
   // ── PAC / Obras Federais — Controle de Qualidade ─────────────────────────
   async salvarQualidade(obraId, lista) {
     if (!this._ready || !this._db) { this._ss.set(`qualidade_${obraId}`, lista); return; }
