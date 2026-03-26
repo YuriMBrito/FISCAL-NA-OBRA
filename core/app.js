@@ -125,7 +125,7 @@ class App {
       // imediatamente. Quando o módulo real registrar a função, o stub é
       // substituído e chamadas enfileiradas são drenadas automaticamente.
       safeExecuteSync(() => stubGlobals(
-        '_dgAbrirObra', '_dgBusca', '_dgFiltro', '_dgLimparFiltros', '_dgRecarregar',
+        '_dgAbrirObra', '_dgBusca', '_dgFiltro', '_dgLimparFiltros', '_dgRecarregar', '_dgTab',
         '_dashMudarStatus', '_dashDetalheBM', '_dashTab', '_dashGerarPDF', '_dashGerarPDFContratual',
         '_dashAlerta', '_alertaConfig', '_alertaAtualizar',
         'renderDashboard', 'renderRegistroBMs', 'renderBoletim', 'abrirDetalheBM',
@@ -846,6 +846,11 @@ class App {
 
       // Dash Global
       '_dgAbrirObra':          (id)     => safeExecuteSync(() => window._dgAbrirObra?.(id), { source: 'dg:abrir' }),
+      '_dgTab':                (tab)    => safeExecuteSync(() => window._dgTab?.(tab),       { source: 'dg:tab' }),
+      '_dgFiltro':             (c,v)    => safeExecuteSync(() => window._dgFiltro?.(c,v),    { source: 'dg:filtro' }),
+      '_dgBusca':              (v)      => safeExecuteSync(() => window._dgBusca?.(v),        { source: 'dg:busca' }),
+      '_dgLimparFiltros':      ()       => safeExecuteSync(() => window._dgLimparFiltros?.(), { source: 'dg:limpar' }),
+      '_dgRecarregar':         ()       => safeExecuteSync(() => window._dgRecarregar?.(),    { source: 'dg:recarregar' }),
 
       // Sidebar
       '_sidebarToggleGroup':   (id)     => safeExecuteSync(() => window._sidebarToggleGroup?.(id), { source: 'sidebar:toggle' }),
