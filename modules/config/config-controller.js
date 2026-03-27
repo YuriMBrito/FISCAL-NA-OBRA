@@ -466,6 +466,10 @@ export class ConfigModule {
       if (idx >= 0 && cfgNova.objeto) {
         obrasLista[idx].nome = cfgNova.objeto.slice(0,100);
         state.set('obrasLista', obrasLista);
+        // FIX: persiste o novo nome no documento obras/{id} no Firestore,
+        // para que no próximo login getObrasLista retorne o nome atualizado.
+        // Sem isso, o nome voltava ao original (ex: "Nova Obra") após logout.
+        await FirebaseService.atualizarObra?.(obraId, { nome: cfgNova.objeto.slice(0,100) });
       }
 
       EventBus.emit('config:salva', { obraId });
