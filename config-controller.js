@@ -885,9 +885,27 @@ export class ConfigModule {
     }
     try {
       // Configuração do Firebase é necessária antes do login —
-      // usa sessionStorage apenas para inicialização (não dados de obra)
-      sessionStorage.setItem('fiscalFirebaseCfg', JSON.stringify(cfg));
-      window.toast?.('🔥 Configuração salva. Recarregue a página para aplicar.','ok');
+      // usa sessionStorage para inicialização. Fallback para cookie de sessão
+      // caso o browser (Opera GX / modo privado) bloqueie o sessionStorage.
+      const cfgStr = JSON.stringify(cfg);
+      let salvo = false;
+      try {
+        sessionStorage.setItem('fiscalFirebaseCfg', cfgStr);
+        salvo = true;
+      } catch (_) { /* sessionStorage bloqueado */ }
+      if (!salvo) {
+        // Fallback: cookie de sessão (sem expiração = apagado ao fechar o browser)
+        try {
+          document.cookie = 'fiscalFirebaseCfg=' + encodeURIComponent(cfgStr) + '; path=/; SameSite=Strict';
+          salvo = true;
+          console.warn('[Config] sessionStorage bloqueado — config Firebase salva em cookie de sessão.');
+        } catch (_) { /* cookies também bloqueados */ }
+      }
+      if (salvo) {
+        window.toast?.('🔥 Configuração salva. Recarregue a página para aplicar.','ok');
+      } else {
+        window.toast?.('❌ Seu browser está bloqueando o armazenamento local. Verifique as configurações de privacidade (Opera GX: desative o GX Cleaner).','err');
+      }
     } catch(e) { window.toast?.('❌ Erro ao salvar configuração Firebase.','err'); }
   }
 

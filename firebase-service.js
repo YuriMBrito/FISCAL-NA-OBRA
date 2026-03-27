@@ -118,14 +118,46 @@ class FirebaseServiceClass {
   }
 
   _tryEnablePersistence() {
-    try {
-      this._db?.enablePersistence({ synchronizeTabs: true })
-        .then(() => console.log('[Firebase] Persistência offline habilitada.'))
-        .catch(e => {
-          if (e.code === 'failed-precondition') console.warn('[Firebase] Múltiplas abas abertas.');
-          else if (e.code === 'unimplemented') console.warn('[Firebase] Persistência não suportada.');
-        });
-    } catch {}
+    // Primeiro verifica se o IndexedDB está acessível — Opera GX e browsers
+    // com privacidade agressiva (GX Cleaner, modo privado, bloqueadores) podem
+    // bloquear o IDBFactory, fazendo o Firebase Auth perder a sessão silenciosamente.
+    this._checkIndexedDB().then(idbOk => {
+      if (!idbOk) {
+        console.warn('[Firebase] IndexedDB indisponível — sessão não persistida. Verifique as configurações de privacidade do browser (Opera GX: desative o GX Cleaner para este site).');
+        EventBus.emit('firebase:indexeddb-bloqueado', {});
+        return; // Não tenta enablePersistence — evita erro silencioso
+      }
+      try {
+        this._db?.enablePersistence({ synchronizeTabs: true })
+          .then(() => console.log('[Firebase] Persistência offline habilitada.'))
+          .catch(e => {
+            if (e.code === 'failed-precondition') {
+              console.warn('[Firebase] Múltiplas abas abertas — persistência desativada nesta aba.');
+            } else if (e.code === 'unimplemented') {
+              console.warn('[Firebase] Browser não suporta IndexedDB persistência.');
+              EventBus.emit('firebase:indexeddb-bloqueado', {});
+            }
+          });
+      } catch {}
+    });
+  }
+
+  // Testa se o IndexedDB está realmente acessível (Opera GX pode bloquear sem erro visível)
+  _checkIndexedDB() {
+    return new Promise(resolve => {
+      try {
+        if (typeof indexedDB === 'undefined' || indexedDB === null) { resolve(false); return; }
+        const req = indexedDB.open('_fo_idb_check', 1);
+        const timer = setTimeout(() => resolve(false), 1500);
+        req.onsuccess = () => {
+          clearTimeout(timer);
+          try { req.result.close(); indexedDB.deleteDatabase('_fo_idb_check'); } catch {}
+          resolve(true);
+        };
+        req.onerror = () => { clearTimeout(timer); resolve(false); };
+        req.onblocked = () => { clearTimeout(timer); resolve(false); };
+      } catch { resolve(false); }
+    });
   }
 
   _setupAuthListener() {
