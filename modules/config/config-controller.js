@@ -17,6 +17,12 @@ import { validarCNPJ } from '../../utils/server-validators.js';
 import { formatters }  from '../../utils/formatters.js';
 import FirebaseService from '../../firebase/firebase-service.js';
 import storageUtils    from '../../utils/storage.js';
+import {
+  getValorAcumuladoTotal   as _getVAcumTotal,
+  getValorAcumuladoAnterior as _getVAcumAnterior,
+  getMedicoes              as _getMedicoes,
+  _injetarCacheMedicoes,
+} from '../boletim-medicao/bm-calculos.js';
 
 const R$ = v => formatters.currency ? formatters.currency(v)
   : (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -338,23 +344,36 @@ export class ConfigModule {
         Nenhum BM cadastrado.</td></tr>`;
       return;
     }
-    try {
-      const { getValorAcumuladoTotal, getValorAcumuladoAnterior } =
-        /* dynamic import cache */ window._bmCalcModule || {};
 
+    // Carrega medições do Firebase para todos os BMs que ainda não estejam em cache,
+    // depois re-renderiza a tabela com os valores reais.
+    const _carregarEExibir = async () => {
+      const promises = [];
+      bms.forEach(bm => {
+        const cached = _getMedicoes(obraId, bm.num);
+        const temDados = Object.keys(cached).some(k => !k.startsWith('_'));
+        if (!temDados) {
+          promises.push(
+            FirebaseService.getMedicoes(obraId, bm.num)
+              .then(med => { if (med && Object.keys(med).length) _injetarCacheMedicoes(obraId, bm.num, med); })
+              .catch(() => {})
+          );
+        }
+      });
+      if (promises.length) await Promise.all(promises);
+
+      const R$ = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       tbody.innerHTML = bms.map(bm => {
-        let vBm=0, vAcum=0;
+        let vBm = 0, vAcum = 0;
         try {
-          if (getValorAcumuladoTotal) {
-            vAcum = getValorAcumuladoTotal(obraId, bm.num, itens, cfg);
-            vBm   = vAcum - (getValorAcumuladoAnterior(obraId, bm.num, itens, cfg)||0);
-          }
+          vAcum = _getVAcumTotal(obraId, bm.num, itens, cfg);
+          vBm   = vAcum - (_getVAcumAnterior(obraId, bm.num, itens, cfg) || 0);
         } catch {}
         return `
           <tr>
-            <td class="td-c" style="font-weight:700">${bm.label||`BM ${bm.num}`}</td>
-            <td>${bm.mes||'—'}</td>
-            <td class="td-c">${bm.data||'—'}</td>
+            <td class="td-c" style="font-weight:700">${bm.label || `BM ${bm.num}`}</td>
+            <td>${bm.mes || '—'}</td>
+            <td class="td-c">${bm.data || '—'}</td>
             <td class="td-r" style="font-family:var(--font-mono)">${R$(vBm)}</td>
             <td class="td-r" style="font-family:var(--font-mono)">${R$(vAcum)}</td>
             <td class="td-c" style="white-space:nowrap">
@@ -365,21 +384,25 @@ export class ConfigModule {
             </td>
           </tr>`;
       }).join('');
-    } catch(e) {
-      tbody.innerHTML = bms.map(bm => `
-        <tr>
-          <td class="td-c" style="font-weight:700">${bm.label||`BM ${bm.num}`}</td>
-          <td>${bm.mes||'—'}</td>
-          <td class="td-c">${bm.data||'—'}</td>
-          <td class="td-r">—</td><td class="td-r">—</td>
-          <td class="td-c">
-            <button class="btn btn-cinza btn-sm" style="padding:2px 8px;font-size:10px"
-              data-action="_cfgEditarBM" data-arg0="${bm.num}">✏️</button>
-            <button class="btn btn-vermelho btn-sm" style="padding:2px 8px;font-size:10px"
-              data-action="_cfgExcluirBM" data-arg0="${bm.num}">🗑️</button>
-          </td>
-        </tr>`).join('');
-    }
+    };
+
+    // Exibe placeholder enquanto carrega
+    tbody.innerHTML = bms.map(bm => `
+      <tr>
+        <td class="td-c" style="font-weight:700">${bm.label || `BM ${bm.num}`}</td>
+        <td>${bm.mes || '—'}</td>
+        <td class="td-c">${bm.data || '—'}</td>
+        <td class="td-r" style="color:#9ca3af;font-size:11px">carregando…</td>
+        <td class="td-r" style="color:#9ca3af;font-size:11px">carregando…</td>
+        <td class="td-c" style="white-space:nowrap">
+          <button class="btn btn-cinza btn-sm" style="padding:2px 8px;font-size:10px"
+            data-action="_cfgEditarBM" data-arg0="${bm.num}">✏️</button>
+          <button class="btn btn-vermelho btn-sm" style="padding:2px 8px;font-size:10px"
+            data-action="_cfgExcluirBM" data-arg0="${bm.num}">🗑️</button>
+        </td>
+      </tr>`).join('');
+
+    _carregarEExibir().catch(() => {});
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -404,7 +427,7 @@ export class ConfigModule {
       objeto:            g('cfgObjeto').toUpperCase() || cfgAtual.objeto || '',
       contratante:       g('cfgContratante'),
       contratada:        g('cfgContratada'),
-      cnpj:              g('cfgCnpj'),
+      cnpj:              (() => { const d = g('cfgCnpj').replace(/\D/g,''); return d.length===14 ? d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5') : g('cfgCnpj'); })(),
       valor:             gn('cfgValor'),
       inicioPrev:        g('cfgInicioPrev'),
       inicioReal:        g('cfgInicioReal'),
@@ -414,7 +437,7 @@ export class ConfigModule {
       creaFiscal:        g('cfgCreaFiscal'),
       rt:                g('cfgRT'),
       creaRT:            g('cfgCreaRT'),
-      cnpjContratante:   g('cfgCnpjContratante'),
+      cnpjContratante:   (() => { const d = g('cfgCnpjContratante').replace(/\D/g,''); return d.length===14 ? d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5') : g('cfgCnpjContratante'); })(),
       numeroProcesso:    g('cfgProcesso'),
       unidadeResponsavel:g('cfgUnidade'),
       apelido:           g('cfgApelido'),
@@ -437,18 +460,6 @@ export class ConfigModule {
       grauSigilo:        g('cfgGrauSigilo') || '#PUBLICO',
     };
 
-    // ── Validação CNPJ client-side (substitui Cloud Function validarCNPJContratado)
-    // Migrado para client-side para funcionar no plano Spark (gratuito) do Firebase.
-    if (cfgNova.cnpj && !validarCNPJ(cfgNova.cnpj)) {
-      window.toast?.('⚠️ CNPJ da Contratada inválido. Verifique os dígitos e tente novamente.', 'warn');
-      document.getElementById('cfgCnpj')?.focus();
-      return;
-    }
-    if (cfgNova.cnpjContratante && !validarCNPJ(cfgNova.cnpjContratante)) {
-      window.toast?.('⚠️ CNPJ da Contratante inválido. Verifique os dígitos e tente novamente.', 'warn');
-      document.getElementById('cfgCnpjContratante')?.focus();
-      return;
-    }
 
     const obrasLista = state.get('obrasLista') || [];
     // FIX-3: passar o statusObra real da obra, não o tipoObra.
@@ -780,19 +791,66 @@ export class ConfigModule {
   async _editarBM(num) {
     const obraId = state.get('obraAtivaId');
     const bms    = [...(state.get('bms')||[])];
-    const idx    = bms.findIndex(b => b.num === num);
+    const numInt = parseInt(num, 10);
+    const idx    = bms.findIndex(b => b.num === numInt);
     if (idx < 0) return;
-    const bm  = bms[idx];
-    const mes = prompt(`Mês de referência (${bm.label}):`, bm.mes||'');
-    if (mes === null) return;
-    const data= prompt('Data da medição:', bm.data||'');
-    if (data === null) return;
-    bms[idx] = { ...bm, mes: mes||bm.mes, data: data||bm.data };
-    state.set('bms', bms);
-    await FirebaseService.setBMs?.(obraId, bms);
-    EventBus.emit('boletim:atualizado', { obraId });
-    this._renderCfg();
-    window.toast?.('✅ BM atualizado.','ok');
+    const bm = bms[idx];
+
+    // Modal HTML inline — evita prompt() que é bloqueado em HTTPS/capture phase
+    return new Promise(resolve => {
+      // Remove modal anterior se existir
+      document.getElementById('_modal-editar-bm')?.remove();
+
+      const modal = document.createElement('div');
+      modal.id = '_modal-editar-bm';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+      modal.innerHTML = `
+        <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.22);padding:28px 32px;min-width:340px;max-width:420px;width:100%">
+          <div style="font-size:15px;font-weight:700;color:#1E2A3B;margin-bottom:20px">✏️ Editar ${bm.label || `BM ${bm.num}`}</div>
+          <label style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px">Mês de Referência</label>
+          <input id="_bm-edit-mes" type="text" value="${bm.mes||''}" placeholder="Ex: MARÇO/2024"
+            style="display:block;width:100%;margin:6px 0 16px;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box;outline:none">
+          <label style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px">Data da Medição</label>
+          <input id="_bm-edit-data" type="date" value="${bm.data||''}"
+            style="display:block;width:100%;margin:6px 0 24px;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box;outline:none">
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button id="_bm-edit-cancel"
+              style="padding:9px 20px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#374151;font-size:13px;font-weight:600;cursor:pointer">
+              Cancelar
+            </button>
+            <button id="_bm-edit-save"
+              style="padding:9px 20px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
+              Salvar
+            </button>
+          </div>
+        </div>`;
+
+      document.body.appendChild(modal);
+      document.getElementById('_bm-edit-mes').focus();
+
+      const fechar = () => { modal.remove(); resolve(); };
+
+      document.getElementById('_bm-edit-cancel').onclick = fechar;
+      modal.addEventListener('click', e => { if (e.target === modal) fechar(); });
+
+      document.getElementById('_bm-edit-save').onclick = async () => {
+        const mes  = document.getElementById('_bm-edit-mes').value.trim();
+        const data = document.getElementById('_bm-edit-data').value.trim();
+        modal.remove();
+        bms[idx] = { ...bm, mes: mes||bm.mes, data: data||bm.data };
+        state.set('bms', bms);
+        await FirebaseService.setBMs?.(obraId, bms);
+        EventBus.emit('boletim:atualizado', { obraId });
+        this._renderCfg();
+        window.toast?.('✅ BM atualizado.', 'ok');
+        resolve();
+      };
+
+      // Salva com Enter no campo de mês
+      document.getElementById('_bm-edit-mes').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('_bm-edit-save').click();
+      });
+    });
   }
 
   async _excluirBM(num) {
@@ -827,9 +885,27 @@ export class ConfigModule {
     }
     try {
       // Configuração do Firebase é necessária antes do login —
-      // usa sessionStorage apenas para inicialização (não dados de obra)
-      sessionStorage.setItem('fiscalFirebaseCfg', JSON.stringify(cfg));
-      window.toast?.('🔥 Configuração salva. Recarregue a página para aplicar.','ok');
+      // usa sessionStorage para inicialização. Fallback para cookie de sessão
+      // caso o browser (Opera GX / modo privado) bloqueie o sessionStorage.
+      const cfgStr = JSON.stringify(cfg);
+      let salvo = false;
+      try {
+        sessionStorage.setItem('fiscalFirebaseCfg', cfgStr);
+        salvo = true;
+      } catch (_) { /* sessionStorage bloqueado */ }
+      if (!salvo) {
+        // Fallback: cookie de sessão (sem expiração = apagado ao fechar o browser)
+        try {
+          document.cookie = 'fiscalFirebaseCfg=' + encodeURIComponent(cfgStr) + '; path=/; SameSite=Strict';
+          salvo = true;
+          console.warn('[Config] sessionStorage bloqueado — config Firebase salva em cookie de sessão.');
+        } catch (_) { /* cookies também bloqueados */ }
+      }
+      if (salvo) {
+        window.toast?.('🔥 Configuração salva. Recarregue a página para aplicar.','ok');
+      } else {
+        window.toast?.('❌ Seu browser está bloqueando o armazenamento local. Verifique as configurações de privacidade (Opera GX: desative o GX Cleaner).','err');
+      }
     } catch(e) { window.toast?.('❌ Erro ao salvar configuração Firebase.','err'); }
   }
 
@@ -915,7 +991,7 @@ export class ConfigModule {
     window.novaObra                   = ()    => { try { window.verPagina?.('importacao');   } catch(e){} };
     window._cfgSalvarStatus           = ()    => { if (!window.requirePerfil?.('fiscal','administrador')) return; try { this._salvarStatus();              } catch(e){} };
     window._cfgExcluirObra            = ()    => { if (!window.requirePerfil?.('administrador')) return; try { this._excluirObra();               } catch(e){} };
-    window._cfgEditarBM               = num   => { if (!window.requirePerfil?.('fiscal','administrador','engenheiro')) return; try { this._editarBM(num);               } catch(e){} };
+    window._cfgEditarBM               = num   => { if (!window.requirePerfil?.('fiscal','administrador','engenheiro')) return; this._editarBM(num).catch(e => console.error('[cfg:editarBM]', e)); };
     window._cfgExcluirBM              = num   => { if (!window.requirePerfil?.('administrador')) return; try { this._excluirBM(num);              } catch(e){} };
     window._cfgLixeiraRestaurar       = id    => { if (!window.requirePerfil?.('fiscal','administrador')) return; try { this._lixeiraRestaurar(id);        } catch(e){} };
     window._cfgLixeiraDeletarPermanente = id  => { if (!window.requirePerfil?.('administrador')) return; try { this._lixeiraDeletarPermanente(id);} catch(e){} };
