@@ -216,8 +216,15 @@ export class BoletimModule {
       med._motivoDesbloqueio  = motivo.trim();
       salvarMedicoes(obraId, bmNum, med);
       this._render();
-      this._atualizarControleBloqueio(obraId, bmNum);
+      // FIX: _atualizarControleBloqueio deve ser chamado APÓS o _render()
+      // para que os botões e inputs recém-criados pelo render já existam no DOM.
+      // Usar setTimeout(0) garante que o guardFocus/requestAnimationFrame do
+      // bm-caixa.render() já completou antes de aplicar o estado de bloqueio.
+      setTimeout(() => this._atualizarControleBloqueio(obraId, bmNum), 0);
       window.auditRegistrar?.({ modulo: 'Boletim de Medição', tipo: 'desbloqueado', registro: `BM ${String(bmNum).padStart(2,'0')}`, detalhe: `Desbloqueado por ${med._desbloqueadoPor} — Motivo: ${motivo.trim()}` });
+      // FIX: emitir medicao:salva também no desbloqueio para que outros módulos
+      // (dashboard, memória) atualizem seus estados corretamente.
+      EventBus.emit('medicao:salva', { bmNum, obraId, origem: 'boletim' });
       EventBus.emit('ui:toast', { msg: `🔓 BM ${String(bmNum).padStart(2,'0')} liberado para edição.`, tipo: 'info' });
     } catch (e) {
       console.error('[BoletimModule] desmarcarSalvoBol:', e);
