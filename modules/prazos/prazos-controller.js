@@ -248,12 +248,29 @@ export class PrazosModule {
   }
 
   /* ── TAB CURVA S ────────────────────────────────────────── */
+  // Resolve as datas do eixo da Curva S diretamente das configurações:
+  // início = inicioReal (se preenchido) ou inicioPrev
+  // fim    = início + duracaoDias + prorrogações (se duracaoDias > 0) ou cfg.termino
+  _resolverDatasCurvaS(cfg) {
+    const isoI = cfg.inicioReal || cfg.inicioPrev || null;
+    const diasBase  = parseInt(cfg.duracaoDias) || 0;
+    const diasProrr = this._prorrogacoes.reduce((a, p) => a + (parseInt(p.dias) || 0), 0);
+    const diasTotal = diasBase + diasProrr;
+    let isoF = null;
+    if (isoI && diasTotal > 0) {
+      const d = new Date(isoI + 'T12:00:00');
+      d.setDate(d.getDate() + diasTotal);
+      isoF = d.toISOString().slice(0, 10);
+    } else if (cfg.termino) {
+      isoF = cfg.termino;
+    }
+    return { isoI, isoF };
+  }
+
   _htmlCurvaS() {
     const cfg   = state.get('cfg') || {};
-    const p     = this._calcPrazo(cfg);
     const lista = this._cronograma.filter(a => a.inicio && a.termino);
-    const inicio  = p.inicio || cfg.inicioPrev;
-    const termino = p.dataFimStr || cfg.termino;
+    const { isoI: inicio, isoF: termino } = this._resolverDatasCurvaS(cfg);
     if (!inicio || !termino || lista.length === 0) {
       return `<div style="text-align:center;padding:48px 24px;color:var(--text-muted)">
         <div style="font-size:32px;margin-bottom:8px">📈</div>
@@ -284,10 +301,8 @@ export class PrazosModule {
     const cv = document.getElementById('prazo-curva-s');
     if (!cv) return;
     const cfg   = state.get('cfg') || {};
-    const p     = this._calcPrazo(cfg);
     const lista = this._cronograma.filter(a => a.inicio && a.termino);
-    const isoI  = p.inicio || cfg.inicioPrev;
-    const isoF  = p.dataFimStr || cfg.termino;
+    const { isoI, isoF } = this._resolverDatasCurvaS(cfg);
     if (!isoI || !isoF || lista.length === 0) return;
 
     const dtI = new Date(isoI + 'T12:00:00');
