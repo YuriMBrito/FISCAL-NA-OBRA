@@ -1068,7 +1068,7 @@ export class AditivosUI {
           : '';
 
         const bgColor = bgPDF[trClass] || '';
-        const tdBg    = bgColor ? `background-color:${bgColor} !important;` : '';
+        const tdBg    = bgColor ? `background-color:${bgColor};` : '';
 
         // Badge de situação no PDF
         const labelsPDF = {
@@ -1085,7 +1085,7 @@ export class AditivosUI {
           situacao = `<span style="font-size:6pt;background:${bgColor};color:${textoPDF[trClass]};border:1px solid ${textoPDF[trClass]}44;padding:1px 4px;border-radius:2px;font-weight:700">${labelsPDF[trClass]}</span>`;
         }
 
-        return `<tr style="border-bottom:1px solid #f3f4f6;${bgColor ? `background-color:${bgColor};` : ''}">
+        return `<tr style="border-bottom:1px solid #f3f4f6;${bgColor ? `background-color:${bgColor};-webkit-print-color-adjust:exact;print-color-adjust:exact;` : ''}">
           <td style="font-family:monospace;font-size:7pt;padding:4px 6px;white-space:nowrap;${tdBg}">${it.id || '—'}</td>
           <td style="font-size:7.5pt;padding:4px 6px;${tdBg}">${it.desc || '—'}</td>
           <td style="text-align:center;padding:4px 6px;font-size:6pt;font-family:monospace;${tdBg}">${it.un || ''}</td>
@@ -1108,7 +1108,7 @@ export class AditivosUI {
             ? 'linha-aumento-qtd'
             : classeRealce(it.upNova, it.upAnterior, it.qtdNova, it.qtdAnterior);
         const bgColor = bgPDF[trClass] || '';
-        const bg  = bgColor ? `background-color:${bgColor};` : '';
+        const bg  = bgColor ? `background-color:${bgColor};-webkit-print-color-adjust:exact;print-color-adjust:exact;` : '';
         return `<tr style="border-bottom:1px solid #f3f4f6;${bg}">
           <td style="font-family:monospace;font-size:7pt;padding:4px 6px">${it.itemId || '—'}</td>
           <td style="font-size:7.5pt;padding:4px 6px">${it.descricao || '—'}</td>
@@ -1132,6 +1132,8 @@ export class AditivosUI {
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Arial', sans-serif; font-size: 9pt; color: #1f2937; background: #fff; padding: 16mm 12mm; }
+        /* FIX: garante que cores de fundo das linhas sejam impressas em todos os browsers */
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
         .header { text-align: center; border-bottom: 3px solid #1d4ed8; padding-bottom: 10px; margin-bottom: 14px; }
         .header h1 { font-size: 13pt; color: #1d4ed8; font-weight: 800; letter-spacing: .5px; }
         .header p { font-size: 8.5pt; color: #6b7280; margin-top: 3px; }
