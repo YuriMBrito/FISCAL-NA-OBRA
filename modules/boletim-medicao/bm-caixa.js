@@ -19,6 +19,7 @@
 import state         from '../../core/state.js';
 import { formatters } from '../../utils/formatters.js';
 import { guardFocus } from '../../utils/dom-patcher.js';
+import { notifyDirectSave } from '../../utils/auto-save.js';
 import {
   getMedicoes,
   salvarMedicoes,
@@ -486,8 +487,7 @@ export class CaixaBM {
       _pctExec: pct,
     };
     salvarMedicoes(obraId, bmNum, med);
-
-    // Calcula valores para live-patch
+    notifyDirectSave(); // FIX: informa o autosave que já houve save direto
     const rnd2lp  = v => Math.round(v * 100) / 100;
     const upBdi   = item.upBdi ? item.upBdi : rnd2lp((item.up || 0) * (1 + getBdiEfetivo(item, cfg)));
     const totAtual = rnd2lp(qtdAtual * upBdi);

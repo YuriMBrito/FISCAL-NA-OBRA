@@ -15,6 +15,7 @@ import FirebaseService from '../../firebase/firebase-service.js';
 import storageUtils    from '../../utils/storage.js';
 import { formatters }  from '../../utils/formatters.js';
 import { validarCapMedicao } from '../../utils/server-validators.js';
+import { notifyDirectSave } from '../../utils/auto-save.js';
 import {
   getMedicoes, salvarMedicoes, invalidarCacheMedicoes, _injetarCacheMedicoes,
   getValorAcumuladoTotal, getValorAcumuladoAnterior, getValorMedicaoAtual,
@@ -1073,6 +1074,7 @@ export class BoletimModule {
           const med   = getMedicoes(obraId, bmNum);
           if (med && Object.keys(med).length > 0) {
             salvarMedicoes(obraId, bmNum, med);
+            notifyDirectSave(); // FIX: evita segundo autosave pelo mesmo evento
           }
         } catch (e) { console.error('[BoletimModule] autosave:trigger:', e); }
       }, 'boletim'),
