@@ -445,6 +445,9 @@ export class DocumentosModule {
     window._doc_busca           = v  => { try { this._busca=v; this._render(); } catch(e){} };
     window._doc_handleDrop      = e  => { try { this._handleDrop(e); } catch(e){} };
     window._doc_fileSelected    = e  => { try { this._fileSelected(e); } catch(e){} };
+    // FIX: _docClickFileInput era referenciado no data-action da área de drop
+    // mas nunca foi registrado — o clique não abria o seletor de arquivo.
+    window._docClickFileInput   = () => { try { document.getElementById('doc-file-input')?.click(); } catch(e){} };
   }
 
   destroy() { this._subs.forEach(u => u()); this._subs = []; }
