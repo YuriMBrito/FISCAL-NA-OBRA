@@ -879,7 +879,9 @@ class App {
       '_integGerarSancDeNotif': (id)    => safeExecuteSync(() => window._integGerarSancDeNotif?.(id), { source: 'notif:integ' }),
 
       // Obras Manager
-      '_obm_excluir':          (id, nm) => safeExecuteSync(() => window._obm_excluir?.(id, nm), { source: 'obm:excluir' }),
+      '_obm_selecionar':       (id)     => safeExecuteSync(() => window._obm_selecionar?.(id),       { source: 'obm:selecionar' }),
+      '_obm_irAba':            (aba)    => safeExecuteSync(() => window._obm_irAba?.(aba),            { source: 'obm:irAba' }),
+      '_obm_excluir':          (id, nm) => safeExecuteSync(() => window._obm_excluir?.(id, nm),       { source: 'obm:excluir' }),
 
       // Dash Global
       '_dgAbrirObra':          (id)     => safeExecuteSync(() => window._dgAbrirObra?.(id), { source: 'dg:abrir' }),
