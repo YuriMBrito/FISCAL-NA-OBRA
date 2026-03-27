@@ -24,6 +24,16 @@ let _timer      = null;
 let _hideTimer  = null;
 let _saving     = false;
 let _initialized = false;
+// FIX: rastreia o timestamp do último save direto (ex: aplicarPct, salvarMedicoes).
+// Se um save direto ocorreu dentro da janela de debounce, o autosave é abortado
+// para evitar gravação dupla no Firebase.
+let _lastDirectSaveAt = 0;
+const DIRECT_SAVE_GRACE_MS = 1200; // janela de graça: ligeiramente maior que DEBOUNCE_MS
+
+/** Deve ser chamado por qualquer handler que já salvou diretamente no Firebase. */
+export function notifyDirectSave() {
+  _lastDirectSaveAt = Date.now();
+}
 
 // ── Indicador visual ──────────────────────────────────────────
 
@@ -87,6 +97,17 @@ function _mostrar(estado) {
 async function _executarSave() {
   const obraId = state.get('obraAtivaId');
   if (!obraId) return;          // Sem obra ativa, nada a salvar
+
+  // FIX: se um handler já salvou diretamente no Firebase dentro da janela de
+  // graça, o autosave seria redundante — aborta para evitar gravação dupla.
+  if (Date.now() - _lastDirectSaveAt < DIRECT_SAVE_GRACE_MS) {
+    _mostrar('salvo'); // mostra "Salvo" para o usuário sem re-salvar
+    _hideTimer = setTimeout(() => {
+      const el = document.getElementById(INDICATOR_ID);
+      if (el) el.style.opacity = '0';
+    }, HIDE_DELAY_MS);
+    return;
+  }
 
   if (_saving) return;          // Evita overlapping saves
   _saving = true;
@@ -156,7 +177,10 @@ export function initAutoSave() {
   }
 
   // ── Eventos que disparam o auto-save ────────────────────────
-  ['input', 'change', 'blur'].forEach(evento => {
+  // FIX: 'blur' removido — causava salvamento duplo.
+  // O 'input' + debounce de 1s já cobre todas as edições.
+  // O 'change' cobre selects e checkboxes que não emitem 'input'.
+  ['input', 'change'].forEach(evento => {
     document.addEventListener(evento, (e) => {
       if (_ehCampoRelevante(e.target)) _disparar();
     }, { capture: true, passive: true });
@@ -179,4 +203,4 @@ export function forceSave() {
   return _executarSave();
 }
 
-export default { initAutoSave, forceSave };
+export default { initAutoSave, forceSave, notifyDirectSave };
