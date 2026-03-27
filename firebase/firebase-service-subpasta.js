@@ -208,16 +208,12 @@ class FirebaseServiceClass {
     }
   }
 
-  async getObrasLista(uidOverride) {
+  async getObrasLista() {
     // P4 — cache em memória: evita consulta repetida ao Firebase
     const cached = MemCache.get('obras', null);
     if (cached !== null) return cached;
 
-    // FIX-SAFARI: em Safari/Firefox, currentUser pode estar null no momento exato
-    // em que auth:login é emitido pelo onAuthStateChanged, pois o IndexedDB ainda
-    // não completou a hidratação da sessão. Aceitamos um uid externo do evento
-    // para contornar essa race condition sem alterar o fluxo de autenticação.
-    const uid = uidOverride || this._auth?.currentUser?.uid;
+    const uid = this._auth?.currentUser?.uid;
     if (!this._ready || !uid) {
       return []; // Sem Firebase disponível: retorna lista vazia (offline usa cache Firestore nativo)
     }
@@ -1361,6 +1357,18 @@ class FirebaseServiceClass {
     if (!this._ready || !this._db) return this._ss.get(`etapas_pac_${obraId}`) || [];
     try { const s = await this._db.collection('obras').doc(obraId).collection('etapas-pac').doc('lista').get(); return s.exists ? (s.data().etapas || []) : []; }
     catch (e) { console.error('[Firebase] getEtapasPac:', e); return this._ss.get(`etapas_pac_${obraId}`) || []; }
+  }
+
+  // ── Prazos — Cronograma de Atividades (Curva S) ──────────────────────────
+  async salvarCronograma(obraId, lista) {
+    if (!this._ready || !this._db) { this._ss.set(`cronograma_${obraId}`, lista); return; }
+    try { await this._db.collection('obras').doc(obraId).collection('lei14133').doc('cronograma').set({ lista, updatedAt: new Date().toISOString() }); }
+    catch (e) { console.error('[Firebase] salvarCronograma:', e); this._ss.set(`cronograma_${obraId}`, lista); }
+  }
+  async getCronograma(obraId) {
+    if (!this._ready || !this._db) return this._ss.get(`cronograma_${obraId}`) || [];
+    try { const s = await this._db.collection('obras').doc(obraId).collection('lei14133').doc('cronograma').get(); return s.exists ? (s.data().lista || []) : []; }
+    catch (e) { console.error('[Firebase] getCronograma:', e); return this._ss.get(`cronograma_${obraId}`) || []; }
   }
 
   // ── PAC / Obras Federais — Controle de Qualidade ─────────────────────────
