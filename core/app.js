@@ -549,6 +549,36 @@ class App {
     FirebaseService.init();
     logger.info('App', '✅ FirebaseService OK.');
 
+    // ── Detecta IndexedDB bloqueado (Opera GX / modo privado / GX Cleaner) ──
+    // Firebase v9/v10 usa IndexedDB para persistir a sessão de Auth.
+    // Se o browser bloquear o IndexedDB, o usuário parece "deslogado" mesmo
+    // tendo feito login antes — o banco aparece vazio sem nenhum erro visível.
+    const idbDisponivel = await new Promise(resolve => {
+      try {
+        if (typeof indexedDB === 'undefined' || indexedDB === null) { resolve(false); return; }
+        const req = indexedDB.open('_fo_idb_check', 1);
+        const t = setTimeout(() => resolve(false), 1500);
+        req.onsuccess = () => {
+          clearTimeout(t);
+          try { req.result.close(); indexedDB.deleteDatabase('_fo_idb_check'); } catch {}
+          resolve(true);
+        };
+        req.onerror   = () => { clearTimeout(t); resolve(false); };
+        req.onblocked = () => { clearTimeout(t); resolve(false); };
+      } catch { resolve(false); }
+    });
+
+    if (!idbDisponivel) {
+      console.warn('[Boot] ⚠️ IndexedDB bloqueado — Opera GX ou modo privado detectado. Sessão Firebase não pode ser restaurada automaticamente.');
+      // Aviso visual persistente para o usuário entender o problema
+      safeExecuteSync(() => {
+        window.toast?.(
+          '⚠️ Seu browser está bloqueando o armazenamento local (IndexedDB). No Opera GX: desative o GX Cleaner para este site ou use o modo normal (não privado). Você precisará fazer login novamente.',
+          'warn', 12000
+        );
+      }, { source: 'boot:idb-warn', silent: true });
+    }
+
     // Aguarda o Firebase resolver quem está autenticado (até 6s).
     // Firebase v9/v10 armazena a sessão no IndexedDB e dispara
     // onAuthStateChanged com null primeiro, depois com o usuário real.
@@ -566,7 +596,8 @@ class App {
             }
             // null = Firebase ainda não terminou de ler o IndexedDB, aguarda
           });
-          timer = setTimeout(() => { unsub(); resolve(null); }, 6000);
+          // Se IndexedDB bloqueado, o Firebase nunca vai retornar usuário — timeout reduzido
+          timer = setTimeout(() => { unsub(); resolve(null); }, idbDisponivel ? 6000 : 2000);
         } catch(e) { resolve(null); }
       });
     }
@@ -912,6 +943,44 @@ class App {
 
     EventBus.on('module:failed',    d => logger.error('App', `📦 module:failed → ${d.moduleId}`, d), 'app');
     EventBus.on('module:restarted', d => logger.info ('App', `📦 module:restarted → ${d.moduleId}`), 'app');
+
+    // ── IndexedDB bloqueado (Opera GX / modo privado / GX Cleaner) ───────
+    // Quando o Firebase detecta que o IndexedDB está inacessível, emite este
+    // evento. Exibimos um banner fixo no topo explicando o problema ao usuário,
+    // pois sem IndexedDB a sessão de Auth não é restaurada e os dados somem.
+    EventBus.on('firebase:indexeddb-bloqueado', () => {
+      safeExecuteSync(() => {
+        const bannerId = 'fo-idb-banner';
+        if (document.getElementById(bannerId)) return; // já exibido
+        const banner = document.createElement('div');
+        banner.id = bannerId;
+        banner.setAttribute('role', 'alert');
+        banner.style.cssText = [
+          'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:99999',
+          'background:#b45309', 'color:#fff', 'font-size:13px',
+          'padding:10px 16px', 'display:flex', 'align-items:center',
+          'gap:10px', 'box-shadow:0 2px 8px rgba(0,0,0,.35)',
+        ].join(';');
+        banner.innerHTML = `
+          <span style="font-size:18px">⚠️</span>
+          <span style="flex:1">
+            <strong>Armazenamento local bloqueado</strong> — seu browser está impedindo o
+            IndexedDB, necessário para manter a sessão e os dados do app.<br>
+            <span style="opacity:.9;font-size:12px">
+              <strong>Opera GX:</strong> desative o <em>GX Cleaner</em> para este site
+              (Menu → GX Cleaner → Exceções) ou use o modo normal (não privado).
+              <strong>Outros browsers:</strong> verifique as configurações de privacidade/cookies.
+            </span>
+          </span>
+          <button onclick="this.parentElement.remove()"
+            style="background:rgba(255,255,255,.25);border:none;color:#fff;
+                   padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">
+            Fechar
+          </button>`;
+        document.body.prepend(banner);
+        logger.warn('App', '⚠️ Banner IndexedDB bloqueado exibido ao usuário.');
+      }, { source: 'App:idb-banner', silent: true });
+    }, 'app');
 
     // FIX-3: quando o Firebase SDK carrega tarde (após o timeout de boot),
     // o auth:logout é emitido mas ninguém exibia a tela de login.
