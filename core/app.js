@@ -801,13 +801,19 @@ class App {
       '_respSalvarForm':           (id)     => safeExecuteSync(() => window._respSalvarForm?.(id),            { source: 'resp:salvar' }),
 
       // Controle de Prazos
+      '_prazoTab':                 (tab)    => safeExecuteSync(() => window._prazoTab?.(tab),                 { source: 'prazo:tab' }),
       '_prazoNovaProrr':           ()       => safeExecuteSync(() => window._prazoNovaProrr?.(),              { source: 'prazo:nova' }),
       '_prazoEditarProrr':         (id)     => safeExecuteSync(() => window._prazoEditarProrr?.(id),          { source: 'prazo:editar' }),
       '_prazoExcluirProrr':        (id)     => safeExecuteSync(() => window._prazoExcluirProrr?.(id),         { source: 'prazo:excluir' }),
       '_prazoSalvarProrr':         (id)     => safeExecuteSync(() => window._prazoSalvarProrr?.(id),          { source: 'prazo:salvar' }),
+      '_prazoCancelarForm':        ()       => { const el = document.getElementById('prazo-form-wrap'); if (el) el.innerHTML = ''; },
 
-      // Prazos
-      '_prazoCancelarForm':    ()       => { const el = document.getElementById('prazo-form-wrap'); if (el) el.innerHTML = ''; },
+      // Prazos — Cronograma
+      '_cronNovaAtividade':        ()       => safeExecuteSync(() => window._cronNovaAtividade?.(),           { source: 'cron:nova' }),
+      '_cronEditarAtividade':      (id)     => safeExecuteSync(() => window._cronEditarAtividade?.(id),       { source: 'cron:editar' }),
+      '_cronExcluirAtividade':     (id)     => safeExecuteSync(() => window._cronExcluirAtividade?.(id),      { source: 'cron:excluir' }),
+      '_cronSalvarAtividade':      (id)     => safeExecuteSync(() => window._cronSalvarAtividade?.(id),       { source: 'cron:salvar' }),
+      '_cronCancelarForm':         ()       => { const el = document.getElementById('cron-form-wrap'); if (el) el.innerHTML = ''; },
 
       // Matriz de Riscos
       '_riscoNovoForm':            ()       => safeExecuteSync(() => window._riscoNovoForm?.(),               { source: 'risco:novo' }),
