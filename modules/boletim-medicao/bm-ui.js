@@ -24,6 +24,21 @@ import {
   getBdiEfetivo,
 } from './bm-calculos.js';
 
+// Soma o valor total contratado dos itens (qtd × upBdi).
+// Usado como fallback quando cfg.valor não está configurado.
+function _calcTotalContratado(itens, cfg) {
+  // TRUNCAMENTO obrigatório para upBdi (cortar, nunca arredondar)
+  const rnd2 = v => Math.trunc(Math.round(v * 100 * 100) / 100) / 100;
+  let total = 0;
+  itens.forEach(it => {
+    if (it.t) return; // ignora agregadores
+    const bdiEf = getBdiEfetivo(it, cfg);
+    const upBdi = it.upBdi ? it.upBdi : rnd2((it.up || 0) * (1 + bdiEf));
+    total += rnd2((it.qtd || 0) * upBdi);
+  });
+  return Math.round(total * 100) / 100;
+}
+
 export class BoletimUI {
 
   injectPage() {
@@ -91,10 +106,20 @@ export class BoletimUI {
     const { R$, n4, n2, pct, fmtNum } = this._fmt(cfg);
 
     // KPIs do cabeçalho (bm-infos)
+    // Calcula o total contratado percorrendo os itens com a mesma lógica da tabela
+    // para garantir que o card "Valor Total Contratual" sempre bata com o TOTAL GERAL
+    let _gContCards = 0;
+    itens.forEach(it => {
+      if (it.t) return; // ignora agregadores
+      if (itens.some(x => x.id !== it.id && it.id.startsWith(x.id + '.'))) return; // ignora filhos de grupos
+      const _upBdi = fmtNum((it.up || 0) * (1 + getBdiEfetivo(it, cfg)));
+      _gContCards += Math.round(fmtNum((it.qtd || 0) * _upBdi) * 100);
+    });
+    const vContratual = (cfg.valor && cfg.valor > 0) ? cfg.valor : Math.round(_gContCards) / 100;
     const vAcumAnt  = getValorAcumuladoAnterior(obraId, bmNum, itens, cfg);
     const vAcumTot  = getValorAcumuladoTotal(obraId, bmNum, itens, cfg);
     const vMedAtual = vAcumTot - vAcumAnt;
-    const saldo     = (cfg.valor || 0) - vAcumTot;
+    const saldo     = vContratual - vAcumTot;
 
     // Assinaturas
     const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v || ''; };
@@ -117,7 +142,7 @@ export class BoletimUI {
         <div class="bm-info-box"><div class="bm-info-label">Período</div><div class="bm-info-val">${bm.mes}</div></div>
         <div class="bm-info-box"><div class="bm-info-label">Data Medição</div><div class="bm-info-val">${bm.data || '—'}</div></div>
         <div class="bm-info-box"><div class="bm-info-label">Contrato</div><div class="bm-info-val">${cfg.contrato || '—'}</div></div>
-        <div class="bm-info-box"><div class="bm-info-label">Valor Total Contratual</div><div class="bm-info-val">${R$(cfg.valor || 0)}</div></div>
+        <div class="bm-info-box"><div class="bm-info-label">Valor Total Contratual</div><div class="bm-info-val">${R$(vContratual)}</div></div>
         <div class="bm-info-box"><div class="bm-info-label">Acumulado Anterior</div><div class="bm-info-val">${R$(vAcumAnt)}</div></div>
         <div class="bm-info-box bm-info-medatual"><div class="bm-info-label">Medição Atual</div>
           <div class="bm-info-val" style="color:${vMedAtual < 0 ? '#8B3A2A' : '#1A5E3A'}">${R$(vMedAtual)}</div></div>
@@ -313,7 +338,7 @@ export class BoletimUI {
         const ajusteTag = grpMeta.ajuste != null && grpMeta.ajuste !== 0
           ? `<span style="font-size:9px;background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:3px;padding:1px 6px;margin-left:4px" title="Ajuste manual">± ${R$(grpMeta.ajuste)}</span>`
           : '';
-        html += `<tr class="linha-grupo">
+        html += `<tr class="linha-grupo" style="border-top:2px solid #000000;border-bottom:2px solid #000000;">
           <td style="padding:0 6px;background:#1A1A1A;width:36px;text-align:center">
             ${!salva ? `<button class="btn btn-sm" style="padding:2px 5px;font-size:9px;background:#333333;border:none;color:#94a3b8;cursor:pointer"
               title="Editar observações / ajuste do grupo"
@@ -349,7 +374,7 @@ export class BoletimUI {
         const obsTag = sgMeta.obs
           ? `<span style="font-size:9px;background:#fffbeb;color:#713f12;border:1px solid #fde68a;border-radius:3px;padding:1px 5px;margin-left:6px">📝 ${sgMeta.obs.slice(0, 50)}${sgMeta.obs.length > 50 ? '…' : ''}</span>`
           : '';
-        html += `<tr class="linha-subgrupo">
+        html += `<tr class="linha-subgrupo" style="border-top:1px solid #000000;border-bottom:1px solid #000000;">
           <td style="padding:0 6px;width:36px;text-align:center">
             ${!salva ? `<button class="btn btn-sm" style="padding:2px 5px;font-size:9px;background:#475569;border:none;color:#94a3b8;cursor:pointer"
               title="Editar observações do subgrupo"
@@ -667,7 +692,7 @@ export class BoletimUI {
           _gSaldoC += Math.round(v.tSaldo * 100);
         }
         linhas += `<tr class="grupo">
-          <td colspan="4" style="padding:4px 8px;font-size:8pt;font-weight:700">${it.id} &nbsp; ${it.desc}</td>
+          <td colspan="5" style="padding:4px 8px;font-size:8pt;font-weight:700">${it.id} &nbsp; ${it.desc}</td>
           <td class="td-r" style="font-size:7pt;color:#cbd5e1">—</td>
           <td class="td-r" style="font-size:7.5pt">${R$(v.tCont)}</td>
           <td class="td-r" style="font-size:7pt;color:#cbd5e1">${pct(pAnt_)}</td>
@@ -682,7 +707,7 @@ export class BoletimUI {
         return;
       }
       if (it.t === 'SG') {
-        linhas += `<tr class="subgrupo"><td colspan="14" style="padding:3px 14px;font-size:7.5pt">${it.id} — ${it.desc}</td></tr>`;
+        linhas += `<tr class="subgrupo"><td colspan="15" style="padding:3px 14px;font-size:7.5pt">${it.id} — ${it.desc}</td></tr>`;
         return;
       }
       if (it.t === 'MACRO') {
@@ -703,6 +728,7 @@ export class BoletimUI {
             <strong>${it.id}</strong> &nbsp; ${it.desc}
           </td>
           <td class="td-c" style="font-size:7.5pt">—</td>
+          <td class="td-r" style="font-size:7pt">—</td>
           <td class="td-r" style="font-size:7pt">—</td>
           <td class="td-r" style="font-size:7.5pt;font-weight:700">${R$(v.tCont)}</td>
           <td class="td-r" style="font-size:7pt">${pct(pAnt_)}</td>
@@ -746,6 +772,7 @@ export class BoletimUI {
         <td style="font-size:7.5pt;padding-left:${4 + indent}px">${it.desc}</td>
         <td class="td-c" style="font-size:7.5pt;color:#1e40af;font-weight:600">${it.und || '—'}</td>
         <td class="td-r" style="font-size:7pt;color:#374151">${it.qtd != null ? n2(it.qtd) : '—'}</td>
+        <td class="td-r" style="font-size:7pt;color:#374151;font-family:var(--font-mono)">${R$(upBdi)}</td>
         <td class="td-r" style="font-size:7.5pt">${R$(totCont)}</td>
         <td class="td-r" style="font-size:7pt;color:#6b7280">${fmtPct(pctAnt_)}</td>
         <td class="td-r" style="font-size:7.5pt;color:#6b7280">${totAnt_ > 0 ? R$(totAnt_) : 'R$ 0,00'}</td>
@@ -813,14 +840,14 @@ export class BoletimUI {
           <tr><td colspan="5" style="border:none;padding:1px 4px;font-weight:800;color:#64748b;text-transform:uppercase;font-size:6pt;letter-spacing:.5px">RESUMO DO CONTRATO</td></tr>
           <tr>
             <td style="border:none;padding:1px 4px;white-space:nowrap">VALOR TOTAL:</td>
-            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace" colspan="2">${R$(cfg.valor||0)}</td>
+            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace" colspan="2">${R$(gCont)}</td>
             <td style="border:none;padding:1px 0px;white-space:nowrap;padding-left:8px">SALDO:</td>
-            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(saldo)}</td>
+            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(gCont - vAcumTot)}</td>
           </tr>
           <tr>
             <td style="border:none;padding:1px 4px;white-space:nowrap">ACUMULADO ANTERIOR:</td>
             <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(vAcumAnt)}</td>
-            <td style="border:none;padding:1px 4px;text-align:right;font-family:monospace;color:#6b7280">${cfg.valor>0?fmtPct(vAcumAnt/cfg.valor*100):'—'}</td>
+            <td style="border:none;padding:1px 4px;text-align:right;font-family:monospace;color:#6b7280">${gCont>0?fmtPct(vAcumAnt/gCont*100):'—'}</td>
             <td style="border:none;padding:1px 0px;white-space:nowrap;padding-left:8px">ACUMULADO TOTAL:</td>
             <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(vAcumTot)}</td>
           </tr>
@@ -839,8 +866,8 @@ export class BoletimUI {
   <!-- ── Tabela principal ──────────────────────────────────────── -->
   <table style="table-layout:fixed;width:100%;font-size:7.5pt;border-collapse:collapse;margin-bottom:0">
     <colgroup>
-      <col style="width:22px"><col style="width:32px"><col style="width:200px"><col style="width:22px">
-      <col style="width:34px"><col style="width:52px"><col style="width:26px"><col style="width:60px">
+      <col style="width:22px"><col style="width:32px"><col style="width:190px"><col style="width:22px">
+      <col style="width:34px"><col style="width:42px"><col style="width:42px"><col style="width:26px"><col style="width:60px">
       <col style="width:28px"><col style="width:24px"><col style="width:58px">
       <col style="width:24px"><col style="width:56px"><col style="width:53px">
     </colgroup>
@@ -850,7 +877,7 @@ export class BoletimUI {
         <th rowspan="2" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:2px 2px;font-size:6pt">CÓD.</th>
         <th rowspan="2" style="text-align:left;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 6px;font-size:6.5pt">DESCRIÇÃO DOS SERVIÇOS</th>
         <th rowspan="2" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">UN.</th>
-        <th colspan="2" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">CONTRATUAL</th>
+        <th colspan="3" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">CONTRATUAL</th>
         <th colspan="2" style="text-align:center;background:#374151;color:#fff;border:1px solid #4b5563;padding:3px 2px;font-size:6pt">ACUM. ANTERIOR</th>
         <th colspan="3" style="text-align:center;background:#14532d;color:#fff;border:1px solid #15803d;padding:3px 2px;font-size:6pt">MEDIÇÃO ATUAL</th>
         <th colspan="2" style="text-align:center;background:#2A2A2A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">ACUM. TOTAL</th>
@@ -858,6 +885,7 @@ export class BoletimUI {
       </tr>
       <tr>
         <th style="text-align:right;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:2px 3px;font-size:5.5pt">QTD.</th>
+        <th style="text-align:right;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:2px 3px;font-size:5.5pt">VL.UNIT c/BDI</th>
         <th style="text-align:right;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:2px 3px;font-size:5.5pt">TOTAL</th>
         <th style="text-align:right;background:#374151;color:#fff;border:1px solid #4b5563;padding:2px 3px;font-size:5.5pt">%</th>
         <th style="text-align:right;background:#374151;color:#fff;border:1px solid #4b5563;padding:2px 3px;font-size:5.5pt">TOTAL</th>
@@ -872,6 +900,7 @@ export class BoletimUI {
     <tfoot>
       <tr style="background:#1A1A1A;color:#fff;font-weight:700">
         <td colspan="4" style="text-align:right;padding:4px 8px;font-size:8pt;border:1px solid #333333">TOTAL GERAL</td>
+        <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#cbd5e1">—</td>
         <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#cbd5e1">—</td>
         <td class="td-r" style="border:1px solid #333333;font-family:var(--font-mono);color:#fff;font-size:7.5pt">${R$(gCont)}</td>
         <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#cbd5e1">${cfg.valor > 0 ? fmtPct(gAnt / gCont * 100) : '—'}</td>

@@ -104,7 +104,7 @@ const _acumCache = new Map();
  */
 const _valorCache = new Map();
 
-function _clearAcumCache(obraId) {
+export function _clearAcumCache(obraId) {
   if (obraId) {
     for (const k of _acumCache.keys()) {
       if (k.startsWith(obraId + ':')) _acumCache.delete(k);
@@ -227,10 +227,10 @@ export function getValorAcumuladoTotal(obraId, bmNum, itensContrato, cfg) {
   if (_valorCache.has(cacheKey)) return _valorCache.get(cacheKey);
 
   const bdi = safe(cfg.bdi, 0.25);
-  // CORREÇÃO: usa sempre Math.round para valores monetários no cálculo acumulado.
-  // A planilha CAIXA (Portaria 37.587) soma os valores já arredondados de cada item.
-  // Usar truncar faz o total acumulado divergir em 1 centavo do total real.
-  const rnd2 = v => Math.round(v * 100) / 100;
+  // TRUNCAMENTO obrigatório para upBdi: cortar casas decimais após a segunda,
+  // nunca arredondar. Usa round(v*10000)/100 antes de trunc para compensar
+  // imprecisão de ponto flutuante (ex: 63.16*1.25 = 78.94999... → 78.94).
+  const rnd2 = v => Math.trunc(Math.round(v * 100 * 100) / 100) / 100;
   let total = 0;
   // FIX-4: rastreia qtd acumulada por item para aplicar o limite de 100% do contratado
   const qtdAcumMap = {};
