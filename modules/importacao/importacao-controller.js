@@ -121,7 +121,7 @@ export class ImportacaoModule {
               background:${isObra?'#2a1f3d':'#1e2330'};
               border-bottom:3px solid ${isObra?'#a78bfa':'transparent'}">
             <div style="font-size:12px;font-weight:800;color:${isObra?'#c4b5fd':'#6b7280'};margin-bottom:3px">
-              🏗️ Padrão Obra
+              🏗️ Planilha Vencedora
             </div>
             <div style="font-size:10px;color:${isObra?'#64748b':'#374151'}">
               Planilhas de obra sem Cód./Banco (7 colunas)
@@ -1031,7 +1031,7 @@ export class ImportacaoModule {
       const isCaixa = this._tipoImportacao === 'caixa';
       const isObra  = this._tipoImportacao === 'obra';
       const badgeCor  = isCaixa ? '#0284c7' : isObra ? '#7c3aed' : '#059669';
-      const modeLabel = isCaixa ? 'CAIXA BM' : isObra ? 'Padrão Obra' : (isPref ? 'Padrão Prefeitura' : fmt);
+      const modeLabel = isCaixa ? 'CAIXA BM' : isObra ? 'Planilha Vencedora' : (isPref ? 'Padrão Prefeitura' : fmt);
       statusEl.innerHTML = `<span style="color:${badgeCor};font-weight:700">
         ✅ Formato ${modeLabel} — ${itens.filter(i=>!i.t).length} itens encontrados</span>`;
     }
@@ -1089,7 +1089,7 @@ export class ImportacaoModule {
       this._formatoDetectado = 'CAIXA BM';
     } else if (forcarObra) {
       // Padrão Obra: Item · Descrição · Und · Qtd · V.Unit s/BDI · V.Unit+BDI · Total (sem Código e Banco)
-      this._formatoDetectado = 'Padrão Obra';
+      this._formatoDetectado = 'Planilha Vencedora';
       const pos = headersContr.map((h,i)=>h.trim()?i:null).filter(v=>v!==null);
       if (pos.length >= 5) {
         if (cols.item  ===-1) cols.item  = pos[0];
