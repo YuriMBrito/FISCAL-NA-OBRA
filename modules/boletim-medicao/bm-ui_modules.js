@@ -27,7 +27,8 @@ import {
 // Soma o valor total contratado dos itens (qtd × upBdi).
 // Usado como fallback quando cfg.valor não está configurado.
 function _calcTotalContratado(itens, cfg) {
-  const rnd2 = v => Math.round(v * 100) / 100;
+  // TRUNCAMENTO obrigatório para upBdi (cortar, nunca arredondar)
+  const rnd2 = v => Math.trunc(Math.round(v * 100 * 100) / 100) / 100;
   let total = 0;
   itens.forEach(it => {
     if (it.t) return; // ignora agregadores
@@ -691,7 +692,7 @@ export class BoletimUI {
           _gSaldoC += Math.round(v.tSaldo * 100);
         }
         linhas += `<tr class="grupo">
-          <td colspan="5" style="padding:4px 8px;font-size:8pt;font-weight:700">${it.id} &nbsp; ${it.desc}</td>
+          <td colspan="4" style="padding:4px 8px;font-size:8pt;font-weight:700">${it.id} &nbsp; ${it.desc}</td>
           <td class="td-r" style="font-size:7pt;color:#cbd5e1">—</td>
           <td class="td-r" style="font-size:7.5pt">${R$(v.tCont)}</td>
           <td class="td-r" style="font-size:7pt;color:#cbd5e1">${pct(pAnt_)}</td>
@@ -706,7 +707,7 @@ export class BoletimUI {
         return;
       }
       if (it.t === 'SG') {
-        linhas += `<tr class="subgrupo"><td colspan="15" style="padding:3px 14px;font-size:7.5pt">${it.id} — ${it.desc}</td></tr>`;
+        linhas += `<tr class="subgrupo"><td colspan="14" style="padding:3px 14px;font-size:7.5pt">${it.id} — ${it.desc}</td></tr>`;
         return;
       }
       if (it.t === 'MACRO') {
@@ -722,7 +723,7 @@ export class BoletimUI {
           _gSaldoC += Math.round(v.tSaldo * 100);
         }
         linhas += `<tr class="macro-row">
-          <td colspan="3" style="padding:3px 8px;padding-left:${8 + indent}px;font-size:7.5pt">
+          <td colspan="2" style="padding:3px 8px;padding-left:${8 + indent}px;font-size:7.5pt">
             <span style="font-size:6pt;background:#333333;color:#fff;padding:1px 4px;border-radius:2px;margin-right:4px">MACRO</span>
             <strong>${it.id}</strong> &nbsp; ${it.desc}
           </td>
@@ -767,7 +768,6 @@ export class BoletimUI {
       linhasIdx++;
       linhas += `<tr style="${rowBgPDF}">
         <td class="td-c" style="font-size:7pt;font-family:var(--font-mono);color:#374151">${it.id}</td>
-        <td class="td-c" style="font-size:7pt;font-family:var(--font-mono);color:#1e40af">${it.cod || '—'}</td>
         <td style="font-size:7.5pt;padding-left:${4 + indent}px">${it.desc}</td>
         <td class="td-c" style="font-size:7.5pt;color:#1e40af;font-weight:600">${it.und || '—'}</td>
         <td class="td-r" style="font-size:7pt;color:#374151">${it.qtd != null ? n2(it.qtd) : '—'}</td>
@@ -840,11 +840,11 @@ export class BoletimUI {
           <tr>
             <td style="border:none;padding:1px 4px;white-space:nowrap">VALOR TOTAL:</td>
             <td style="border:none;padding:1px 4px;text-align:right;font-family:monospace;color:#6b7280">—</td>
-            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(cfg.valor||0)}</td>
+            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(gCont)}</td>
           </tr>
           <tr>
             <td style="border:none;padding:1px 4px;white-space:nowrap">ACUMULADO ANTERIOR:</td>
-            <td style="border:none;padding:1px 4px;text-align:right;font-family:monospace;color:#6b7280">${cfg.valor>0?fmtPct(vAcumAnt/cfg.valor*100):'—'}</td>
+            <td style="border:none;padding:1px 4px;text-align:right;font-family:monospace;color:#6b7280">${gCont>0?fmtPct(vAcumAnt/gCont*100):'—'}</td>
             <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(vAcumAnt)}</td>
           </tr>
           <tr style="background:#dbeafe">
@@ -860,7 +860,7 @@ export class BoletimUI {
           <tr>
             <td style="border:none;padding:1px 4px;white-space:nowrap">SALDO:</td>
             <td style="border:none;padding:1px 4px;text-align:right;font-family:monospace;color:#6b7280">—</td>
-            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(saldo)}</td>
+            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(gCont - vAcumTot)}</td>
           </tr>
         </table>
       </td>
@@ -870,7 +870,7 @@ export class BoletimUI {
   <!-- ── Tabela principal ──────────────────────────────────────── -->
   <table style="table-layout:fixed;width:100%;font-size:7.5pt;border-collapse:collapse;margin-bottom:0">
     <colgroup>
-      <col style="width:22px"><col style="width:32px"><col style="width:190px"><col style="width:22px">
+      <col style="width:22px"><col style="width:222px"><col style="width:22px">
       <col style="width:34px"><col style="width:42px"><col style="width:42px"><col style="width:26px"><col style="width:60px">
       <col style="width:28px"><col style="width:24px"><col style="width:58px">
       <col style="width:24px"><col style="width:56px"><col style="width:53px">
@@ -878,7 +878,6 @@ export class BoletimUI {
     <thead>
       <tr>
         <th rowspan="2" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">ITEM</th>
-        <th rowspan="2" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:2px 2px;font-size:6pt">CÓD.</th>
         <th rowspan="2" style="text-align:left;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 6px;font-size:6.5pt">DESCRIÇÃO DOS SERVIÇOS</th>
         <th rowspan="2" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">UN.</th>
         <th colspan="3" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">CONTRATUAL</th>
@@ -903,7 +902,7 @@ export class BoletimUI {
     <tbody>${linhas}</tbody>
     <tfoot>
       <tr style="background:#1A1A1A;color:#fff;font-weight:700">
-        <td colspan="4" style="text-align:right;padding:4px 8px;font-size:8pt;border:1px solid #333333">TOTAL GERAL</td>
+        <td colspan="3" style="text-align:right;padding:4px 8px;font-size:8pt;border:1px solid #333333">TOTAL GERAL</td>
         <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#cbd5e1">—</td>
         <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#cbd5e1">—</td>
         <td class="td-r" style="border:1px solid #333333;font-family:var(--font-mono);color:#fff;font-size:7.5pt">${R$(gCont)}</td>
