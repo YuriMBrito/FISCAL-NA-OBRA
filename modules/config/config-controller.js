@@ -784,7 +784,8 @@ export class ConfigModule {
   async _editarBM(num) {
     const obraId = state.get('obraAtivaId');
     const bms    = [...(state.get('bms')||[])];
-    const idx    = bms.findIndex(b => b.num === num);
+    const numInt = Number(num);
+    const idx    = bms.findIndex(b => b.num === numInt);
     if (idx < 0) return;
     const bm  = bms[idx];
     const mes = prompt(`Mês de referência (${bm.label}):`, bm.mes||'');
@@ -802,10 +803,11 @@ export class ConfigModule {
   async _excluirBM(num) {
     const obraId = state.get('obraAtivaId');
     const bms    = state.get('bms') || [];
-    const bm     = bms.find(b => b.num === num);
+    const numInt = Number(num);
+    const bm     = bms.find(b => b.num === numInt);
     if (!bm) return;
     if (!confirm(`Excluir ${bm.label}?\n\nAs medições deste BM serão removidas.`)) return;
-    const novos  = bms.filter(b => b.num !== num);
+    const novos  = bms.filter(b => b.num !== numInt);
     state.set('bms', novos);
     await FirebaseService.setBMs?.(obraId, novos);
     EventBus.emit('boletim:atualizado', { obraId });
