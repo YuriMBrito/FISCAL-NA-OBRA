@@ -899,7 +899,16 @@ export class BoletimUI {
       </tr>
     </thead>
     <tbody>${linhas}</tbody>
-    <tfoot>
+  </table>
+  <!-- ── TOTAL GERAL fora da tabela principal para aparecer só na última página ── -->
+  <table style="table-layout:fixed;width:100%;font-size:7.5pt;border-collapse:collapse;margin-bottom:0">
+    <colgroup>
+      <col style="width:22px"><col style="width:222px"><col style="width:22px">
+      <col style="width:34px"><col style="width:42px"><col style="width:42px"><col style="width:26px"><col style="width:60px">
+      <col style="width:28px"><col style="width:24px"><col style="width:58px">
+      <col style="width:24px"><col style="width:56px"><col style="width:53px">
+    </colgroup>
+    <tbody>
       <tr style="background:#1A1A1A;color:#fff;font-weight:700">
         <td colspan="3" style="text-align:right;padding:4px 8px;font-size:8pt;border:1px solid #333333">TOTAL GERAL</td>
         <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#cbd5e1">—</td>
@@ -913,9 +922,9 @@ export class BoletimUI {
         <td class="td-r" style="border:1px solid #333333;font-family:var(--font-mono);color:#fff;font-size:7.5pt">${R$(gAcum)}</td>
         <td class="td-r" style="border:1px solid #333333;font-family:var(--font-mono);color:#fca5a5;font-size:7.5pt">${R$(gSaldo)}</td>
       </tr>
-    </tfoot>
+    </tbody>
   </table>
-  <!-- "TOTAL EXECUTADO" fora do tfoot para aparecer só na última página -->
+  <!-- "TOTAL EXECUTADO" para aparecer só na última página -->
   <div style="background:#14532d;color:#fff;font-weight:800;text-align:center;padding:5px 10px;font-size:9pt;letter-spacing:1px;margin-bottom:4px">
     TOTAL EXECUTADO DA OBRA: ${fmtPct(pctAcum)}
   </div>
@@ -1164,17 +1173,28 @@ ${html}
       </tr>`;
     });
 
-    // Linha TOTAL (topo do tbody, antes de todos os itens)
-    linhas = `<tr style="background:#d8d8d8;font-weight:900">
-      <td colspan="5" style="padding:3px 8px;border:1px solid #999;text-align:right;font-size:7.5pt;font-weight:900">TOTAL:</td>
-      ${Br(R$(gCont), 'font-size:7.5pt;font-weight:900;border:1px solid #999')}
-      ${Br(pctAnt.toFixed(2).replace('.',','), 'font-size:7pt;border:1px solid #999')}
-      ${Br(pctMed.toFixed(2).replace('.',','), 'font-size:7pt;border:1px solid #999')}
-      ${Br(pctAcum.toFixed(2).replace('.',','), 'font-size:7.5pt;font-weight:900;border:1px solid #999')}
-      ${Br(R$(vAcumAnt), 'font-size:7.5pt;border:1px solid #999')}
-      ${Br(R$(vMedAtual), 'font-size:7.5pt;border:1px solid #999')}
-      ${Br(R$(vAcumTot), 'font-size:7.5pt;font-weight:900;border:1px solid #999')}
-    </tr>` + linhas;
+    // TOTAL movido para fora da tabela (aparece só na última página)
+    const totalCaixaRow = `
+    <table style="width:100%;border-collapse:collapse;font-size:6.5pt;table-layout:fixed">
+      <colgroup>
+        <col style="width:3.5%"><col style="width:36%"><col style="width:2.5%">
+        <col style="width:5%"><col style="width:6%"><col style="width:7.5%">
+        <col style="width:4.5%"><col style="width:4.5%"><col style="width:4.5%">
+        <col style="width:8.67%"><col style="width:8.67%"><col style="width:8.66%">
+      </colgroup>
+      <tbody>
+        <tr style="background:#d8d8d8;font-weight:900">
+          <td colspan="5" style="padding:3px 8px;border:1px solid #999;text-align:right;font-size:7.5pt;font-weight:900">TOTAL:</td>
+          ${Br(R$(gCont), 'font-size:7.5pt;font-weight:900;border:1px solid #999')}
+          ${Br(pctAnt.toFixed(2).replace('.',','), 'font-size:7pt;border:1px solid #999')}
+          ${Br(pctMed.toFixed(2).replace('.',','), 'font-size:7pt;border:1px solid #999')}
+          ${Br(pctAcum.toFixed(2).replace('.',','), 'font-size:7.5pt;font-weight:900;border:1px solid #999')}
+          ${Br(R$(vAcumAnt), 'font-size:7.5pt;border:1px solid #999')}
+          ${Br(R$(vMedAtual), 'font-size:7.5pt;border:1px solid #999')}
+          ${Br(R$(vAcumTot), 'font-size:7.5pt;font-weight:900;border:1px solid #999')}
+        </tr>
+      </tbody>
+    </table>`;
 
     const agora = new Date();
     const logo  = state.get('logoBase64') || '';
@@ -1294,6 +1314,8 @@ ${html}
     </thead>
     <tbody>${linhas}</tbody>
   </table>
+  <!-- ── TOTAL fora da tabela principal para aparecer só na última página ── -->
+  ${totalCaixaRow}
 
   <!-- ── Rodapé ───────────────────────────────────────────────── -->
   <div style="margin-top:6px;font-size:7pt">
