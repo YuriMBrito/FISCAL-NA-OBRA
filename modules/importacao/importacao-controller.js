@@ -93,6 +93,7 @@ export class ImportacaoModule {
     const labelBtn    = this._modo === 'nova' ? '✅ Criar Obra e Importar' : '✅ Inserir Itens na Obra Ativa';
     const isPref      = this._tipoImportacao === 'prefeitura';
     const isCaixa     = this._tipoImportacao === 'caixa';
+    const isObra      = this._tipoImportacao === 'obra';
 
     container.innerHTML = `
       <!-- ── SELETOR DE MODO DE IMPORTAÇÃO ──────────────────── -->
@@ -101,7 +102,7 @@ export class ImportacaoModule {
           color:#6b7280;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #2d3748">
           📥 Tipo de Planilha para Importação
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0">
           <button onclick="window._siSetTipoImportacao('prefeitura')"
             style="padding:14px 16px;border:none;border-right:1px solid #2d3748;cursor:pointer;
               text-align:left;transition:background .15s;
@@ -111,7 +112,19 @@ export class ImportacaoModule {
               🏛️ Padrão Prefeitura
             </div>
             <div style="font-size:10px;color:${isPref?'#64748b':'#374151'}">
-              Planilhas do sistema da prefeitura (9 colunas padrão)
+              Planilhas da prefeitura (9 colunas)
+            </div>
+          </button>
+          <button onclick="window._siSetTipoImportacao('obra')"
+            style="padding:14px 16px;border:none;border-right:1px solid #2d3748;cursor:pointer;
+              text-align:left;transition:background .15s;
+              background:${isObra?'#2a1f3d':'#1e2330'};
+              border-bottom:3px solid ${isObra?'#a78bfa':'transparent'}">
+            <div style="font-size:12px;font-weight:800;color:${isObra?'#c4b5fd':'#6b7280'};margin-bottom:3px">
+              🏗️ Padrão Obra
+            </div>
+            <div style="font-size:10px;color:${isObra?'#64748b':'#374151'}">
+              Planilhas de obra sem Cód./Banco (7 colunas)
             </div>
           </button>
           <button onclick="window._siSetTipoImportacao('caixa')"
@@ -122,7 +135,7 @@ export class ImportacaoModule {
               🏦 Padrão CAIXA
             </div>
             <div style="font-size:10px;color:${isCaixa?'#64748b':'#374151'}">
-              Boletins de Medição da Caixa Econômica Federal (BM GIGOV)
+              Boletins de Medição CAIXA (BM GIGOV)
             </div>
           </button>
         </div>
@@ -130,6 +143,9 @@ export class ImportacaoModule {
           font-size:10.5px;color:#86efac">
           ℹ️ Colunas esperadas: <strong style="color:#a7f3d0">Item · Discriminação · Unid. · Qtde. · Preço Unitário · Preço Total</strong>
           — colunas de evolução (% Acum., Período etc.) serão ignoradas automaticamente.
+        </div>` : isObra ? `<div style="background:#1a1030;padding:8px 16px;border-top:1px solid #2d3748;
+          font-size:10.5px;color:#c4b5fd">
+          ℹ️ Colunas esperadas: <strong style="color:#ddd6fe">Item · Descrição · Und · Qtd · V.Unit s/BDI · V.Unit+BDI · Total</strong>
         </div>` : `<div style="background:#0f1a2e;padding:8px 16px;border-top:1px solid #2d3748;
           font-size:10.5px;color:#93c5fd">
           ℹ️ Colunas esperadas: <strong style="color:#bae6fd">Item · Código · Banco · Descrição · Und · Qtd · V.Unit · V.Unit+BDI · Total</strong>
@@ -328,8 +344,8 @@ export class ImportacaoModule {
             <thead style="position:sticky;top:0;z-index:1">
               <tr style="background:#1e3a5f">
                 <th style="padding:7px 8px;color:#93c5fd">Item</th>
-                <th style="padding:7px 8px;color:#93c5fd">Código</th>
-                <th style="padding:7px 8px;color:#93c5fd">Banco</th>
+                ${isObra ? '' : '<th style="padding:7px 8px;color:#93c5fd">Código</th>'}
+                ${isObra ? '' : '<th style="padding:7px 8px;color:#93c5fd">Banco</th>'}
                 <th style="padding:7px 8px;color:#93c5fd;min-width:180px">Descrição</th>
                 <th style="padding:7px 8px;text-align:center;color:#93c5fd">Und</th>
                 <th style="padding:7px 8px;text-align:right;color:#93c5fd">Qtd</th>
@@ -1011,10 +1027,11 @@ export class ImportacaoModule {
     // Mostra badge de formato detectado
     if (statusEl) {
       const fmt = this._formatoDetectado || 'Genérico';
-      const isPref = this._tipoImportacao === 'prefeitura';
+      const isPref  = this._tipoImportacao === 'prefeitura';
       const isCaixa = this._tipoImportacao === 'caixa';
-      const badgeCor = isCaixa ? '#0284c7' : '#059669';
-      const modeLabel = isCaixa ? 'CAIXA BM' : (isPref ? 'Padrão Prefeitura' : fmt);
+      const isObra  = this._tipoImportacao === 'obra';
+      const badgeCor  = isCaixa ? '#0284c7' : isObra ? '#7c3aed' : '#059669';
+      const modeLabel = isCaixa ? 'CAIXA BM' : isObra ? 'Padrão Obra' : (isPref ? 'Padrão Prefeitura' : fmt);
       statusEl.innerHTML = `<span style="color:${badgeCor};font-weight:700">
         ✅ Formato ${modeLabel} — ${itens.filter(i=>!i.t).length} itens encontrados</span>`;
     }
@@ -1027,10 +1044,11 @@ export class ImportacaoModule {
     // Respeita escolha manual do usuário; se 'auto', detecta automaticamente
     const forcarCaixa = this._tipoImportacao === 'caixa';
     const forcarPref  = this._tipoImportacao === 'prefeitura';
+    const forcarObra  = this._tipoImportacao === 'obra';
 
     // Detecta se é formato CAIXA BM — limita colunas antes das colunas de evolução %
     const autoDetectCaixa = _detectarFormatoCaixa(headers);
-    const ehCaixa = forcarCaixa || (!forcarPref && autoDetectCaixa);
+    const ehCaixa = forcarCaixa || (!forcarPref && !forcarObra && autoDetectCaixa);
     let limiteContratual = headers.length;
 
     for (let i=0;i<headers.length;i++) {
@@ -1069,6 +1087,19 @@ export class ImportacaoModule {
         if (cols.total===-1 && pos[5]) cols.total = pos[5];
       }
       this._formatoDetectado = 'CAIXA BM';
+    } else if (forcarObra) {
+      // Padrão Obra: Item · Descrição · Und · Qtd · V.Unit s/BDI · V.Unit+BDI · Total (sem Código e Banco)
+      this._formatoDetectado = 'Padrão Obra';
+      const pos = headersContr.map((h,i)=>h.trim()?i:null).filter(v=>v!==null);
+      if (pos.length >= 5) {
+        if (cols.item  ===-1) cols.item  = pos[0];
+        if (cols.desc  ===-1) cols.desc  = pos[1];
+        if (cols.und   ===-1) cols.und   = pos[2];
+        if (cols.qtd   ===-1) cols.qtd   = pos[3];
+        if (cols.up    ===-1) cols.up    = pos[4];
+        if (cols.upBdi ===-1 && pos[5]) cols.upBdi = pos[5];
+        if (cols.total ===-1 && pos[6]) cols.total = pos[6];
+      }
     } else {
       this._formatoDetectado = 'Genérico';
       const pos = headersContr.map((h,i)=>h.trim()?i:null).filter(v=>v!==null);
@@ -1129,13 +1160,21 @@ export class ImportacaoModule {
   _mostrarMapeamentoManual(headers, colsAuto) {
     const grid = document.getElementById('si-mapeamento-grid');
     if (!grid) return;
-    const campos = [
+    const isObra = this._tipoImportacao === 'obra';
+    const camposPref = [
       {key:'item',label:'1 — ITEM'},{key:'cod',label:'2 — CÓDIGO'},
       {key:'banco',label:'3 — BANCO'},{key:'desc',label:'4 — DESCRIÇÃO ★'},
       {key:'und',label:'5 — UNIDADE'},{key:'qtd',label:'6 — QUANTIDADE ★'},
       {key:'up',label:'7 — V.UNIT s/BDI'},{key:'upBdi',label:'8 — V.UNIT +BDI'},
       {key:'total',label:'9 — TOTAL'},
     ];
+    const camposObra = [
+      {key:'item',label:'1 — ITEM'},{key:'desc',label:'2 — DESCRIÇÃO ★'},
+      {key:'und',label:'3 — UNIDADE'},{key:'qtd',label:'4 — QUANTIDADE ★'},
+      {key:'up',label:'5 — V.UNIT s/BDI'},{key:'upBdi',label:'6 — V.UNIT +BDI'},
+      {key:'total',label:'7 — TOTAL'},
+    ];
+    const campos = isObra ? camposObra : camposPref;
     const opts = headers.map((h,i)=>({idx:i,label:h.trim()})).filter(o=>o.label.length>0);
     grid.innerHTML = campos.map(({key,label}) => `
       <div>
@@ -1323,17 +1362,19 @@ export class ImportacaoModule {
     if (!tbody) return;
     const bdiF   = bdiPct/100;
     const divSet = new Set(v.divergentes.map(d=>d.id));
+    const isObra = this._tipoImportacao === 'obra';
+    const colspanGrupo = isObra ? '7' : '9';
     tbody.innerHTML = itens.map(it => {
       if (it.t === 'G') return `<tr style="background:#1e293b;color:#f1f5f9">
-        <td colspan="9" style="padding:5px 8px;font-weight:700;font-size:10px">
+        <td colspan="${colspanGrupo}" style="padding:5px 8px;font-weight:700;font-size:10px">
           <span style="color:#60a5fa;font-family:monospace">${this._esc(it.id)}</span> ${this._esc(it.desc)}
           ${it.total>0?`<span style="float:right;color:#34d399">${this._R(it.total)}</span>`:''}
         </td><td style="background:#1e293b;color:#6b7280;padding:5px 4px;text-align:center">—</td></tr>`;
       const upBdi=Math.round(it.up*(1+bdiF)*100)/100, totCalc=Math.round(it.qtd*upBdi*100)/100, ok=!divSet.has(it.id);
       return `<tr style="border-bottom:1px solid #1e2330${ok?'':';background:#2a1515'}">
         <td style="padding:4px 6px;font-family:monospace;font-size:9.5px;color:#94a3b8">${this._esc(it.id)}</td>
-        <td style="padding:4px 6px;font-size:9.5px;color:#6b7280">${this._esc(it.cod||'—')}</td>
-        <td style="padding:4px 6px;font-size:9.5px">${it.banco?`<span style="background:#0c2a3a;color:#38bdf8;border-radius:3px;padding:1px 5px;font-size:9px">${this._esc(it.banco)}</span>`:'—'}</td>
+        ${isObra ? '' : `<td style="padding:4px 6px;font-size:9.5px;color:#6b7280">${this._esc(it.cod||'—')}</td>`}
+        ${isObra ? '' : `<td style="padding:4px 6px;font-size:9.5px">${it.banco?`<span style="background:#0c2a3a;color:#38bdf8;border-radius:3px;padding:1px 5px;font-size:9px">${this._esc(it.banco)}</span>`:'—'}</td>`}
         <td style="padding:4px 6px;font-size:10px;color:#f1f5f9">${this._esc(it.desc.slice(0,70))}${it.desc.length>70?'…':''}</td>
         <td style="padding:4px 6px;text-align:center;font-size:10px;color:#94a3b8">${this._esc(it.und)}</td>
         <td style="padding:4px 8px;text-align:right;font-family:monospace;font-size:10px;color:#94a3b8">${it.qtd.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
@@ -1452,7 +1493,7 @@ export class ImportacaoModule {
       const convenio = (document.getElementById('si-convenio')?.value||'').trim();
       const ctef     = (document.getElementById('si-ctef')?.value||'').trim();
       const programa = (document.getElementById('si-programa')?.value||'').trim();
-      const tipoObra = this._tipoImportacao === 'caixa' ? 'caixa' : 'prefeitura';
+      const tipoObra = this._tipoImportacao === 'caixa' ? 'caixa' : this._tipoImportacao === 'obra' ? 'obra' : 'prefeitura';
       const cfgNova  = { contrato, bdi:bdiF, objeto:objeto.slice(0,150), contratante, contratada,
                          cnpj:cnpjContratadaImp, valor:Math.round(valor*100)/100,
                          fiscal, creaFiscal:creaFiscalImp, rt:'', creaRT:'',
@@ -1535,12 +1576,14 @@ export class ImportacaoModule {
         </tbody></table>`
       :'<div style="padding:10px;background:#f0fdf4;border-radius:6px;color:#1A1A1A;font-weight:700;text-align:center">✅ Todos corretos.</div>'}
       <h2>Todos os Itens</h2>
-      <table><thead><tr><th>Item</th><th>Código</th><th>Banco</th><th style="min-width:180px">Descrição</th><th>Und</th>
+      <table><thead><tr><th>Item</th>${this._tipoImportacao!=='obra'?'<th>Código</th><th>Banco</th>':''}<th style="min-width:180px">Descrição</th><th>Und</th>
         <th style="text-align:right">Qtd</th><th style="text-align:right">V.Unit s/BDI</th><th style="text-align:right">V.Unit +BDI</th><th style="text-align:right">Total</th><th>✓</th></tr></thead>
       <tbody>${this._itensExtraidos.map(it=>{
-        if(it.t==='G') return `<tr class="grupo-row"><td colspan="10" style="padding:4px 8px;font-weight:700">${this._esc(it.id)} — ${this._esc(it.desc)}</td></tr>`;
+        const _colspanGrupo = this._tipoImportacao==='obra' ? '8' : '10';
+        if(it.t==='G') return `<tr class="grupo-row"><td colspan="${_colspanGrupo}" style="padding:4px 8px;font-weight:700">${this._esc(it.id)} — ${this._esc(it.desc)}</td></tr>`;
         const upBdi=Math.round(it.up*(1+bdi/100)*100)/100, tot=Math.round(it.qtd*upBdi*100)/100;
-        return `<tr${it._ok===false?' class="div-row"':''}><td style="font-family:monospace">${this._esc(it.id)}</td><td>${this._esc(it.cod||'')}</td><td>${this._esc(it.banco||'')}</td>
+        const _codBancoCols = this._tipoImportacao!=='obra' ? `<td>${this._esc(it.cod||'')}</td><td>${this._esc(it.banco||'')}</td>` : '';
+        return `<tr${it._ok===false?' class="div-row"':''}><td style="font-family:monospace">${this._esc(it.id)}</td>${_codBancoCols}
           <td>${this._esc(it.desc.slice(0,60))}${it.desc.length>60?'…':''}</td><td style="text-align:center">${this._esc(it.und)}</td>
           <td style="text-align:right">${it.qtd.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td><td style="text-align:right">${this._R(it.up)}</td>
           <td style="text-align:right">${this._R(upBdi)}</td><td style="text-align:right;font-weight:700">${this._R(tot)}</td>
