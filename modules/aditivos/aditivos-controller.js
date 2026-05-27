@@ -89,6 +89,8 @@ export class AditivosModule {
     exposeGlobal('_adtCalcVariacao',         ()   => this._calcVariacao());
     exposeGlobal('_adtCalcTermino',          ()   => this._calcTermino());
     exposeGlobal('_adtOnStatusChange',       (v)  => this._onStatusChange(v));
+    exposeGlobal('_adtOnTipoChange',         (v)  => this._onTipoChange(v));
+    exposeGlobal('_adtOnReajusteIndice',     (v)  => this._onReajusteIndice(v));
     exposeGlobal('_adtGerarPDF',             ()   => this._gerarPDF());
     // Editor de planilha
     exposeGlobal('_adtAbrirPlanilhaEditor',  ()   => this._abrirPlanilhaEditor());
@@ -270,6 +272,44 @@ export class AditivosModule {
       return;
     }
 
+    // Validações específicas — Reequilíbrio (Art. 126)
+    if (form.tipo === 'reequilibrio') {
+      if (!form.reeqRequerimento) {
+        window.toast?.('⚠️ Informe o número do requerimento da contratada. (Art. 126 — Lei 14.133/2021)', 'warn');
+        document.getElementById('adt-reeq-requerimento')?.focus();
+        return;
+      }
+      if (!form.reeqFato) {
+        window.toast?.('⚠️ Descreva o fato superveniente que justifica o reequilíbrio. (Art. 126)', 'warn');
+        document.getElementById('adt-reeq-fato')?.focus();
+        return;
+      }
+      if (!form.reeqDataEvento) {
+        window.toast?.('⚠️ Informe a data do evento que gerou o desequilíbrio. (Art. 126)', 'warn');
+        document.getElementById('adt-reeq-data-evento')?.focus();
+        return;
+      }
+    }
+
+    // Validações específicas — Reajuste (Art. 127)
+    if (form.tipo === 'reajuste') {
+      if (!form.reajIndice) {
+        window.toast?.('⚠️ Selecione o índice de reajuste previsto no contrato. (Art. 127)', 'warn');
+        document.getElementById('adt-reaj-indice')?.focus();
+        return;
+      }
+      if (!form.reajDataBase) {
+        window.toast?.('⚠️ Informe a data-base do contrato para cálculo do reajuste. (Art. 127)', 'warn');
+        document.getElementById('adt-reaj-data-base')?.focus();
+        return;
+      }
+      if (!form.reajPercentual || form.reajPercentual <= 0) {
+        window.toast?.('⚠️ Informe o percentual de reajuste aplicado. (Art. 127)', 'warn');
+        document.getElementById('adt-reaj-percentual')?.focus();
+        return;
+      }
+    }
+
     // CORREÇÃO: Número de Processo obrigatório para status Aprovado (Lei 14.133/2021 Art. 124)
     if (form.status === 'Aprovado' && !form.processo.trim()) {
       window.toast?.('⚠️ Informe o Número do Processo Administrativo antes de aprovar. (Lei 14.133/2021 Art. 124)', 'warn');
@@ -390,6 +430,20 @@ export class AditivosModule {
       status:                  form.status,
       itensMudados,     // diff — alterações pontuais
       itensSnapshot,    // planilha COMPLETA após o aditivo
+      // ── Reequilíbrio Econômico-Financeiro (Art. 126) ──────────────
+      ...(form.tipo === 'reequilibrio' && {
+        reeqRequerimento: form.reeqRequerimento || null,
+        reeqDataEvento:   form.reeqDataEvento   || null,
+        reeqFato:         form.reeqFato         || null,
+        reeqMetodologia:  form.reeqMetodologia  || null,
+      }),
+      // ── Reajuste / Repactuação (Art. 127) ─────────────────────────
+      ...(form.tipo === 'reajuste' && {
+        reajIndice:      form.reajIndice     || null,
+        reajDataBase:    form.reajDataBase   || null,
+        reajPercentual:  form.reajPercentual || null,
+        reajReferencia:  form.reajReferencia || null,
+      }),
       criadoEm:                form.editId
                                  ? (aditivos.find(a => a.id === form.editId)?.criadoEm || new Date().toISOString())
                                  : new Date().toISOString(),
@@ -492,6 +546,24 @@ export class AditivosModule {
   _onStatusChange(valor) {
     const aviso = document.getElementById('adt-aviso-versao');
     if (aviso) aviso.style.display = valor === 'Aprovado' ? 'block' : 'none';
+  }
+
+  // Mostra/oculta seções especiais conforme o tipo selecionado
+  _onTipoChange(tipo) {
+    const secReequil  = document.getElementById('adt-reequilibrio-section');
+    const secReajuste = document.getElementById('adt-reajuste-section');
+    const secPlanilha = document.getElementById('adt-planilha-btn-area');
+
+    if (secReequil)  secReequil.style.display  = tipo === 'reequilibrio' ? 'block' : 'none';
+    if (secReajuste) secReajuste.style.display  = tipo === 'reajuste'     ? 'block' : 'none';
+    // Oculta o editor de planilha para tipos que não precisam de diff de itens
+    if (secPlanilha) secPlanilha.style.display  = ['reequilibrio', 'reajuste'].includes(tipo) ? 'none' : 'block';
+  }
+
+  // Mostra/oculta campo de índice customizado no reajuste
+  _onReajusteIndice(valor) {
+    const area = document.getElementById('adt-reaj-indice-custom-area');
+    if (area) area.style.display = valor === 'outro' ? 'block' : 'none';
   }
 
   // ═══════════════════════════════════════════════════════════════════

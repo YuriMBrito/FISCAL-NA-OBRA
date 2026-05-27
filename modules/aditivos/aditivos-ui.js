@@ -15,7 +15,14 @@ import {
 const R$  = v => formatters.currency ? formatters.currency(v) : (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtN = v => (parseFloat(v) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
 
-const TIPO_LABEL   = { prazo: '⏱️ Prazo', valor: '💰 Valor', planilha: '📋 Planilha', misto: '⏱️💰 Tempo e Valor' };
+const TIPO_LABEL   = {
+  prazo:         '⏱️ Prazo',
+  valor:         '💰 Valor',
+  planilha:      '📋 Planilha',
+  misto:         '⏱️💰 Tempo e Valor',
+  reequilibrio:  '⚖️ Reequilíbrio Econômico-Financeiro',
+  reajuste:      '📈 Reajuste / Repactuação',
+};
 const STATUS_COLOR = { Rascunho: 'var(--orange)', Aprovado: 'var(--green)' };
 const OP_MAP   = { inclusao: '★ Inclusão', exclusao: '✕ Exclusão', alteracao_qtd: '▲▼ Qtd', alteracao_preco: '💲 Preço' };
 const OP_COLOR = { inclusao: '#2563EB', exclusao: '#DC2626', alteracao_qtd: '#16a34a', alteracao_preco: '#ea580c' };
@@ -189,11 +196,13 @@ export class AditivosUI {
           </div>
           <div>
             <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Tipo de Aditivo</label>
-            <select id="adt-tipo" class="campo-input" style="width:100%">
+            <select id="adt-tipo" class="campo-input" style="width:100%" onchange="window._adtOnTipoChange?.(this.value)">
               <option value="misto">⏱️💰 Tempo e Valor</option>
               <option value="valor">💰 Valor</option>
               <option value="prazo">⏱️ Prazo</option>
               <option value="planilha">📋 Planilha</option>
+              <option value="reequilibrio">⚖️ Reequilíbrio Econômico-Financeiro</option>
+              <option value="reajuste">📈 Reajuste / Repactuação</option>
             </select>
           </div>
           <div>
@@ -261,6 +270,68 @@ export class AditivosUI {
           </div>
         </div>
 
+        <!-- ═══ REEQUILÍBRIO ECONÔMICO-FINANCEIRO (Art. 126 — Lei 14.133/2021) ═══ -->
+        <div id="adt-reequilibrio-section" style="display:none;background:var(--bg-warm);border:1px solid #f59e0b;border-radius:10px;padding:14px;margin-bottom:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#92400e;margin-bottom:10px">
+            ⚖️ Reequilíbrio Econômico-Financeiro — <span style="font-weight:400">Art. 126 — Lei 14.133/2021</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Número do Requerimento da Contratada <span style="color:#ef4444">*</span></label>
+              <input type="text" id="adt-reeq-requerimento" class="campo-input" placeholder="Ex.: REQ-001/2024" style="width:100%">
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Data do Evento / Fato Superveniente <span style="color:#ef4444">*</span></label>
+              <input type="date" id="adt-reeq-data-evento" class="campo-input" style="width:100%">
+            </div>
+          </div>
+          <div style="margin-bottom:10px">
+            <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Descrição do Fato Superveniente <span style="color:#ef4444">*</span></label>
+            <textarea id="adt-reeq-fato" rows="3" class="campo-input" placeholder="Descreva o evento extraordinário e imprevisível que rompeu o equilíbrio econômico-financeiro do contrato (ex.: variação excepcional de insumo, caso fortuito, força maior, fato do príncipe)..." style="width:100%;resize:vertical"></textarea>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Metodologia de Cálculo Aplicada</label>
+            <textarea id="adt-reeq-metodologia" rows="2" class="campo-input" placeholder="Ex.: Planilha de composição de custos unitários, com variação do SINAPI de Jan/2023 a Jan/2024..." style="width:100%;resize:vertical"></textarea>
+          </div>
+        </div>
+
+        <!-- ═══ REAJUSTE / REPACTUAÇÃO (Art. 127 — Lei 14.133/2021) ═══ -->
+        <div id="adt-reajuste-section" style="display:none;background:var(--bg-warm);border:1px solid #6366f1;border-radius:10px;padding:14px;margin-bottom:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#4338ca;margin-bottom:10px">
+            📈 Reajuste / Repactuação — <span style="font-weight:400">Art. 127 — Lei 14.133/2021</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Índice de Reajuste <span style="color:#ef4444">*</span></label>
+              <select id="adt-reaj-indice" class="campo-input" style="width:100%" onchange="window._adtOnReajusteIndice?.(this.value)">
+                <option value="">Selecione...</option>
+                <option value="SINAPI">SINAPI (obras e serviços de engenharia)</option>
+                <option value="INCC">INCC — Índice Nacional da Construção Civil</option>
+                <option value="IPCA-C">IPCA-C — IBGE</option>
+                <option value="IGPM">IGP-M — FGV</option>
+                <option value="IPCA">IPCA — IBGE</option>
+                <option value="outro">Outro (especificar)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Data-Base do Contrato <span style="color:#ef4444">*</span></label>
+              <input type="date" id="adt-reaj-data-base" class="campo-input" style="width:100%">
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Percentual Aplicado (%) <span style="color:#ef4444">*</span></label>
+              <input type="number" id="adt-reaj-percentual" step="0.01" class="campo-input" placeholder="Ex.: 8.45" style="width:100%">
+            </div>
+          </div>
+          <div id="adt-reaj-indice-custom-area" style="display:none;margin-bottom:10px">
+            <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Especifique o Índice</label>
+            <input type="text" id="adt-reaj-indice-custom" class="campo-input" placeholder="Nome do índice previsto em contrato" style="width:100%">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Referência do Cálculo / Publicação</label>
+            <input type="text" id="adt-reaj-referencia" class="campo-input" placeholder="Ex.: SINAPI Jan/2024 — tabela de referência CAIXA, acesso em 15/01/2024" style="width:100%">
+          </div>
+        </div>
+
         <!-- Aviso aprovação -->
         <div id="adt-aviso-versao" style="display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#92400e">
           ⚠️ <strong>Atenção:</strong> Ao salvar com status <strong>Aprovado</strong>, uma nova versão contratual será criada automaticamente. Esta ação é <strong>irreversível</strong>.
@@ -322,6 +393,9 @@ export class AditivosUI {
     document.getElementById('adt-status').value = 'Rascunho';
     document.getElementById('adt-aviso-versao').style.display = 'none';
     document.getElementById('adt-planilha-status').textContent = '';
+    // Novos campos — reset
+    this._resetCamposEspeciais();
+    window._adtOnTipoChange?.('misto');
   }
 
   preencherModalEditar(a) {
@@ -349,22 +423,58 @@ export class AditivosUI {
       const pct = ant > 0 ? (v / ant * 100) : 0;
       document.getElementById('adt-variacao').value = `${v >= 0 ? '+' : ''}${R$(v)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
     }
+    // Campos especiais — Reequilíbrio
+    this._resetCamposEspeciais();
+    if (document.getElementById('adt-reeq-requerimento')) document.getElementById('adt-reeq-requerimento').value = a.reeqRequerimento || '';
+    if (document.getElementById('adt-reeq-data-evento'))  document.getElementById('adt-reeq-data-evento').value  = a.reeqDataEvento   || '';
+    if (document.getElementById('adt-reeq-fato'))         document.getElementById('adt-reeq-fato').value         = a.reeqFato         || '';
+    if (document.getElementById('adt-reeq-metodologia'))  document.getElementById('adt-reeq-metodologia').value  = a.reeqMetodologia  || '';
+    // Campos especiais — Reajuste
+    if (document.getElementById('adt-reaj-indice'))      document.getElementById('adt-reaj-indice').value      = a.reajIndice      || '';
+    if (document.getElementById('adt-reaj-data-base'))   document.getElementById('adt-reaj-data-base').value   = a.reajDataBase    || '';
+    if (document.getElementById('adt-reaj-percentual'))  document.getElementById('adt-reaj-percentual').value  = a.reajPercentual  || '';
+    if (document.getElementById('adt-reaj-referencia'))  document.getElementById('adt-reaj-referencia').value  = a.reajReferencia  || '';
+    // Dispara visibilidade das seções
+    window._adtOnTipoChange?.(a.tipo || 'misto');
+  }
+
+  _resetCamposEspeciais() {
+    const campos = [
+      'adt-reeq-requerimento', 'adt-reeq-data-evento', 'adt-reeq-fato', 'adt-reeq-metodologia',
+      'adt-reaj-indice', 'adt-reaj-data-base', 'adt-reaj-percentual', 'adt-reaj-referencia', 'adt-reaj-indice-custom',
+    ];
+    campos.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const custom = document.getElementById('adt-reaj-indice-custom-area');
+    if (custom) custom.style.display = 'none';
   }
 
   lerModal() {
+    const indiceReaj = document.getElementById('adt-reaj-indice')?.value || '';
     return {
-      editId:       document.getElementById('adt-edit-id').value.trim(),
-      numero:       parseInt(document.getElementById('adt-numero').value) || 1,
-      tipo:         document.getElementById('adt-tipo').value,
-      descricao:    document.getElementById('adt-descricao').value.trim(),
-      processo:     document.getElementById('adt-processo').value.trim(),
-      data:         document.getElementById('adt-data').value,
-      valorAnterior: parseFloat(document.getElementById('adt-valor-anterior').value) || 0,
-      valorNovo:    parseFloat(document.getElementById('adt-valor-novo').value) || 0,
+      editId:         document.getElementById('adt-edit-id').value.trim(),
+      numero:         parseInt(document.getElementById('adt-numero').value) || 1,
+      tipo:           document.getElementById('adt-tipo').value,
+      descricao:      document.getElementById('adt-descricao').value.trim(),
+      processo:       document.getElementById('adt-processo').value.trim(),
+      data:           document.getElementById('adt-data').value,
+      valorAnterior:  parseFloat(document.getElementById('adt-valor-anterior').value) || 0,
+      valorNovo:      parseFloat(document.getElementById('adt-valor-novo').value) || 0,
       terminoAnterior: document.getElementById('adt-termino-anterior').value,
       prazoAdicional: parseInt(document.getElementById('adt-prazo-adicional').value) || 0,
-      terminoNovo:  document.getElementById('adt-termino-novo').value,
-      status:       document.getElementById('adt-status').value,
+      terminoNovo:    document.getElementById('adt-termino-novo').value,
+      status:         document.getElementById('adt-status').value,
+      // ── Reequilíbrio (Art. 126) ──
+      reeqRequerimento: document.getElementById('adt-reeq-requerimento')?.value.trim() || '',
+      reeqDataEvento:   document.getElementById('adt-reeq-data-evento')?.value || '',
+      reeqFato:         document.getElementById('adt-reeq-fato')?.value.trim() || '',
+      reeqMetodologia:  document.getElementById('adt-reeq-metodologia')?.value.trim() || '',
+      // ── Reajuste (Art. 127) ──
+      reajIndice:       indiceReaj === 'outro'
+                          ? (document.getElementById('adt-reaj-indice-custom')?.value.trim() || 'outro')
+                          : indiceReaj,
+      reajDataBase:     document.getElementById('adt-reaj-data-base')?.value || '',
+      reajPercentual:   parseFloat(document.getElementById('adt-reaj-percentual')?.value) || 0,
+      reajReferencia:   document.getElementById('adt-reaj-referencia')?.value.trim() || '',
     };
   }
 
