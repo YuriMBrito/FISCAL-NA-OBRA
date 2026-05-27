@@ -213,13 +213,11 @@ class FirebaseServiceClass {
     const cached = MemCache.get('obras', null);
     if (cached !== null) return cached;
 
-    const uid = this._auth?.currentUser?.uid;
-    if (!this._ready || !uid) {
+    if (!this._ready || !this._auth?.currentUser) {
       return []; // Sem Firebase disponível: retorna lista vazia (offline usa cache Firestore nativo)
     }
     try {
-      const snap = await this._db.collection('obras')
-        .where('uid', '==', uid).limit(500).get();
+      const snap = await this._db.collection('obras').limit(500).get();
       if (snap.empty) return [];
       // FIX-EXCLUIR: filtra obras com _excluida:true para que obras
       // em soft-delete não reapareçam após F5 ou novo login.
