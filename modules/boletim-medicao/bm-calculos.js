@@ -120,6 +120,33 @@ export function _clearAcumCache(obraId) {
 }
 
 /**
+ * Preço unitário com BDI de um item — fonte única de verdade.
+ *
+ * O campo `upBdi` (gravado na importação ou na edição manual do item) NÃO é
+ * confiável: planilhas com separador de milhar podem chegar corrompidas
+ * ("1.968,54" → 1.968), e nesse caso o item some do total (8 × 1,97 = R$ 15,76
+ * em vez de R$ 15.748,32).
+ *
+ * Por isso `upBdi` só é aceito quando confere com `up × (1 + BDI efetivo)`
+ * dentro de 5% — folga suficiente para arredondamento da planilha de origem,
+ * e apertada o bastante para barrar o erro de milhar, que erra por ~1000x.
+ * Fora disso vale o valor calculado, mesmo critério usado desde sempre nas
+ * colunas do boletim.
+ */
+export function getUpBdi(item, cfg) {
+  const rnd2  = v => Math.trunc(Math.round(v * 100 * 100) / 100) / 100;
+  const calc  = rnd2((item?.up || 0) * (1 + getBdiEfetivo(item, cfg)));
+  const salvo = parseFloat(item?.upBdi);
+  if (!isFinite(salvo) || salvo <= 0) return calc;
+  if (calc > 0 && Math.abs(salvo - calc) / calc > 0.05) {
+    console.warn(`[bm-calculos] upBdi inconsistente no item ${item?.id}: ` +
+                 `gravado ${salvo}, calculado ${calc}. Usando o calculado.`);
+    return calc;
+  }
+  return rnd2(salvo);
+}
+
+/**
  * Valor contratual REAL da obra = soma dos MACRO ITENS da planilha.
  *
  * Regra: percorre apenas os itens de nível 1 (1, 2, 3 … 100), ou seja, os que
@@ -148,10 +175,7 @@ export function getValorContratual(itensContrato, cfg) {
     }
     return true;
   };
-  const valorFolha = it => {
-    const upBdi = it.upBdi ? rnd2(it.upBdi) : rnd2((it.up || 0) * (1 + getBdiEfetivo(it, cfg)));
-    return rnd2((it.qtd || 0) * upBdi);
-  };
+  const valorFolha = it => rnd2((it.qtd || 0) * getUpBdi(it, cfg));
 
   let centavos = 0;
   itens.forEach(it => {
@@ -327,11 +351,9 @@ export function getValorAcumuladoTotal(obraId, bmNum, itensContrato, cfg) {
       const cap      = it.qtd > 0 ? Math.max(0, it.qtd - jaAcum) : qtdBm;
       const safeQ    = Math.min(qtdBm, cap);
       qtdAcumMap[it.id] = jaAcum + safeQ;
-      // TCU Acórdão 2.622/2013: usa BDI efetivo por tipo de item
-      // Usa upBdi salvo diretamente se disponível (evita perda de precisão)
-      const bdiEfetivo = getBdiEfetivo(it, cfg);
-      const upBdi = it.upBdi ? it.upBdi : rnd2(it.up * (1 + bdiEfetivo));
-      total += rnd2(safeQ * upBdi);
+      // TCU Acórdão 2.622/2013: BDI efetivo por tipo de item.
+      // getUpBdi valida o upBdi gravado antes de confiar nele.
+      total += rnd2(safeQ * getUpBdi(it, cfg));
     });
   }
   // CORREÇÃO: arredondamento final do total acumulado (valor final de medição).
