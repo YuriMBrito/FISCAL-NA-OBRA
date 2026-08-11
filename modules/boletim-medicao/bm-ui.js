@@ -22,6 +22,7 @@ import {
   getQtdAcumuladoTotalItem,
   getQtdMedicaoItemNoBm,
   getBdiEfetivo,
+  getValorContratual,
 } from './bm-calculos.js';
 
 // Soma o valor total contratado dos itens (qtd × upBdi).
@@ -774,8 +775,10 @@ export class BoletimUI {
       );
     });
 
-    // Converte centavos inteiros → reais
-    const gCont  = _gContC  / 100;
+    // Total contratual = soma dos MACRO ITENS (mesma função usada em todo o
+    // sistema), e não a soma solta das folhas — evita dupla contagem de níveis
+    // intermediários e mantém o boletim alinhado com dashboards e relatórios.
+    const gCont  = getValorContratual(itens, cfg) || (_gContC / 100);
     // FIX: a linha TOTAL usava uma soma paralela e divergia do RESUMO DO
     // CONTRATO no cabeçalho. Os totais medidos passam a vir da mesma fonte
     // do cabeçalho (motor de cálculo), garantindo que os dois sempre fechem.

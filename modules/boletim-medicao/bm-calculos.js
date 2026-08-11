@@ -119,6 +119,57 @@ export function _clearAcumCache(obraId) {
   }
 }
 
+/**
+ * Valor contratual REAL da obra = soma dos MACRO ITENS da planilha.
+ *
+ * Regra: percorre apenas os itens de nível 1 (1, 2, 3 … 100), ou seja, os que
+ * não são filhos de ninguém. Para cada macro item soma as folhas descendentes;
+ * itens de nível 1 sem filhos entram pelo próprio valor. Níveis intermediários
+ * (4.1, 4.1.2 …) NÃO são somados de novo — eles já compõem o macro item, e
+ * contá-los duplicaria o total.
+ *
+ * Fonte única para todo o sistema. Usa as mesmas regras do motor de medição
+ * (upBdi salvo quando existir, BDI efetivo por item — TCU 2.622/2013) e
+ * acumula em centavos inteiros para não propagar erro de ponto flutuante.
+ *
+ * Retorna 0 quando não há itens — nesse caso o chamador mantém o valor
+ * digitado em Configurações.
+ */
+export function getValorContratual(itensContrato, cfg) {
+  const itens = Array.isArray(itensContrato) ? itensContrato : [];
+  const rnd2  = v => Math.trunc(Math.round(v * 100 * 100) / 100) / 100;
+  const ids   = new Set(itens.map(i => i && i.id).filter(Boolean));
+
+  // nível 1 = nenhum prefixo do id corresponde a outro item da planilha
+  const ehNivel1 = id => {
+    const partes = String(id).split('.');
+    for (let n = 1; n < partes.length; n++) {
+      if (ids.has(partes.slice(0, n).join('.'))) return false;
+    }
+    return true;
+  };
+  const valorFolha = it => {
+    const upBdi = it.upBdi ? rnd2(it.upBdi) : rnd2((it.up || 0) * (1 + getBdiEfetivo(it, cfg)));
+    return rnd2((it.qtd || 0) * upBdi);
+  };
+
+  let centavos = 0;
+  itens.forEach(it => {
+    if (!it || !it.id || !ehNivel1(it.id)) return;
+    if (it.t) {
+      // Agregador: vale a soma das folhas abaixo dele
+      const prefixo = it.id + '.';
+      itens.forEach(sub => {
+        if (!sub || sub.t || !String(sub.id).startsWith(prefixo)) return;
+        centavos += Math.round(valorFolha(sub) * 100);
+      });
+    } else {
+      centavos += Math.round(valorFolha(it) * 100);
+    }
+  });
+  return centavos / 100;
+}
+
 export function getMedicoes(obraId, bmNum) {
   return MemCache.get('medicoes', obraId, String(bmNum)) ?? {};
 }

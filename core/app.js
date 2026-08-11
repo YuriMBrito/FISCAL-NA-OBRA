@@ -211,6 +211,9 @@ class App {
       console.log('[Boot] Passo 9/11 — Registrando rotas dos módulos críticos...');
       this._registrarRotas();
 
+      // Valor contratual sempre colado na planilha de itens
+      safeExecuteSync(() => this._observarItensContrato(), { source: 'App:valorContratual' });
+
       // ── PASSO 9b: Listeners globais ───────────────────────────────────────
       console.log('[Boot] Passo 9b/11 — Listeners globais...');
       safeExecuteSync(() => this._setupGlobalListeners(), { source: 'App:listeners' });
@@ -345,6 +348,41 @@ class App {
   // Sem isso, router.navigate('importacao') abre a div HTML mas nunca chama
   // o método onEnter() do módulo — a tela fica em branco.
   // ───────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // _sincronizarValorContratual()
+  // O valor do contrato exibido em todo o sistema (dashboards, gráficos,
+  // relatórios, boletim) passa a ser SEMPRE a soma da planilha de itens, e não
+  // o número digitado em Configurações — que ficava defasado e divergia por
+  // centavos do total das medições.
+  //
+  // Só sobrescreve quando há itens; sem planilha, mantém o valor digitado.
+  // ───────────────────────────────────────────────────────────────────────────
+  async _sincronizarValorContratual() {
+    try {
+      const itens = state.get('itensContrato') || [];
+      if (!itens.length) return;
+      const cfg = state.get('cfg') || {};
+      const { getValorContratual } = await import('../modules/boletim-medicao/bm-calculos.js');
+      const soma = getValorContratual(itens, cfg);
+      if (soma > 0 && Math.abs((parseFloat(cfg.valor) || 0) - soma) >= 0.005) {
+        state.set('cfg', { ...cfg, valor: soma });
+        logger.info('App', `💰 Valor contratual sincronizado com a planilha: ${soma}`);
+      }
+    } catch (e) {
+      console.warn('[App] _sincronizarValorContratual:', e);
+    }
+  }
+
+  /** Mantém o valor contratual colado na planilha sempre que os itens mudarem. */
+  _observarItensContrato() {
+    try {
+      state.subscribe('itensContrato', () => this._sincronizarValorContratual());
+      EventBus.on('itens:atualizados', () => this._sincronizarValorContratual(), 'app:valor');
+    } catch (e) {
+      console.warn('[App] _observarItensContrato:', e);
+    }
+  }
+
   _registrarRotas() {
     // Mapeamento pageId → moduleId (para módulos onde diferem)
     const PAGE_TO_MODULE = {
@@ -501,6 +539,8 @@ class App {
           // Restaura a logo da obra: `logoBase64` é volátil e só era preenchido
           // no upload, então a logo sumia dos impressos após qualquer recarga.
           if (cfg?.logo && !state.get('logoBase64')) state.set('logoBase64', cfg.logo);
+
+          await this._sincronizarValorContratual();
 
           // FIX-5: pré-carrega todas as medições no cache em memória imediatamente
           // após o login, para que dashboards e KPIs estejam corretos sem que o
