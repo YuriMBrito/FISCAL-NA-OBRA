@@ -590,8 +590,7 @@ export class BoletimUI {
     const bm = bms.find(b => b.num === bmNum) || bms[0];
     if (!bm) return;
 
-    const med      = getMedicoes(obraId, bmNum);
-    const { R$, n4, n2, pct, fmtNum } = this._fmt(cfg);
+    const { R$, fmtNum } = this._fmt(cfg);
 
     const vAcumAnt  = getValorAcumuladoAnterior(obraId, bmNum, itens, cfg);
     const vAcumTot  = getValorAcumuladoTotal(obraId, bmNum, itens, cfg);
@@ -665,24 +664,33 @@ export class BoletimUI {
       return { tCont, tAnt, tAtual, tAcum, tSaldo };
     };
 
-    // Gera linhas da tabela PDF
-    let linhas = '';
+    // ═══════════════════════════════════════════════════════════════
+    // LAYOUT OFICIAL PREFEITURA — espelho fiel do modelo aprovado
+    // A4 paisagem 841,89 × 595,28 pt · faixa útil x 22,3 → 819,5 (797,2 pt)
+    // Colunas (pt): 25,7 | 215,3 | 27,3 | 31,6 | 44,5 | 64,1 | 6,2(gap)
+    //               28,1 | 27,4 | 42,1 | 6,2(gap) | 28,1 | 27,4 | 41,5
+    //               6,2(gap) | 31,6 | 27,4 | 45,8 | 6,2(gap) | 64,5
+    // Paginação calculada em JS na janela de impressão: cabeçalho de
+    // colunas repetido em todas as folhas, fecho/assinaturas na última.
+    // ═══════════════════════════════════════════════════════════════
+    const esc  = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Quantidades no modelo saem SEM separador de milhar (ex.: 2500,00)
+    const qtdF = v => fmtNum(parseFloat(v) || 0).toFixed(2).replace('.', ',');
+    const pctF = v => { const n = parseFloat(v); return (isFinite(n) ? n : 0).toFixed(2).replace('.', ',') + '%'; };
+    const GAP  = '<td class="gap"></td>';
+
     // Acumulação em centavos inteiros — evita erro de ponto flutuante binário
     let _gContC = 0, _gAntC = 0, _gAtualC = 0, _gAcumC = 0, _gSaldoC = 0;
-    let linhasIdx = 0; // contador para intercalar branco/cinza nos itens normais
 
-    // Formata percentual: 100% exato → "100%", demais → "XX,XX %"
-    const fmtPct = v => {
-      const n = parseFloat(v) || 0;
-      if (n === 100) return '100%';
-      return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
-    };
+    const linhasHtml = [];
 
     itens.forEach(it => {
+      // ── Grupo (nível 1) — faixa cinza, descrição centralizada ──
       if (it.t === 'G') {
-        const v = _valMacroG(it.id);
-        const pAnt_  = v.tCont > 0 ? (v.tAnt  / v.tCont * 100) : 0;
-        const pAcum_ = v.tCont > 0 ? (v.tAcum / v.tCont * 100) : 0;
+        const v      = _valMacroG(it.id);
+        const pAnt   = v.tCont > 0 ? (v.tAnt   / v.tCont * 100) : 0;
+        const pAtual = v.tCont > 0 ? (v.tAtual / v.tCont * 100) : 0;
+        const pAcum  = v.tCont > 0 ? (v.tAcum  / v.tCont * 100) : 0;
         if (!_temQualquerPai(it.id)) {
           _gContC  += Math.round(v.tCont  * 100);
           _gAntC   += Math.round(v.tAnt   * 100);
@@ -690,296 +698,378 @@ export class BoletimUI {
           _gAcumC  += Math.round(v.tAcum  * 100);
           _gSaldoC += Math.round(v.tSaldo * 100);
         }
-        linhas += `<tr class="grupo">
-          <td colspan="4" style="padding:4px 8px;font-size:8pt;font-weight:700">${it.id} &nbsp; ${it.desc}</td>
-          <td class="td-r" style="font-size:7pt;color:#cbd5e1">—</td>
-          <td class="td-r" style="font-size:7.5pt">${R$(v.tCont)}</td>
-          <td class="td-r" style="font-size:7pt;color:#cbd5e1">${pct(pAnt_)}</td>
-          <td class="td-r" style="font-size:7.5pt">${v.tAnt > 0 ? R$(v.tAnt) : 'R$ 0,00'}</td>
-          <td class="td-r" style="font-size:7pt;color:#cbd5e1">—</td>
-          <td class="td-r" style="font-size:7pt;color:#cbd5e1">—</td>
-          <td class="td-r" style="font-size:7.5pt">${v.tAtual !== 0 ? R$(v.tAtual) : 'R$ 0,00'}</td>
-          <td class="td-r" style="font-size:7pt;color:#cbd5e1">${pct(pAcum_)}</td>
-          <td class="td-r" style="font-size:7.5pt">${v.tAcum > 0 ? R$(v.tAcum) : 'R$ 0,00'}</td>
-          <td class="td-r" style="font-size:7.5pt;color:#fca5a5">${R$(v.tSaldo)}</td>
-        </tr>`;
+        linhasHtml.push(
+          '<tr class="grupo">' +
+            '<td class="c">' + esc(it.id) + '</td>' +
+            '<td class="c">' + esc(it.desc) + '</td>' +
+            '<td></td><td></td><td></td>' +
+            '<td class="c">' + R$(v.tCont) + '</td>' +
+            GAP + '<td class="c">' + pctF(pAnt)   + '</td><td></td><td class="c">' + R$(v.tAnt)   + '</td>' +
+            GAP + '<td class="c">' + pctF(pAtual) + '</td><td></td><td class="c">' + R$(v.tAtual) + '</td>' +
+            GAP + '<td class="c">' + pctF(pAcum)  + '</td><td></td><td class="c">' + R$(v.tAcum)  + '</td>' +
+            GAP + '<td class="c">' + R$(v.tSaldo) + '</td>' +
+          '</tr>'
+        );
         return;
       }
-      if (it.t === 'SG') {
-        linhas += `<tr class="subgrupo"><td colspan="14" style="padding:3px 14px;font-size:7.5pt">${it.id} — ${it.desc}</td></tr>`;
-        return;
-      }
-      if (it.t === 'MACRO') {
-        const v     = _valMacro(it.id);
-        const pAnt_  = v.tCont > 0 ? (v.tAnt  / v.tCont * 100) : 0;
-        const pAcum_ = v.tCont > 0 ? (v.tAcum / v.tCont * 100) : 0;
-        const indent = (it.id.split('.').length - 1) * 10;
-        if (!_temQualquerPai(it.id)) {
+
+      // ── Subgrupo / macro — fundo branco, negrito, descrição à esquerda ──
+      if (it.t === 'SG' || it.t === 'MACRO') {
+        const v      = it.t === 'MACRO' ? _valMacro(it.id) : _valMacroG(it.id);
+        const pAnt   = v.tCont > 0 ? (v.tAnt   / v.tCont * 100) : 0;
+        const pAtual = v.tCont > 0 ? (v.tAtual / v.tCont * 100) : 0;
+        const pAcum  = v.tCont > 0 ? (v.tAcum  / v.tCont * 100) : 0;
+        if (it.t === 'MACRO' && !_temQualquerPai(it.id)) {
           _gContC  += Math.round(v.tCont  * 100);
           _gAntC   += Math.round(v.tAnt   * 100);
           _gAtualC += Math.round(v.tAtual * 100);
           _gAcumC  += Math.round(v.tAcum  * 100);
           _gSaldoC += Math.round(v.tSaldo * 100);
         }
-        linhas += `<tr class="macro-row">
-          <td colspan="2" style="padding:3px 8px;padding-left:${8 + indent}px;font-size:7.5pt">
-            <span style="font-size:6pt;background:#333333;color:#fff;padding:1px 4px;border-radius:2px;margin-right:4px">MACRO</span>
-            <strong>${it.id}</strong> &nbsp; ${it.desc}
-          </td>
-          <td class="td-c" style="font-size:7.5pt">—</td>
-          <td class="td-r" style="font-size:7pt">—</td>
-          <td class="td-r" style="font-size:7pt">—</td>
-          <td class="td-r" style="font-size:7.5pt;font-weight:700">${R$(v.tCont)}</td>
-          <td class="td-r" style="font-size:7pt">${pct(pAnt_)}</td>
-          <td class="td-r" style="font-size:7.5pt;font-weight:700">${v.tAnt > 0 ? R$(v.tAnt) : '—'}</td>
-          <td class="td-r" style="font-size:7pt">—</td>
-          <td class="td-r" style="font-size:7pt">—</td>
-          <td class="td-r" style="font-size:7.5pt;font-weight:700">${v.tAtual !== 0 ? R$(v.tAtual) : '—'}</td>
-          <td class="td-r" style="font-size:7pt">${pct(pAcum_)}</td>
-          <td class="td-r" style="font-size:7.5pt;font-weight:700">${v.tAcum > 0 ? R$(v.tAcum) : '—'}</td>
-          <td class="td-r" style="font-size:7.5pt;font-weight:700">${R$(v.tSaldo)}</td>
-        </tr>`;
+        linhasHtml.push(
+          '<tr class="sub">' +
+            '<td class="c">' + esc(it.id) + '</td>' +
+            '<td class="d">' + esc(it.desc) + '</td>' +
+            '<td></td><td></td><td></td>' +
+            '<td class="c">' + R$(v.tCont) + '</td>' +
+            GAP + '<td class="c">' + pctF(pAnt)   + '</td><td></td><td class="c">' + R$(v.tAnt)   + '</td>' +
+            GAP + '<td class="c">' + pctF(pAtual) + '</td><td></td><td class="c">' + R$(v.tAtual) + '</td>' +
+            GAP + '<td class="c">' + pctF(pAcum)  + '</td><td></td><td class="c">' + R$(v.tAcum)  + '</td>' +
+            GAP + '<td class="c">' + R$(v.tSaldo) + '</td>' +
+          '</tr>'
+        );
         return;
       }
-      // Item normal
-      const upBdi   = fmtNum((it.up || 0) * (1 + (cfg.bdi || 0)));
-      const totCont = fmtNum((it.qtd || 0) * upBdi);
-      const qtdAnt_ = getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens);
-      const totAnt_ = fmtNum(qtdAnt_ * upBdi);
-      const pctAnt_ = it.qtd > 0 ? (qtdAnt_ / it.qtd * 100) : 0;
-      const qtdAcum_= getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens);
-      const totAcum_= fmtNum(qtdAcum_ * upBdi);
-      const pctAcum_= it.qtd > 0 ? (qtdAcum_ / it.qtd * 100) : 0;
-      const qtdAtual_= qtdAcum_ - qtdAnt_;
-      const totAtual_= fmtNum(totAcum_ - totAnt_);
-      const totSaldo_= fmtNum(totCont - totAcum_);
+
+      // ── Item normal ───────────────────────────────────────────
+      const upBdi    = fmtNum((it.up || 0) * (1 + (cfg.bdi || 0)));
+      const totCont  = fmtNum((it.qtd || 0) * upBdi);
+      const qtdAnt   = getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens);
+      const totAnt   = fmtNum(qtdAnt * upBdi);
+      const qtdAcum  = getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens);
+      const totAcum  = fmtNum(qtdAcum * upBdi);
+      const qtdAtual = qtdAcum - qtdAnt;
+      const totAtual = fmtNum(totAcum - totAnt);
+      const totSaldo = fmtNum(totCont - totAcum);
+      const pAnt     = it.qtd > 0 ? (qtdAnt   / it.qtd * 100) : 0;
+      const pAtual   = it.qtd > 0 ? (qtdAtual / it.qtd * 100) : 0;
+      const pAcum    = it.qtd > 0 ? (qtdAcum  / it.qtd * 100) : 0;
+
       if (!_temQualquerPai(it.id)) {
-        _gContC  += Math.round(totCont   * 100);
-        _gAntC   += Math.round(totAnt_   * 100);
-        _gAtualC += Math.round(totAtual_ * 100);
-        _gAcumC  += Math.round(totAcum_  * 100);
-        _gSaldoC += Math.round(totSaldo_ * 100);
+        _gContC  += Math.round(totCont  * 100);
+        _gAntC   += Math.round(totAnt   * 100);
+        _gAtualC += Math.round(totAtual * 100);
+        _gAcumC  += Math.round(totAcum  * 100);
+        _gSaldoC += Math.round(totSaldo * 100);
       }
-      const destC = totAtual_ > 0 ? 'color:#15803d;font-weight:700' : totAtual_ < 0 ? 'color:#dc2626;font-weight:700' : 'color:#9ca3af';
-      const pctAtualItem = it.qtd > 0 ? (qtdAtual_ / it.qtd * 100) : 0;
-      const indent = (it.id.split('.').length - 1) * 8;
-      const rowBgPDF = linhasIdx % 2 === 1 ? 'background:#f3f4f6;' : '';
-      linhasIdx++;
-      linhas += `<tr style="${rowBgPDF}">
-        <td class="td-c" style="font-size:7pt;font-family:var(--font-mono);color:#374151">${it.id}</td>
-        <td style="font-size:7.5pt;padding-left:${4 + indent}px">${it.desc}</td>
-        <td class="td-c" style="font-size:7.5pt;color:#1e40af;font-weight:600">${it.und || '—'}</td>
-        <td class="td-r" style="font-size:7pt;color:#374151">${it.qtd != null ? n2(it.qtd) : '—'}</td>
-        <td class="td-r" style="font-size:7pt;color:#374151;font-family:var(--font-mono)">${R$(upBdi)}</td>
-        <td class="td-r" style="font-size:7.5pt">${R$(totCont)}</td>
-        <td class="td-r" style="font-size:7pt;color:#6b7280">${fmtPct(pctAnt_)}</td>
-        <td class="td-r" style="font-size:7.5pt;color:#6b7280">${totAnt_ > 0 ? R$(totAnt_) : 'R$ 0,00'}</td>
-        <td class="td-r" style="font-size:7pt;${destC}">${qtdAtual_ !== 0 ? n2(qtdAtual_) : '—'}</td>
-        <td class="td-r" style="font-size:6.5pt;${destC}">${pctAtualItem > 0 ? fmtPct(pctAtualItem) : '—'}</td>
-        <td class="td-r" style="font-size:7.5pt;${destC}">${totAtual_ !== 0 ? R$(totAtual_) : 'R$ 0,00'}</td>
-        <td class="td-r" style="font-size:7pt;color:${pctAcum_ > 0 ? '#1e40af' : '#6b7280'}">${fmtPct(pctAcum_)}</td>
-        <td class="td-r" style="font-size:7.5pt">${totAcum_ > 0 ? R$(totAcum_) : 'R$ 0,00'}</td>
-        <td class="td-r" style="font-size:7.5pt;color:${totSaldo_ < 0.01 ? '#15803d' : 'inherit'}">${R$(totSaldo_)}</td>
-      </tr>`;
+
+      linhasHtml.push(
+        '<tr class="ln">' +
+          '<td class="c">' + esc(it.id) + '</td>' +
+          '<td class="d">' + esc(it.desc) + '</td>' +
+          '<td class="c">' + esc(it.und || '') + '</td>' +
+          '<td class="c">' + qtdF(it.qtd) + '</td>' +
+          '<td class="c">' + R$(upBdi)   + '</td>' +
+          '<td class="c">' + R$(totCont) + '</td>' +
+          GAP + '<td class="c">' + pctF(pAnt)   + '</td><td class="c">' + qtdF(qtdAnt)   + '</td><td class="c">' + R$(totAnt)   + '</td>' +
+          GAP + '<td class="c">' + pctF(pAtual) + '</td><td class="c">' + qtdF(qtdAtual) + '</td><td class="c">' + R$(totAtual) + '</td>' +
+          GAP + '<td class="c">' + pctF(pAcum)  + '</td><td class="c">' + qtdF(qtdAcum)  + '</td><td class="c">' + R$(totAcum)  + '</td>' +
+          GAP + '<td class="c">' + R$(totSaldo) + '</td>' +
+        '</tr>'
+      );
     });
 
-    // Converte centavos inteiros → reais para o rodapé do PDF
+    // Converte centavos inteiros → reais
     const gCont  = _gContC  / 100;
     const gAnt   = _gAntC   / 100;
     const gAtual = _gAtualC / 100;
     const gAcum  = _gAcumC  / 100;
     const gSaldo = _gSaldoC / 100;
 
-    const agora = new Date();
-    const logo  = state.get('logoBase64') || '';
+    const pAntG   = gCont > 0 ? (gAnt   / gCont * 100) : 0;
+    const pAtualG = gCont > 0 ? (gAtual / gCont * 100) : 0;
+    const pAcumG  = gCont > 0 ? (gAcum  / gCont * 100) : 0;
 
-    const html = `
-  <!-- ── Título ─────────────────────────────────────────────── -->
-  <div style="text-align:center;border-bottom:2px solid #1A1A1A;padding-bottom:6px;margin-bottom:6px">
-    ${logo ? `<img src="${logo}" style="height:50px;max-width:140px;object-fit:contain;float:left">` : ''}
-    <div style="font-size:12pt;font-weight:800;text-transform:uppercase;letter-spacing:1px">
-      BOLETIM DE MEDIÇÃO N° ${bm.label} — DATA: ${bm.data || '__/__/____'}
-    </div>
-    <div style="font-size:8.5pt;font-weight:700;color:#374151;margin-top:2px;text-transform:uppercase">${cfg.objeto || ''}</div>
-    <div style="clear:both"></div>
-  </div>
+    // ── Blocos fixos do documento ──────────────────────────────
+    const logoBM = state.get('logoBase64') || cfg.logo || '';
+    const bdiPct = ((cfg.bdi || 0) * 100).toFixed(2).replace('.', ',');
+    const periodo = [cfg.inicioReal || cfg.inicioPrev, cfg.termino]
+      .filter(Boolean)
+      .map(dt => (String(dt).includes('-') ? String(dt).split('-').reverse().join('/') : dt))
+      .join(' À ');
 
-  <!-- ── Cabeçalho compacto: info contrato (esq) + resumo (dir) ── -->
-  <table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-size:7pt">
-    <tr>
-      <!-- Coluna esquerda: dados do contrato em lista simples -->
-      <td style="border:1px solid #e2e8f0;padding:4px 6px;width:64%;vertical-align:top">
-        <table style="width:100%;border-collapse:collapse;font-size:6.5pt">
-          <tr>
-            <td style="border:none;padding:1px 4px 1px 0;white-space:nowrap"><strong>OBJETO:</strong></td>
-            <td style="border:none;padding:1px 4px;color:#1e40af">${cfg.objeto || '—'}</td>
-          </tr>
-          <tr>
-            <td style="border:none;padding:1px 4px 1px 0;white-space:nowrap"><strong>CONTRATADA:</strong></td>
-            <td style="border:none;padding:1px 4px;color:#1e40af">${cfg.contratada || '—'} — CNPJ N° ${cfg.cnpj || '—'}</td>
-          </tr>
-          <tr>
-            <td style="border:none;padding:1px 4px 1px 0;white-space:nowrap"><strong>CONTRATANTE:</strong></td>
-            <td style="border:none;padding:1px 4px;color:#1e40af">${cfg.contratante || '—'}</td>
-          </tr>
-          <tr>
-            <td style="border:none;padding:1px 4px 1px 0;white-space:nowrap"><strong>CONTRATO Nº</strong></td>
-            <td style="border:none;padding:1px 4px;color:#1e40af">${cfg.contrato || '—'} &nbsp;&nbsp; <strong>BDI:</strong> ${((cfg.bdi||0)*100).toFixed(2)}%</td>
-          </tr>
-          <tr>
-            <td style="border:none;padding:1px 4px 1px 0;white-space:nowrap"><strong>DATA DA MEDIÇÃO:</strong></td>
-            <td style="border:none;padding:1px 4px;color:#1e40af">${bm.data || '—'}</td>
-          </tr>
-        </table>
-      </td>
-      <!-- Coluna direita: resumo financeiro em 3 colunas (descrição | % | valor) -->
-      <td style="border:1px solid #e2e8f0;padding:4px 6px;width:36%;background:#f8fafc;vertical-align:top">
-        <table style="width:100%;border-collapse:collapse;font-size:6.5pt">
-          <tr><td colspan="3" style="border:none;padding:1px 4px;font-weight:800;color:#64748b;text-transform:uppercase;font-size:6pt;letter-spacing:.5px">RESUMO DO CONTRATO</td></tr>
-          <tr>
-            <td style="border:none;padding:1px 4px;white-space:nowrap">VALOR TOTAL:</td>
-            <td style="border:none;padding:1px 4px;text-align:right;font-family:monospace;color:#6b7280">—</td>
-            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(cfg.valor||0)}</td>
-          </tr>
-          <tr>
-            <td style="border:none;padding:1px 4px;white-space:nowrap">ACUMULADO ANTERIOR:</td>
-            <td style="border:none;padding:1px 4px;text-align:right;font-family:monospace;color:#6b7280">${cfg.valor>0?fmtPct(vAcumAnt/cfg.valor*100):'—'}</td>
-            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(vAcumAnt)}</td>
-          </tr>
-          <tr style="background:#dbeafe">
-            <td style="border:none;padding:1px 4px;font-weight:700;white-space:nowrap">MEDIÇÃO ATUAL:</td>
-            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace;color:#1e40af">${fmtPct(pctMed)}</td>
-            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace;color:#1e40af">${R$(vMedAtual)}</td>
-          </tr>
-          <tr>
-            <td style="border:none;padding:1px 4px;white-space:nowrap">ACUMULADO TOTAL:</td>
-            <td style="border:none;padding:1px 4px;text-align:right;font-family:monospace;color:#6b7280">${fmtPct(pctAcum)}</td>
-            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(vAcumTot)}</td>
-          </tr>
-          <tr>
-            <td style="border:none;padding:1px 4px;white-space:nowrap">SALDO:</td>
-            <td style="border:none;padding:1px 4px;text-align:right;font-family:monospace;color:#6b7280">—</td>
-            <td style="border:none;padding:1px 4px;font-weight:700;text-align:right;font-family:monospace">${R$(saldo)}</td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+    const linhaInfo = (rot, val) =>
+      '<tr><td><span class="rot">' + rot + '</span><span class="val">' + esc(val || '—') + '</span></td></tr>';
 
-  <!-- ── Tabela principal ──────────────────────────────────────── -->
-  <table style="table-layout:fixed;width:100%;font-size:7.5pt;border-collapse:collapse;margin-bottom:0">
-    <colgroup>
-      <col style="width:22px"><col style="width:222px"><col style="width:22px">
-      <col style="width:34px"><col style="width:42px"><col style="width:42px"><col style="width:26px"><col style="width:60px">
-      <col style="width:28px"><col style="width:24px"><col style="width:58px">
-      <col style="width:24px"><col style="width:56px"><col style="width:53px">
-    </colgroup>
-    <thead>
-      <tr>
-        <th rowspan="2" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">ITEM</th>
-        <th rowspan="2" style="text-align:left;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 6px;font-size:6.5pt">DESCRIÇÃO DOS SERVIÇOS</th>
-        <th rowspan="2" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">UN.</th>
-        <th colspan="3" style="text-align:center;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">CONTRATUAL</th>
-        <th colspan="2" style="text-align:center;background:#374151;color:#fff;border:1px solid #4b5563;padding:3px 2px;font-size:6pt">ACUM. ANTERIOR</th>
-        <th colspan="3" style="text-align:center;background:#14532d;color:#fff;border:1px solid #15803d;padding:3px 2px;font-size:6pt">MEDIÇÃO ATUAL</th>
-        <th colspan="2" style="text-align:center;background:#2A2A2A;color:#fff;border:1px solid #333333;padding:3px 2px;font-size:6pt">ACUM. TOTAL</th>
-        <th rowspan="2" style="text-align:center;background:#7f1d1d;color:#fff;border:1px solid #991b1b;padding:3px 2px;font-size:6pt">SALDO</th>
-      </tr>
-      <tr>
-        <th style="text-align:right;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:2px 3px;font-size:5.5pt">QTD.</th>
-        <th style="text-align:right;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:2px 3px;font-size:5.5pt">VL.UNIT c/BDI</th>
-        <th style="text-align:right;background:#1A1A1A;color:#fff;border:1px solid #333333;padding:2px 3px;font-size:5.5pt">TOTAL</th>
-        <th style="text-align:right;background:#374151;color:#fff;border:1px solid #4b5563;padding:2px 3px;font-size:5.5pt">%</th>
-        <th style="text-align:right;background:#374151;color:#fff;border:1px solid #4b5563;padding:2px 3px;font-size:5.5pt">TOTAL</th>
-        <th style="text-align:right;background:#14532d;color:#fff;border:1px solid #15803d;padding:2px 3px;font-size:5.5pt">QTD.</th>
-        <th style="text-align:right;background:#14532d;color:#fff;border:1px solid #15803d;padding:2px 3px;font-size:5.5pt">%</th>
-        <th style="text-align:right;background:#14532d;color:#fff;border:1px solid #15803d;padding:2px 3px;font-size:5.5pt">TOTAL</th>
-        <th style="text-align:right;background:#2A2A2A;color:#fff;border:1px solid #333333;padding:2px 3px;font-size:5.5pt">%</th>
-        <th style="text-align:right;background:#2A2A2A;color:#fff;border:1px solid #333333;padding:2px 3px;font-size:5.5pt">TOTAL</th>
-      </tr>
-    </thead>
-    <tbody>${linhas}</tbody>
-  </table>
-  <!-- ── TOTAL GERAL fora da tabela principal para aparecer só na última página ── -->
-  <table style="table-layout:fixed;width:100%;font-size:7.5pt;border-collapse:collapse;margin-bottom:0">
-    <colgroup>
-      <col style="width:22px"><col style="width:222px"><col style="width:22px">
-      <col style="width:34px"><col style="width:42px"><col style="width:42px"><col style="width:26px"><col style="width:60px">
-      <col style="width:28px"><col style="width:24px"><col style="width:58px">
-      <col style="width:24px"><col style="width:56px"><col style="width:53px">
-    </colgroup>
-    <tbody>
-      <tr style="background:#1A1A1A;color:#fff;font-weight:700">
-        <td colspan="3" style="text-align:right;padding:4px 8px;font-size:8pt;border:1px solid #333333">TOTAL GERAL</td>
-        <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#cbd5e1">—</td>
-        <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#cbd5e1">—</td>
-        <td class="td-r" style="border:1px solid #333333;font-family:var(--font-mono);color:#fff;font-size:7.5pt">${R$(gCont)}</td>
-        <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#cbd5e1">${cfg.valor > 0 ? fmtPct(gAnt / gCont * 100) : '—'}</td>
-        <td class="td-r" style="border:1px solid #333333;font-family:var(--font-mono);color:#fff;font-size:7.5pt">${R$(gAnt)}</td>
-        <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#86efac">${gAtual !== 0 ? n2(gAtual) : '—'}</td>
-        <td colspan="2" style="text-align:center;border:1px solid #14532d;background:rgba(20,83,45,0.6);color:#86efac;font-size:7.5pt;font-weight:800;letter-spacing:.5px;white-space:nowrap">${fmtPct(pctMed)}</td>
-        <td class="td-r" style="border:1px solid #333333;font-size:7pt;color:#93c5fd">${fmtPct(pctAcum)}</td>
-        <td class="td-r" style="border:1px solid #333333;font-family:var(--font-mono);color:#fff;font-size:7.5pt">${R$(gAcum)}</td>
-        <td class="td-r" style="border:1px solid #333333;font-family:var(--font-mono);color:#fca5a5;font-size:7.5pt">${R$(gSaldo)}</td>
-      </tr>
-    </tbody>
-  </table>
-  <!-- "TOTAL EXECUTADO" para aparecer só na última página -->
-  <div style="background:#14532d;color:#fff;font-weight:800;text-align:center;padding:5px 10px;font-size:9pt;letter-spacing:1px;margin-bottom:4px">
-    TOTAL EXECUTADO DA OBRA: ${fmtPct(pctAcum)}
-  </div>
+    const linhaResumo = (rot, val, pc, alt) =>
+      '<tr' + (alt ? ' class="alt"' : '') + '>' +
+        '<td class="rr">' + rot + '</td>' +
+        '<td class="vv">' + val + '</td>' +
+        '<td class="pp">' + (pc || '') + '</td>' +
+      '</tr>';
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:35mm;padding:0 20px">
-    <div style="border-top:1px solid #000;padding-top:6px;text-align:center">
-      <div style="font-weight:700;font-size:9pt">${cfg.fiscal || cfg.contratada || '______________________'}</div>
-      <div style="font-size:7.5pt;color:#555">${cfg.creaFiscal || ''}</div>
-      <div style="font-size:8pt;font-weight:600;margin-top:2px">FISCAL DO CONTRATO</div>
-      <div style="font-size:7pt;color:#555;margin-top:2px">Data: ___/___/______</div>
-    </div>
-    <div style="border-top:1px solid #000;padding-top:6px;text-align:center">
-      <div style="font-weight:700;font-size:9pt">${cfg.contratante || '______________________'}</div>
-      <div style="font-size:8pt;font-weight:600;margin-top:2px">CONTRATANTE / GESTOR</div>
-      <div style="font-size:7pt;color:#555;margin-top:2px">Data: ___/___/______</div>
-    </div>
-  </div>
-  <div style="text-align:center;font-size:6pt;color:#9ca3af;margin-top:8px;border-top:1px solid #eee;padding-top:4px">
-    Emitido em ${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} — Fiscal na Obra · beta teste
-  </div>`;
+    const cabPagina1 =
+      '<div class="tit">BOLETIM DE MEDIÇÃO N° ' + String(bm.num).padStart(2, '0') +
+        ' - DATA: ' + esc(bm.data || '__/__/____') + '<br>' + esc((cfg.objeto || '').toUpperCase()) + '</div>' +
+      '<div class="logo">' + (logoBM ? '<img src="' + logoBM + '" alt="">' : '') + '</div>' +
+      '<div class="infos">' +
+        '<table class="info-esq">' +
+          linhaInfo('OBJETO: ',              (cfg.objeto || '').toUpperCase()) +
+          linhaInfo('ENDEREÇO DA OBRA: ',    (cfg.enderecoObra || cfg.localidade || cfg.municipioUf || '').toUpperCase()) +
+          linhaInfo('CONTRATADA: ',          (cfg.contratada || '').toUpperCase() + (cfg.cnpj ? '  - (CNPJ N° ' + cfg.cnpj + ')' : '')) +
+          linhaInfo('CONTRATANTE: ',         (cfg.contratante || '').toUpperCase()) +
+          linhaInfo('CONTRATO N° ',          cfg.contrato) +
+          linhaInfo('BDI: ',                 bdiPct + ' %') +
+          linhaInfo('DATA DA MEDIÇÃO: ',     bm.data) +
+          linhaInfo('PERÍODO DO CONTRATO: ', periodo) +
+        '</table>' +
+        '<table class="info-dir">' +
+          '<tr class="cab"><td colspan="3">RESUMO DO CONTRATO</td></tr>' +
+          linhaResumo('CONTRATO N°:',        '<span class="az">' + esc(cfg.contrato || '—') + '</span>', '<span class="pt">%</span>', false) +
+          linhaResumo('VALOR TOTAL:',        '<span class="az">' + R$(cfg.valor || 0) + '</span>', '', true) +
+          linhaResumo('ACUMULADO ANTERIOR:', '<span class="az">' + R$(vAcumAnt)  + '</span>', '<span class="az">' + pctF(cfg.valor > 0 ? vAcumAnt / cfg.valor * 100 : 0) + '</span>', false) +
+          linhaResumo('MEDIÇÃO ATUAL:',      '<span class="az">' + R$(vMedAtual) + '</span>', '<span class="az">' + pctF(pctMed)   + '</span>', true) +
+          linhaResumo('ACUMULADO ATUAL:',    '<span class="az">' + R$(vAcumTot)  + '</span>', '<span class="az">' + pctF(pctAcum)  + '</span>', false) +
+          linhaResumo('SALDO:',              '<span class="az">' + R$(saldo)     + '</span>', '<span class="az">' + pctF(pctSaldo) + '</span>', true) +
+          '<tr class="vaz"><td colspan="3"></td></tr>' +
+        '</table>' +
+      '</div>';
 
-    const cssExtra = `
-      .grupo td  { background:#1A1A1A!important; color:#fff!important; font-weight:700; }
-      .subgrupo td { background:#333333!important; color:#e2e8f0!important; font-weight:600; }
-      .macro-row td { background:#1A1A1A!important; color:#f5f5f5!important; font-weight:700; border-bottom:1px solid #333333; }
-      .td-r { text-align:right; font-family:var(--font-mono); white-space:nowrap; }
-      .td-c { text-align:center; }
-    `;
+    const colgroup =
+      '<colgroup>' +
+        '<col style="width:25.7pt"><col style="width:215.3pt"><col style="width:27.3pt">' +
+        '<col style="width:31.6pt"><col style="width:44.5pt"><col style="width:64.1pt">' +
+        '<col style="width:6.2pt"><col style="width:28.1pt"><col style="width:27.4pt"><col style="width:42.1pt">' +
+        '<col style="width:6.2pt"><col style="width:28.1pt"><col style="width:27.4pt"><col style="width:41.5pt">' +
+        '<col style="width:6.2pt"><col style="width:31.6pt"><col style="width:27.4pt"><col style="width:45.8pt">' +
+        '<col style="width:6.2pt"><col style="width:64.5pt">' +
+      '</colgroup>';
+
+    const faixaBlocos =
+      '<tr class="faixa">' +
+        '<td colspan="6">CONTRATUAL</td>' +
+        GAP + '<td colspan="3">ACUMULADO ANTERIOR</td>' +
+        GAP + '<td colspan="3">MEDIÇÃO ATUAL</td>' +
+        GAP + '<td colspan="3">ACUMULADO ATUAL</td>' +
+        GAP + '<td>SALDO</td>' +
+      '</tr>';
+
+    const cabColunas =
+      '<tr class="cabec">' +
+        '<td class="g1">ITEM</td>' +
+        '<td class="g1">DESCRIÇÃO DOS SERVIÇOS</td>' +
+        '<td class="g1">UND</td>' +
+        '<td class="g1">QUANT</td>' +
+        '<td class="g1">VALOR<br>UNIT. + BDI</td>' +
+        '<td class="g1">TOTAL</td>' +
+        GAP + '<td class="g2">%</td><td class="g2">QUANT.</td><td class="g2">TOTAL</td>' +
+        GAP + '<td class="g2">%</td><td class="g2">QUANT.</td><td class="g2">TOTAL</td>' +
+        GAP + '<td class="g2">%</td><td class="g2">QUANT.</td><td class="g2">TOTAL</td>' +
+        GAP + '<td class="g2">TOTAL</td>' +
+      '</tr>';
+
+    const espacador = '<tr class="vazia"><td colspan="20"></td></tr>';
+
+    const fecho =
+      espacador +
+      '<tr class="total">' +
+        '<td class="c" colspan="2">TOTAL</td>' +
+        '<td class="c" colspan="4">' + R$(gCont) + '</td>' +
+        GAP + '<td class="c pc">' + pctF(pAntG)   + '</td><td class="c" colspan="2">' + R$(gAnt)   + '</td>' +
+        GAP + '<td class="c pc">' + pctF(pAtualG) + '</td><td class="c" colspan="2">' + R$(gAtual) + '</td>' +
+        GAP + '<td class="c pc">' + pctF(pAcumG)  + '</td><td class="c" colspan="2">' + R$(gAcum)  + '</td>' +
+        GAP + '<td class="c">' + R$(gSaldo) + '</td>' +
+      '</tr>' +
+      faixaBlocos;
+
+    const assinaturas =
+      '<div class="assin">' +
+        '<div class="bloco esq">' +
+          '<div class="risco"></div>' +
+          '<div>' + esc((cfg.contratada || '').toUpperCase()) + '</div>' +
+          '<div>' + (cfg.cnpj ? 'CNPJ N° ' + esc(cfg.cnpj) : '') + '</div>' +
+          '<div class="it">CONTRATADA</div>' +
+        '</div>' +
+        '<div class="vao"></div>' +
+        '<div class="bloco dir">' +
+          '<div class="risco"></div>' +
+          '<div>' + esc((cfg.fiscal || '').toUpperCase()) + '</div>' +
+          '<div>' + esc(cfg.creaFiscal || '') + '</div>' +
+          '<div class="it">FISCALIZAÇÃO</div>' +
+        '</div>' +
+      '</div>';
+
+    const rodapeL1 = ((cfg.unidadeResponsavel || cfg.contratante || '').toUpperCase()) +
+                     (cfg.cnpjContratante ? ' - CNPJ Nº ' + cfg.cnpjContratante : '');
+    const rodape =
+      '<div class="rod">' +
+        '<div>' + esc(rodapeL1) + '</div>' +
+        '<div>' + esc((cfg.enderecoOrgao || '').toUpperCase()) + '</div>' +
+        '<span class="pag"></span>' +
+      '</div>';
+
+    const D = {
+      cab1:     cabPagina1,
+      colgroup: colgroup,
+      thead1:   faixaBlocos + cabColunas + espacador,
+      theadN:   cabColunas,
+      linhas:   linhasHtml,
+      fecho:    fecho,
+      assin:    assinaturas,
+      rod:      rodape,
+    };
+
+    const cssBM = `
+  @page { size: A4 landscape; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  body { font-family: Arial, Helvetica, sans-serif; color:#000;
+         -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  .folha { position:relative; box-sizing:border-box; width:841.89pt; height:594.9pt;
+           overflow:hidden; padding:17.8pt 22.39pt 0 22.3pt; background:#fff;
+           page-break-after:always; break-after:page; }
+  .folha:last-of-type { page-break-after:auto; break-after:auto; }
+
+  /* Faixa de título */
+  .tit { background:#404040; color:#fff; border:.5pt solid #000; border-bottom:0;
+         font-weight:bold; font-size:12.4pt; line-height:15.6pt; text-align:center;
+         padding:1.5pt 6pt; }
+
+  /* Faixa do brasão */
+  .logo { height:83.8pt; border:.5pt solid #000; border-top:0; border-bottom:0;
+          display:flex; align-items:center; justify-content:center; }
+  .logo img { max-height:69pt; max-width:340pt; object-fit:contain; }
+
+  /* Bloco de informações */
+  .infos { display:flex; align-items:flex-start; }
+  .info-esq, .info-dir { border-collapse:collapse; table-layout:fixed;
+                         border:.5pt solid #000; font-size:6.7pt; font-weight:bold; }
+  .info-esq { width:512.3pt; }
+  .info-dir { width:278.7pt; margin-left:6.2pt; }
+  .info-esq td, .info-dir td { border:.5pt solid #000; height:11.35pt; padding:0 3pt;
+                               vertical-align:middle; overflow:hidden; white-space:nowrap; }
+  .info-esq tr:first-child td { height:14.5pt; }
+  .info-dir tr.cab td { height:14.5pt; background:#808080; text-align:center; font-size:7.8pt; }
+  .info-dir tr.alt td { background:#D9D9D9; }
+  .info-dir td.rr { width:143.2pt; text-align:right; padding-right:9pt; }
+  .info-dir td.vv { width:76pt;    text-align:left;  padding-left:2.6pt; }
+  .info-dir td.pp { width:59.5pt;  text-align:center; }
+  .rot { color:#000; }
+  .val, .az { color:#0000FF; }
+  .pt { color:#000; }
+
+  /* Tabela principal */
+  table.principal { border-collapse:collapse; table-layout:fixed; width:797.2pt; font-size:6.1pt; }
+  table.principal td { border:.5pt solid #000; padding:0 1.5pt; vertical-align:middle;
+                       overflow:hidden; word-wrap:break-word; }
+  td.gap { border-top:none; border-bottom:none; background:#fff; padding:0; }
+  td.c { text-align:center; }
+  td.d { text-align:left; padding-left:1.6pt; }
+
+  tr.faixa td    { height:20.4pt; background:#404040; color:#fff; font-weight:bold;
+                   font-size:7.8pt; text-align:center; }
+  tr.cabec td    { height:25.7pt; background:#808080; font-weight:bold; text-align:center; }
+  tr.cabec td.g1 { font-size:6.7pt; }
+  tr.cabec td.g2 { font-size:6.1pt; }
+  tr.vazia td    { height:6.2pt; border-top:none; border-bottom:none; background:#fff; }
+  tr.ln td       { height:14.8pt; }
+  tr.grupo td    { height:18.3pt; background:#BFBFBF; font-weight:bold; font-size:6.1pt; }
+  tr.sub td      { height:18.4pt; font-weight:bold; font-size:6.1pt; }
+  /* nas linhas de grupo o modelo usa 6,7pt só nas 6 primeiras colunas */
+  tr.grupo td:nth-child(-n+6), tr.sub td:nth-child(-n+6) { font-size:6.7pt; }
+  tr.total td    { height:23.4pt; background:#BFBFBF; font-weight:bold; font-size:7.8pt;
+                   white-space:nowrap; }
+  tr.total td.pc { font-size:6.7pt; }
+
+  /* Assinaturas */
+  .assin { display:flex; width:797.2pt; }
+  .assin .bloco { box-sizing:border-box; height:63pt; border:.5pt solid #000; border-top:0;
+                  padding-top:22pt; text-align:center; font-weight:bold; font-size:7.8pt;
+                  line-height:9.8pt; }
+  .assin .esq { width:408.9pt; }
+  .assin .vao { width:6.2pt; }
+  .assin .dir { width:382.1pt; }
+  .assin .risco { width:215pt; margin:0 auto 2.5pt; border-top:.75pt solid #000; }
+  .assin .it { font-weight:normal; font-style:italic; }
+
+  /* Rodapé — repetido em todas as folhas */
+  .rod { position:absolute; left:22.3pt; right:22.39pt; top:568pt; text-align:center;
+         font-weight:bold; font-size:6.7pt; line-height:8.5pt; }
+  .rod .pag { position:absolute; right:0; top:9pt; color:#0000FF; }
+`;
+
+    const dadosJson = JSON.stringify(D).replace(/</g, '\\u003C');
 
     const w = window.open('', '_blank', 'width=1400,height=900');
-    w.document.write(`<!DOCTYPE html>
-<html lang="pt-BR"><head>
-<meta charset="UTF-8">
-<title>BOLETIM DE MEDIÇÃO ${bm.label}</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'DM Sans',system-ui,sans-serif;font-size:8pt;color:#000;background:#fff;padding:6mm 8mm}
-  table{border-collapse:collapse;font-size:7.5pt;font-family:'DM Sans',system-ui,sans-serif}
-  th{padding:3px 5px;font-size:6.5pt;text-align:left;white-space:nowrap;font-family:'DM Sans',system-ui,sans-serif}
-  td{padding:2px 4px;border:1px solid #d1d5db;vertical-align:middle;font-size:7.5pt}
-  ${cssExtra}
-  @page{size:A4 landscape;margin:6mm 8mm}
-  @media print{
-    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-    body{padding:0}
-    thead{display:table-header-group}
-    tr{page-break-inside:avoid}
+    if (!w) { window.toast?.('⚠️ Permita popups para gerar o boletim.', 'warn'); return; }
+    w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">' +
+      '<title>BOLETIM DE MEDIÇÃO ' + esc(bm.label || bm.num) + '</title>' +
+      '<style>' + cssBM + '</style></head><body><div id="paginas"></div>' +
+      '<script>' + `
+(function(){
+  var D = ${dadosJson};
+  var LIMITE = 553.4 * 4 / 3;          // limite inferior da tabela, em px CSS
+  var alvo = document.getElementById('paginas');
+
+  function novaFolha(primeira){
+    var f = document.createElement('div');
+    f.className = 'folha';
+    f.innerHTML = (primeira ? D.cab1 : '') +
+      '<table class="principal">' + D.colgroup +
+      '<tbody>' + (primeira ? D.thead1 : D.theadN) + '</tbody></table>' + D.rod;
+    alvo.appendChild(f);
+    return f;
   }
-</style>
-</head><body>
-${html}
-<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>
-</body></html>`);
+  function cabe(folha, el){
+    return (el.getBoundingClientRect().bottom - folha.getBoundingClientRect().top) <= LIMITE + 0.6;
+  }
+
+  var folha = novaFolha(true);
+  var tbody = folha.querySelector('table.principal > tbody');
+  var fixas = tbody.children.length;   // linhas de cabeçalho desta folha
+
+  D.linhas.forEach(function(html){
+    tbody.insertAdjacentHTML('beforeend', html);
+    var tr = tbody.lastElementChild;
+    if (!cabe(folha, tr) && tbody.children.length > fixas + 1){
+      tr.remove();
+      folha = novaFolha(false);
+      tbody = folha.querySelector('table.principal > tbody');
+      fixas = tbody.children.length;
+      tbody.insertAdjacentHTML('beforeend', html);
+    }
+  });
+
+  // Fecho (espaçador + TOTAL + faixa) e assinaturas — última folha
+  function aplicaFecho(){
+    tbody.insertAdjacentHTML('beforeend', D.fecho);
+    folha.querySelector('.principal').insertAdjacentHTML('afterend', D.assin);
+    return folha.querySelector('.assin');
+  }
+  var bloco = aplicaFecho();
+  if (!cabe(folha, bloco)){
+    bloco.remove();
+    for (var i = 0; i < 3; i++) tbody.removeChild(tbody.lastElementChild);
+    folha = novaFolha(false);
+    tbody = folha.querySelector('table.principal > tbody');
+    aplicaFecho();
+  }
+
+  // Numeração N/total
+  var folhas = alvo.querySelectorAll('.folha');
+  for (var j = 0; j < folhas.length; j++){
+    var p = folhas[j].querySelector('.pag');
+    if (p) p.textContent = (j + 1) + '/' + folhas.length;
+  }
+
+  window.onafterprint = function(){ window.close(); };
+  setTimeout(function(){ window.print(); }, 250);
+})();
+` + '<\/script></body></html>');
     w.document.close();
   }
+
+
 
   // ═══════════════════════════════════════════════════════════════
   // _imprimirBoletimCaixa — Layout oficial CAIXA (portaria 37.587)
