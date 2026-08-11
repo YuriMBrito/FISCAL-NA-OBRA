@@ -946,10 +946,13 @@ export class BoletimUI {
                          border:.5pt solid #000; font-size:6.7pt; font-weight:bold; }
   .info-esq { width:512.3pt; }
   .info-dir { width:278.7pt; margin-left:6.2pt; }
-  .info-esq td, .info-dir td { border:.5pt solid #000; height:11.35pt; padding:0 3pt;
+  /* o modelo não tem nenhuma linha interna nos dois painéis: só a moldura
+     externa e o traço abaixo de "RESUMO DO CONTRATO" */
+  .info-esq td, .info-dir td { border:none; height:11.35pt; padding:0 3pt;
                                vertical-align:middle; overflow:hidden; white-space:nowrap; }
   .info-esq tr:first-child td { height:14.5pt; }
-  .info-dir tr.cab td { height:14.5pt; background:#808080; text-align:center; font-size:7.8pt; }
+  .info-dir tr.cab td { height:14.5pt; background:#808080; text-align:center; font-size:7.8pt;
+                        border-bottom:.5pt solid #000; }
   .info-dir tr.alt td { background:#D9D9D9; }
   .info-dir td.rr { width:143.2pt; text-align:right; padding-right:9pt; }
   .info-dir td.vv { width:76pt;    text-align:left;  padding-left:2.6pt; }
@@ -1063,7 +1066,27 @@ export class BoletimUI {
   }
 
   window.onafterprint = function(){ window.close(); };
-  setTimeout(function(){ window.print(); }, 250);
+
+  // Só imprime depois que o brasão terminar de carregar — a logo vem de uma
+  // URL do Storage e o print() disparado cedo demais saía sem ela.
+  var jaImprimiu = false;
+  function imprimir(){
+    if (jaImprimiu) return;
+    jaImprimiu = true;
+    setTimeout(function(){ window.print(); }, 150);
+  }
+  var imgs = alvo.querySelectorAll('img');
+  if (!imgs.length) {
+    imprimir();
+  } else {
+    var pendentes = imgs.length;
+    var pronta = function(){ if (--pendentes <= 0) imprimir(); };
+    for (var k = 0; k < imgs.length; k++){
+      if (imgs[k].complete && imgs[k].naturalWidth > 0) pronta();
+      else { imgs[k].onload = pronta; imgs[k].onerror = pronta; }
+    }
+    setTimeout(imprimir, 5000);   // rede lenta: imprime mesmo assim
+  }
 })();
 ` + '<\/script></body></html>');
     w.document.close();

@@ -443,14 +443,18 @@ export class ConfigModule {
 
     // ── Validação CNPJ client-side (substitui Cloud Function validarCNPJContratado)
     // Migrado para client-side para funcionar no plano Spark (gratuito) do Firebase.
-    if (cfgNova.cnpj && !validarCNPJ(cfgNova.cnpj)) {
-      window.toast?.('⚠️ CNPJ da Contratada inválido. Verifique os dígitos e tente novamente.', 'warn');
-      document.getElementById('cfgCnpj')?.focus();
-      return;
-    }
-    if (cfgNova.cnpjContratante && !validarCNPJ(cfgNova.cnpjContratante)) {
-      window.toast?.('⚠️ CNPJ da Contratante inválido. Verifique os dígitos e tente novamente.', 'warn');
-      document.getElementById('cfgCnpjContratante')?.focus();
+    // Valida os dois antes de abortar: antes o salvamento parava no primeiro
+    // erro e o usuário não sabia qual dos campos estava realmente errado.
+    const cnpjRuins = [];
+    if (cfgNova.cnpj            && !validarCNPJ(cfgNova.cnpj))            cnpjRuins.push({ rot: 'Contratada',  el: 'cfgCnpj',            val: cfgNova.cnpj });
+    if (cfgNova.cnpjContratante && !validarCNPJ(cfgNova.cnpjContratante)) cnpjRuins.push({ rot: 'Contratante', el: 'cfgCnpjContratante', val: cfgNova.cnpjContratante });
+    if (cnpjRuins.length) {
+      const detalhe = cnpjRuins.map(c => `${c.rot} (${c.val})`).join(' e ');
+      window.toast?.(
+        `⚠️ CNPJ inválido: ${detalhe}. O dígito verificador não confere — confira o número no contrato. Nenhuma alteração foi salva.`,
+        'warn'
+      );
+      document.getElementById(cnpjRuins[0].el)?.focus();
       return;
     }
 
@@ -884,19 +888,37 @@ export class ConfigModule {
         const obraId = state.get('obraAtivaId');
         const url = await FirebaseService.salvarLogo(obraId, e.target.result);
         state.set('logoBase64', url || e.target.result);
+
+        // FIX: a URL do Storage só ficava no state (volátil) — ao recarregar a
+        // página a logo sumia de todos os impressos, que leem `cfg.logo` como
+        // fallback. Grava no cfg da obra para persistir entre sessões.
+        // Só persiste a URL; base64 não vai para o Firestore (limite de 1 MB
+        // por documento).
+        if (url && /^https?:/i.test(url)) {
+          const cfgNova = { ...(state.get('cfg') || {}), logo: url };
+          state.set('cfg', cfgNova);
+          await FirebaseService.setObraCfg?.(obraId, cfgNova, cfgNova.statusObra || 'Em andamento');
+        }
       } catch { state.set('logoBase64', e.target.result); }
       window.toast?.('✅ Logo carregado.','ok');
     };
     reader.readAsDataURL(file);
   }
 
-  _removerLogo() {
+  async _removerLogo() {
     const img  = document.getElementById('logoPreviewImg');
     const wrap = document.getElementById('logoPreviewWrap');
     if (img)  img.src = '';
     if (wrap) wrap.style.display = 'none';
     // Remove do state (sem localStorage)
     state.set('logoBase64', '');
+    // Remove também do cfg da obra, senão a logo voltaria no próximo carregamento
+    try {
+      const obraId  = state.get('obraAtivaId');
+      const cfgNova = { ...(state.get('cfg') || {}), logo: '' };
+      state.set('cfg', cfgNova);
+      await FirebaseService.setObraCfg?.(obraId, cfgNova, cfgNova.statusObra || 'Em andamento');
+    } catch (e) { console.error('[Config] _removerLogo:', e); }
     window.toast?.('🗑️ Logo removido.','warn');
   }
 

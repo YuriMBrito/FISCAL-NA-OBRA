@@ -498,6 +498,10 @@ class App {
           if (bms   && bms.length)   state.set('bms',           bms);
           if (itens && itens.length) state.set('itensContrato', itens);
 
+          // Restaura a logo da obra: `logoBase64` é volátil e só era preenchido
+          // no upload, então a logo sumia dos impressos após qualquer recarga.
+          if (cfg?.logo && !state.get('logoBase64')) state.set('logoBase64', cfg.logo);
+
           // FIX-5: pré-carrega todas as medições no cache em memória imediatamente
           // após o login, para que dashboards e KPIs estejam corretos sem que o
           // usuário precise entrar individualmente em cada BM.
