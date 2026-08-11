@@ -39,6 +39,99 @@ export class MemoriaModule {
     this._prevQtyMap   = {};
     this._expandidos   = new Set();
     this._isEditingInline  = false; // Previne re-render durante digitação
+    // FIX-DATALOSS: conteúdo REAL já confirmado por BM — 'comDados' | 'vazio'.
+    // Enquanto um BM não está aqui, um store vazio significa "ainda não sei",
+    // nunca "está vazio": nada pode ser gravado nem importado a partir dele.
+    this._estadoBm    = new Map();
+    this._recarregando = null;
+  }
+
+  /** Chave de rastreio por (obra, BM). */
+  _chaveBm(obraId, bmNum) { return `${obraId}::${bmNum}`; }
+
+  /** Registra o conteúdo confirmado de um BM. */
+  _marcarEstadoBm(obraId, bmNum, store) {
+    this._estadoBm.set(
+      this._chaveBm(obraId, bmNum),
+      (store && Object.keys(store).length > 0) ? 'comDados' : 'vazio'
+    );
+  }
+
+  /** true quando o conteúdo real do BM já foi confirmado nesta sessão. */
+  _bmCarregado(obraId, bmNum) {
+    return this._estadoBm.has(this._chaveBm(obraId, bmNum));
+  }
+
+  /** true quando o BM foi confirmado como realmente vazio no Firestore. */
+  _bmVazioConfirmado(obraId, bmNum) {
+    return this._estadoBm.get(this._chaveBm(obraId, bmNum)) === 'vazio';
+  }
+
+  /** true se o store tem ao menos um item de memória (ignora metadados _*). */
+  _temDados(store) {
+    return !!store && typeof store === 'object' &&
+           Object.keys(store).some(k => !k.startsWith('_'));
+  }
+
+  /**
+   * Guarda única de gravação: só persiste quando o conteúdo do BM já foi
+   * confirmado e o store não está vazio. Impede que um cache frio/invalidado
+   * seja gravado por cima da memória real — o bug que zerava tudo ao sair da tela.
+   */
+  _persistirStore(obraId, bmNum, motivo = '') {
+    if (!obraId || !this._storeAtual) return false;
+    if (Object.keys(this._storeAtual).length === 0) {
+      console.warn(`[MemoriaModule] gravação ignorada (store vazio) — BM${bmNum} ${motivo}`);
+      return false;
+    }
+    if (!this._bmCarregado(obraId, bmNum)) {
+      console.warn(`[MemoriaModule] gravação ignorada (BM${bmNum} não confirmado) ${motivo}`);
+      return false;
+    }
+    const ok = salvarMedicoes(obraId, bmNum, this._storeAtual);
+    if (ok) this._marcarEstadoBm(obraId, bmNum, this._storeAtual);
+    return ok;
+  }
+
+  /**
+   * Bloqueia ações de escrita enquanto o conteúdo do BM não foi confirmado.
+   * Dispara o recarregamento e avisa o usuário — melhor recusar a ação do que
+   * gravar por cima de dados que ainda não foram lidos.
+   */
+  _garantirCarregado(obraId, bmNum, acao = 'editar') {
+    if (this._bmCarregado(obraId, bmNum)) return true;
+    this._recarregarBM(obraId, bmNum);
+    EventBus.emit('ui:toast', {
+      msg: `⏳ Carregando a memória do BM ${String(bmNum).padStart(2, '0')}… tente ${acao} novamente em instantes.`,
+      tipo: 'warn'
+    });
+    return false;
+  }
+
+  /**
+   * Recarrega do Firestore um BM cujo cache está vazio mas que já teve dados
+   * (cache invalidado por outro módulo) ou cujo conteúdo nunca foi confirmado.
+   */
+  _recarregarBM(obraId, bmNum) {
+    const chave = this._chaveBm(obraId, bmNum);
+    if (this._recarregando === chave) return;
+    this._recarregando = chave;
+
+    FirebaseService.getMedicoes(obraId, bmNum)
+      .then(med => {
+        const temDados = med && Object.keys(med).length > 0;
+        if (temDados) {
+          _injetarCacheMedicoes(obraId, bmNum, med);
+          if (this._bmAtual === bmNum) this._storeAtual = med;
+        }
+        this._marcarEstadoBm(obraId, bmNum, med);
+        if (router.current === 'memoria' && this._bmAtual === bmNum) {
+          this._recarregando = null;
+          this._renderBM(bmNum);
+        }
+      })
+      .catch(e => console.error('[MemoriaModule] _recarregarBM:', e))
+      .finally(() => { this._recarregando = null; });
   }
 
   async init() {
@@ -78,15 +171,25 @@ export class MemoriaModule {
         // O cache é atualizado em tempo real por salvarMedicoes; buscar Firebase
         // aqui sobrescreveria dados não-salvos/editados recentemente.
         const _cached = getMedicoes(obraId, n);
-        if (Object.keys(_cached).length > 0) continue;
+        if (Object.keys(_cached).length > 0) {
+          this._marcarEstadoBm(obraId, n, _cached);
+          continue;
+        }
         promises.push(
           FirebaseService.getMedicoes(obraId, n)
             .then(med => {
               if (med && Object.keys(med).length > 0) {
                 _injetarCacheMedicoes(obraId, n, med);
               }
+              // FIX-DATALOSS: só agora sabemos o conteúdo real deste BM —
+              // inclusive quando ele realmente está vazio no Firestore.
+              this._marcarEstadoBm(obraId, n, med);
             })
-            .catch(e => console.error(`[MemoriaModule] _carregarMedicoesBM BM${n}:`, e))
+            .catch(e => {
+              console.error(`[MemoriaModule] _carregarMedicoesBM BM${n}:`, e);
+              // Falhou: NÃO marca estado — o BM segue protegido contra
+              // gravação e contra importação automática.
+            })
         );
       }
       await Promise.all(promises);
@@ -121,14 +224,25 @@ export class MemoriaModule {
     // Ao TROCAR de BM, sempre usa o cache (pode ser {} para BM novo → importação automática).
     const cachedStore = getMedicoes(obraId, bmNum);
     const _isMesmoBM  = (bmNum === _bmAnterior);
+    const _cacheVazio = Object.keys(cachedStore).length === 0;
+
     if (_isMesmoBM &&
-        Object.keys(cachedStore).length === 0 &&
+        _cacheVazio &&
         this._storeAtual &&
         Object.keys(this._storeAtual).length > 0) {
       // Re-render do mesmo BM com cache vazio: reinjetamos e mantemos o store atual
       _injetarCacheMedicoes(obraId, bmNum, this._storeAtual);
     } else {
       this._storeAtual = cachedStore;
+      // Cache com conteúdo é confirmação suficiente do estado do BM
+      if (!_cacheVazio) this._marcarEstadoBm(obraId, bmNum, cachedStore);
+      // FIX-DATALOSS: cache vazio sem confirmação = conteúdo desconhecido
+      // (cache frio, TTL expirado ou invalidado por outro módulo). Recarrega
+      // do Firestore antes de permitir qualquer gravação ou importação.
+      if (_cacheVazio && !this._bmVazioConfirmado(obraId, bmNum)) {
+        this._estadoBm.delete(this._chaveBm(obraId, bmNum));
+        this._recarregarBM(obraId, bmNum);
+      }
     }
 
     // ── Importação automática do BM anterior ────────────────
@@ -162,6 +276,12 @@ export class MemoriaModule {
    */
   _importarDoBmAnterior(obraId, bmNum, itens) {
     try {
+      // FIX-DATALOSS: só importa quando temos CERTEZA de que o BM atual está
+      // vazio. Com cache frio/invalidado o store aparece vazio sem estar —
+      // e a importação gravava as linhas do BM anterior por cima das reais
+      // (com bmOrigem do BM anterior, zerando a Medição Atual deste BM).
+      if (!this._bmCarregado(obraId, bmNum) || !this._bmCarregado(obraId, bmNum - 1)) return;
+
       // Verifica se o BM atual já possui alguma linha
       const temLinhas = Object.values(this._storeAtual || {}).some(
         pack => Array.isArray(pack?.lines) && pack.lines.length > 0
@@ -207,7 +327,7 @@ export class MemoriaModule {
       });
 
       if (importou) {
-        salvarMedicoes(obraId, bmNum, this._storeAtual);
+        this._persistirStore(obraId, bmNum, '(importação automática)');
         EventBus.emit('ui:toast', {
           msg: `📋 Memória de cálculo importada do BM ${String(bmNum - 1).padStart(2, '0')}.`,
           tipo: 'info'
@@ -232,6 +352,9 @@ export class MemoriaModule {
 
       const obraId = state.get('obraAtivaId');
       const itens  = state.get('itensContrato');
+
+      if (!this._garantirCarregado(obraId, bmNum, 'importar')) return;
+      if (!this._storeAtual) this._storeAtual = getMedicoes(obraId, bmNum);
 
       // Verifica se já tem linhas
       const temLinhas = Object.values(this._storeAtual || {}).some(
@@ -278,7 +401,7 @@ export class MemoriaModule {
       });
 
       if (count > 0) {
-        salvarMedicoes(obraId, bmNum, this._storeAtual);
+        this._persistirStore(obraId, bmNum, '(importação manual)');
         this._renderBM(bmNum);
         EventBus.emit('medicao:salva', { bmNum, obraId, origem: 'memoria' });
         EventBus.emit('ui:toast', { msg: `✅ ${count} linha(s) importada(s) do BM anterior.` });
@@ -314,13 +437,17 @@ export class MemoriaModule {
       }
       if (!this._storeAtual) this._storeAtual = getMedicoes(obraId, bmNum);
 
+      // FIX-DATALOSS: sem o conteúdo confirmado do BM, adicionar uma linha
+      // criaria um store parcial que substituiria todos os itens já gravados.
+      if (!this._garantirCarregado(obraId, bmNum, 'adicionar a linha')) return;
+
       if (!this._storeAtual[itemId] || !Array.isArray(this._storeAtual[itemId].lines)) {
         this._storeAtual[itemId] = { lines: [] };
       }
 
       const novaLinha = { id: novoId('ln'), comp: 0, larg: 0, alt: 0, qtd: 0, desc: '', bmOrigem: bmNum };
       this._storeAtual[itemId].lines.push(novaLinha);
-      salvarMedicoes(obraId, bmNum, this._storeAtual);
+      this._persistirStore(obraId, bmNum, '(nova linha)');
 
       this._expandidos.add(itemId);
       this._renderBM(bmNum);
@@ -349,8 +476,9 @@ export class MemoriaModule {
       const obraId = state.get('obraAtivaId');
 
       if (!this._storeAtual?.[itemId]?.lines) return;
+      if (!this._garantirCarregado(obraId, bmNum, 'excluir a linha')) return;
       this._storeAtual[itemId].lines = this._storeAtual[itemId].lines.filter(ln => ln.id !== lineId);
-      salvarMedicoes(obraId, bmNum, this._storeAtual);
+      this._persistirStore(obraId, bmNum, '(exclusão de linha)');
       this._renderBM(bmNum);
 
       // origem: 'memoria' evita que o listener invalide o cache recém-atualizado
@@ -382,7 +510,7 @@ export class MemoriaModule {
       // Trata campo de descrição separadamente (texto, não número)
       if (dim === 'desc') {
         ln.desc = inputEl.value || '';
-        salvarMedicoes(obraId, parseInt(bmNum), this._storeAtual);
+        this._persistirStore(obraId, parseInt(bmNum), '(descrição)');
         return;
       }
 
@@ -392,7 +520,7 @@ export class MemoriaModule {
       ln[dim] = val;
       // Atualiza o input visual se valor foi corrigido
       if (val !== raw) inputEl.value = val;
-      salvarMedicoes(obraId, parseInt(bmNum), this._storeAtual);
+      this._persistirStore(obraId, parseInt(bmNum), '(dimensão)');
 
       // Garante que todos os campos numéricos da linha sejam válidos
       const comp = isFinite(parseFloat(ln.comp)) ? parseFloat(ln.comp) : 0;
@@ -523,6 +651,7 @@ export class MemoriaModule {
       }
       const obraId = state.get('obraAtivaId');
       this._bmAtual    = parseInt(bmNum);
+      if (!this._garantirCarregado(obraId, this._bmAtual, 'aplicar a fórmula')) return;
       this._storeAtual = getMedicoes(obraId, this._bmAtual);
       if (!this._storeAtual[itemId]) this._storeAtual[itemId] = { lines: [] };
 
@@ -540,7 +669,7 @@ export class MemoriaModule {
         ln.resultado = isFinite(result) ? result : 0;
       });
 
-      salvarMedicoes(obraId, this._bmAtual, this._storeAtual);
+      this._persistirStore(obraId, this._bmAtual, '(fórmula especial)');
       this._renderBM(this._bmAtual);
       EventBus.emit('medicao:salva', { bmNum: this._bmAtual, obraId, origem: 'memoria' });
       EventBus.emit('ui:toast', { msg: `✅ Fórmula especial aplicada ao item ${itemId}! Todas as linhas recalculadas.` });
@@ -556,6 +685,7 @@ export class MemoriaModule {
 
       const obraId = state.get('obraAtivaId');
       this._bmAtual    = parseInt(bmNum);
+      if (!this._garantirCarregado(obraId, this._bmAtual, 'remover a fórmula')) return;
       this._storeAtual = getMedicoes(obraId, this._bmAtual);
       if (this._storeAtual[itemId]) {
         delete this._storeAtual[itemId].fxFormula;
@@ -570,7 +700,7 @@ export class MemoriaModule {
           ln.resultado = isFinite(r.qtdCalc) ? r.qtdCalc : 0;
         });
 
-        salvarMedicoes(obraId, this._bmAtual, this._storeAtual);
+        this._persistirStore(obraId, this._bmAtual, '(remoção de fórmula)');
       }
       this._renderBM(this._bmAtual);
       EventBus.emit('medicao:salva', { bmNum: this._bmAtual, obraId, origem: 'memoria' });
@@ -609,7 +739,18 @@ export class MemoriaModule {
         return;
       }
       if (!this._storeAtual) this._storeAtual = getMedicoes(obraId, bmNum);
-      salvarMedicoes(obraId, bmNum, this._storeAtual);
+
+      // FIX-DATALOSS: nunca "salvar" um store vazio/não confirmado por cima
+      // da memória gravada — era assim que o botão Salvar zerava o BM.
+      if (!this._persistirStore(obraId, bmNum, '(salvar medição)')) {
+        this._recarregarBM(obraId, bmNum);
+        EventBus.emit('ui:toast', {
+          msg: '⚠️ Nada foi salvo: a memória deste BM ainda não terminou de carregar. Aguarde a tela recarregar e tente novamente.',
+          tipo: 'warn'
+        });
+        return;
+      }
+
       EventBus.emit('medicao:salva', { bmNum, obraId, origem: 'memoria' });
       EventBus.emit('ui:toast', {
         msg: `✅ Medição do BM ${String(bmNum).padStart(2, '0')} salva!`,
@@ -628,6 +769,18 @@ export class MemoriaModule {
       const bmNum  = this._bmAtual;
       if (!obraId) return;
       if (!this._storeAtual) this._storeAtual = getMedicoes(obraId, bmNum);
+
+      // FIX-DATALOSS: sem conteúdo confirmado, marcar como salvo gravaria um
+      // store só com metadados (_salva, _snapshot…) por cima dos itens reais.
+      if (!this._garantirCarregado(obraId, bmNum, 'marcar como salvo')) return;
+      if (!this._temDados(this._storeAtual)) {
+        EventBus.emit('ui:toast', {
+          msg: '⚠️ Não há memória de cálculo carregada neste BM para marcar como salva.',
+          tipo: 'warn'
+        });
+        return;
+      }
+
       const userLogado = state.get('usuarioLogado') || {};
       this._storeAtual._salva         = true;
       this._storeAtual._salvaEm       = new Date().toISOString();
@@ -636,7 +789,7 @@ export class MemoriaModule {
       this._storeAtual._salvaPorEmail = userLogado.email || '';
       // Snapshot imutável das quantidades no momento do bloqueio (rastreabilidade TCU)
       this._storeAtual._snapshot = { linhas: JSON.parse(JSON.stringify(this._storeAtual)), geradoEm: this._storeAtual._salvaEm };
-      salvarMedicoes(obraId, bmNum, this._storeAtual);
+      this._persistirStore(obraId, bmNum, '(marcar como salvo)');
       this._renderBM(bmNum);
       EventBus.emit('medicao:salva', { bmNum, obraId, origem: 'memoria' });
       window.auditRegistrar?.({ modulo: 'Memória de Cálculo', tipo: 'bloqueado', registro: `BM ${String(bmNum).padStart(2,'0')}`, detalhe: `Marcado como salvo por ${this._storeAtual._salvaPor} (${this._storeAtual._salvaPorEmail})` });
@@ -673,12 +826,13 @@ export class MemoriaModule {
       }
 
       if (!this._storeAtual) this._storeAtual = getMedicoes(obraId, bmNum);
+      if (!this._garantirCarregado(obraId, bmNum, 'desbloquear')) return;
       this._storeAtual._salva              = false;
       this._storeAtual._desbloqueadoEm     = new Date().toISOString();
       this._storeAtual._desbloqueadoPor    = userLogado.displayName || userLogado.email || 'Usuário';
       this._storeAtual._desbloqueadoPorUid = userLogado.uid || 'offline';
       this._storeAtual._motivoDesbloqueio  = motivo.trim();
-      salvarMedicoes(obraId, bmNum, this._storeAtual);
+      this._persistirStore(obraId, bmNum, '(desbloqueio)');
       this._renderBM(bmNum);
       window.auditRegistrar?.({ modulo: 'Memória de Cálculo', tipo: 'desbloqueado', registro: `BM ${String(bmNum).padStart(2,'0')}`, detalhe: `Desbloqueado por ${this._storeAtual._desbloqueadoPor} — Motivo: ${motivo.trim()}` });
       EventBus.emit('ui:toast', { msg: `🔓 BM ${String(bmNum).padStart(2,'0')} liberado para edição.`, tipo: 'info' });
@@ -759,11 +913,18 @@ export class MemoriaModule {
       }, 'memoria'),
 
       // Auto-save: persiste o _storeAtual no Firestore
+      // FIX-DATALOSS: este listener é global — disparava ao digitar em QUALQUER
+      // tela (Boletim, Config, Diário…) e no beforeunload, gravando o
+      // _storeAtual da Memória mesmo depois de o usuário sair dela. Se o cache
+      // tivesse sido invalidado nesse meio-tempo, gravava {} por cima do BM
+      // inteiro — a memória de cálculo "zerava" ao sair sem salvar.
+      // Agora só grava com a Memória aberta, store confirmado e não vazio.
       EventBus.on('autosave:trigger', ({ obraId: evObraId }) => {
         try {
+          if (router.current !== 'memoria') return;
           const obraId = evObraId || state.get('obraAtivaId');
           if (!obraId || !this._storeAtual) return;
-          salvarMedicoes(obraId, this._bmAtual, this._storeAtual);
+          this._persistirStore(obraId, this._bmAtual, '(autosave)');
         } catch (e) { console.error('[MemoriaModule] autosave:trigger:', e); }
       }, 'memoria'),
     );

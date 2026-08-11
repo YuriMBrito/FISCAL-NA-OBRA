@@ -822,8 +822,8 @@ export class BoletimModule {
         salvarMedicoes(obraId, num - 1, prevMed);
       }
 
-      // Novo BM com store vazio
-      salvarMedicoes(obraId, num, {});
+      // Novo BM com store vazio — aqui gravar vazio é a intenção real
+      salvarMedicoes(obraId, num, {}, { permitirVazio: true });
 
       const novoBM = {
         num,
@@ -936,13 +936,15 @@ export class BoletimModule {
       }).catch(() => {});
 
       // Renumera medições no Firebase: BM n+1 → BM n
+      // permitirVazio: renumerar um BM vazio sobre o anterior é intencional.
+      // O cache está quente aqui (onEnter do Boletim carrega todos os BMs).
       const totalOriginal = bms.length;
       for (let i = numExcluir + 1; i <= totalOriginal; i++) {
         const med = getMedicoes(obraId, i);
-        salvarMedicoes(obraId, i - 1, med);
+        salvarMedicoes(obraId, i - 1, med, { permitirVazio: true });
       }
       // Apaga última posição (agora vazia após renumeração)
-      FirebaseService.setMedicoes(obraId, totalOriginal, {}).catch(() => {});
+      FirebaseService.setMedicoes(obraId, totalOriginal, {}, { permitirVazio: true }).catch(() => {});
 
       // Renumera BMS
       const novosBms = bms

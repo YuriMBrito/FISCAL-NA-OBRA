@@ -123,13 +123,45 @@ export function getMedicoes(obraId, bmNum) {
   return MemCache.get('medicoes', obraId, String(bmNum)) ?? {};
 }
 
-export function salvarMedicoes(obraId, bmNum, medicoes) {
-  MemCache.set('medicoes', obraId, medicoes, String(bmNum));
+/** true quando o store não contém nenhuma chave (nem itens, nem metadados). */
+function _storeVazio(med) {
+  return !med || typeof med !== 'object' || Object.keys(med).length === 0;
+}
+
+/**
+ * FIX-DATALOSS: persiste as medições de um BM.
+ *
+ * setMedicoes() faz .set() no Firestore — SUBSTITUI o documento inteiro.
+ * Qualquer chamada com store vazio apaga toda a memória de cálculo do BM.
+ * Isso acontecia sempre que getMedicoes() devolvia {} por cache frio/invalidado
+ * (ex.: autosave disparado depois de invalidarCacheMedicoes()).
+ *
+ * Agora uma escrita vazia só passa com opts.permitirVazio === true — usado
+ * apenas onde apagar é a intenção real (criar BM novo, excluir/renumerar BM).
+ *
+ * @returns {boolean} true se persistiu, false se a escrita foi bloqueada.
+ */
+export function salvarMedicoes(obraId, bmNum, medicoes, opts = {}) {
+  const dados = (medicoes && typeof medicoes === 'object') ? medicoes : {};
+
+  if (_storeVazio(dados) && !opts.permitirVazio) {
+    const atual = MemCache.get('medicoes', obraId, String(bmNum));
+    if (!_storeVazio(atual)) {
+      console.warn(
+        `[bm-calculos] ⛔ Escrita vazia bloqueada em BM${bmNum} — ` +
+        `o cache ainda tem ${Object.keys(atual).length} registro(s). ` +
+        `Use { permitirVazio: true } se apagar for a intenção.`
+      );
+      return false;
+    }
+  }
+
+  MemCache.set('medicoes', obraId, dados, String(bmNum));
   _clearAcumCache(obraId);
   // Persiste exclusivamente no Firebase
-  FirebaseService.setMedicoes(obraId, bmNum, medicoes).catch(e =>
-    console.error('[bm-calculos] salvarMedicoes Firebase:', e)
-  );
+  FirebaseService.setMedicoes(obraId, bmNum, dados, { permitirVazio: !!opts.permitirVazio })
+    .catch(e => console.error('[bm-calculos] salvarMedicoes Firebase:', e));
+  return true;
 }
 
 /** Popula o cache em memória SEM disparar escrita no Firebase.
