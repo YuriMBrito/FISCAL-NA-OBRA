@@ -245,11 +245,12 @@ export class BoletimUI {
           return;
         }
         if (_temMacroPai(sub.id)) return;
-        const upBdi = fmtNum((sub.up || 0) * (1 + (cfg.bdi || 0)));
+        const upBdi = sub.upBdi ? fmtNum(sub.upBdi) : fmtNum((sub.up || 0) * (1 + getBdiEfetivo(sub, cfg)));
         const tC    = fmtNum((sub.qtd || 0) * upBdi);
-        const qAnt  = getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens);
+        const _cap  = q => (sub.qtd > 0 ? Math.min(q, sub.qtd) : q);
+        const qAnt  = _cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens));
         const tAn   = fmtNum(qAnt * upBdi);
-        const qAcum = getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens);
+        const qAcum = _cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens));
         const tAc   = fmtNum(qAcum * upBdi);
         const tAt   = fmtNum(tAc - tAn);
         tCont += tC; tAnt += tAn; tAtual += tAt;
@@ -625,11 +626,12 @@ export class BoletimUI {
           const v = _valMacro(sub.id);
           tCont += v.tCont; tAnt += v.tAnt; tAtual += v.tAtual; tAcum += v.tAcum; tSaldo += v.tSaldo;
         } else {
-          const upBdi = fmtNum((sub.up || 0) * (1 + (cfg.bdi || 0)));
+          const upBdi = sub.upBdi ? fmtNum(sub.upBdi) : fmtNum((sub.up || 0) * (1 + getBdiEfetivo(sub, cfg)));
           const tC    = fmtNum((sub.qtd || 0) * upBdi);
-          const qAnt  = getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens);
+          const _cap  = q => (sub.qtd > 0 ? Math.min(q, sub.qtd) : q);
+          const qAnt  = _cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens));
           const tAn   = fmtNum(qAnt * upBdi);
-          const qAcum = getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens);
+          const qAcum = _cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens));
           const tAc   = fmtNum(qAcum * upBdi);
           const tAt   = fmtNum(tAc - tAn);
           tCont += tC; tAnt += tAn; tAtual += tAt; tAcum += tAc; tSaldo += fmtNum(tC - tAc);
@@ -652,11 +654,12 @@ export class BoletimUI {
           return;
         }
         if (_temMacroPai(sub.id)) return;
-        const upBdi = fmtNum((sub.up || 0) * (1 + (cfg.bdi || 0)));
+        const upBdi = sub.upBdi ? fmtNum(sub.upBdi) : fmtNum((sub.up || 0) * (1 + getBdiEfetivo(sub, cfg)));
         const tC    = fmtNum((sub.qtd || 0) * upBdi);
-        const qAnt  = getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens);
+        const _cap  = q => (sub.qtd > 0 ? Math.min(q, sub.qtd) : q);
+        const qAnt  = _cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens));
         const tAn   = fmtNum(qAnt * upBdi);
-        const qAcum = getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens);
+        const qAcum = _cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens));
         const tAc   = fmtNum(qAcum * upBdi);
         const tAt   = fmtNum(tAc - tAn);
         tCont += tC; tAnt += tAn; tAtual += tAt; tAcum += tAc; tSaldo += fmtNum(tC - tAc);
@@ -679,8 +682,10 @@ export class BoletimUI {
     const pctF = v => { const n = parseFloat(v); return (isFinite(n) ? n : 0).toFixed(2).replace('.', ',') + '%'; };
     const GAP  = '<td class="gap"></td>';
 
-    // Acumulação em centavos inteiros — evita erro de ponto flutuante binário
-    let _gContC = 0, _gAntC = 0, _gAtualC = 0, _gAcumC = 0, _gSaldoC = 0;
+    // Total contratual da planilha: acumulação em centavos inteiros (evita erro
+    // de ponto flutuante). Os totais medidos vêm do motor de cálculo, para
+    // fechar com o RESUMO DO CONTRATO do cabeçalho.
+    let _gContC = 0;
 
     const linhasHtml = [];
 
@@ -693,10 +698,6 @@ export class BoletimUI {
         const pAcum  = v.tCont > 0 ? (v.tAcum  / v.tCont * 100) : 0;
         if (!_temQualquerPai(it.id)) {
           _gContC  += Math.round(v.tCont  * 100);
-          _gAntC   += Math.round(v.tAnt   * 100);
-          _gAtualC += Math.round(v.tAtual * 100);
-          _gAcumC  += Math.round(v.tAcum  * 100);
-          _gSaldoC += Math.round(v.tSaldo * 100);
         }
         linhasHtml.push(
           '<tr class="grupo">' +
@@ -721,10 +722,6 @@ export class BoletimUI {
         const pAcum  = v.tCont > 0 ? (v.tAcum  / v.tCont * 100) : 0;
         if (it.t === 'MACRO' && !_temQualquerPai(it.id)) {
           _gContC  += Math.round(v.tCont  * 100);
-          _gAntC   += Math.round(v.tAnt   * 100);
-          _gAtualC += Math.round(v.tAtual * 100);
-          _gAcumC  += Math.round(v.tAcum  * 100);
-          _gSaldoC += Math.round(v.tSaldo * 100);
         }
         linhasHtml.push(
           '<tr class="sub">' +
@@ -742,11 +739,15 @@ export class BoletimUI {
       }
 
       // ── Item normal ───────────────────────────────────────────
-      const upBdi    = fmtNum((it.up || 0) * (1 + (cfg.bdi || 0)));
+      // Mesmas regras do motor (getValorAcumuladoTotal): BDI efetivo por item
+      // (TCU 2.622/2013), upBdi salvo quando existir e teto de 100% do
+      // contratado. Sem isso o TOTAL da planilha divergia do cabeçalho.
+      const upBdi    = it.upBdi ? fmtNum(it.upBdi) : fmtNum((it.up || 0) * (1 + getBdiEfetivo(it, cfg)));
       const totCont  = fmtNum((it.qtd || 0) * upBdi);
-      const qtdAnt   = getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens);
+      const _teto    = q => (it.qtd > 0 ? Math.min(q, it.qtd) : q);
+      const qtdAnt   = _teto(getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens));
       const totAnt   = fmtNum(qtdAnt * upBdi);
-      const qtdAcum  = getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens);
+      const qtdAcum  = _teto(getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens));
       const totAcum  = fmtNum(qtdAcum * upBdi);
       const qtdAtual = qtdAcum - qtdAnt;
       const totAtual = fmtNum(totAcum - totAnt);
@@ -757,10 +758,6 @@ export class BoletimUI {
 
       if (!_temQualquerPai(it.id)) {
         _gContC  += Math.round(totCont  * 100);
-        _gAntC   += Math.round(totAnt   * 100);
-        _gAtualC += Math.round(totAtual * 100);
-        _gAcumC  += Math.round(totAcum  * 100);
-        _gSaldoC += Math.round(totSaldo * 100);
       }
 
       linhasHtml.push(
@@ -781,10 +778,13 @@ export class BoletimUI {
 
     // Converte centavos inteiros → reais
     const gCont  = _gContC  / 100;
-    const gAnt   = _gAntC   / 100;
-    const gAtual = _gAtualC / 100;
-    const gAcum  = _gAcumC  / 100;
-    const gSaldo = _gSaldoC / 100;
+    // FIX: a linha TOTAL usava uma soma paralela e divergia do RESUMO DO
+    // CONTRATO no cabeçalho. Os totais medidos passam a vir da mesma fonte
+    // do cabeçalho (motor de cálculo), garantindo que os dois sempre fechem.
+    const gAnt   = vAcumAnt;
+    const gAtual = vMedAtual;
+    const gAcum  = vAcumTot;
+    const gSaldo = fmtNum(gCont - gAcum);
 
     const pAntG   = gCont > 0 ? (gAnt   / gCont * 100) : 0;
     const pAtualG = gCont > 0 ? (gAtual / gCont * 100) : 0;
@@ -1181,11 +1181,12 @@ export class BoletimUI {
           return;
         }
         if (_temMacroPai(sub.id)) return;
-        const upBdi = fmtNum((sub.up || 0) * (1 + (cfg.bdi || 0)));
+        const upBdi = sub.upBdi ? fmtNum(sub.upBdi) : fmtNum((sub.up || 0) * (1 + getBdiEfetivo(sub, cfg)));
         const tC    = fmtNum((sub.qtd || 0) * upBdi);
-        const qAnt  = getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens);
+        const _cap  = q => (sub.qtd > 0 ? Math.min(q, sub.qtd) : q);
+        const qAnt  = _cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens));
         const tAn   = fmtNum(qAnt * upBdi);
-        const qAcum = getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens);
+        const qAcum = _cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens));
         const tAc   = fmtNum(qAcum * upBdi);
         tCont += tC; tAnt += tAn; tAtual += fmtNum(tAc - tAn); tAcum += tAc;
       });
