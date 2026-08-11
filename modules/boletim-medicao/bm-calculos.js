@@ -120,6 +120,29 @@ export function _clearAcumCache(obraId) {
 }
 
 /**
+ * Arredondamento monetário de 2 casas que RESPEITA o modo de cálculo da obra.
+ *
+ * Idêntico a formatters.number(v, 2) — a diferença é aceitar o cfg por
+ * parâmetro em vez de depender só de state.get('cfg'), já que o motor recebe
+ * a configuração da obra explicitamente.
+ *
+ * FIX: getUpBdi() e getValorContratual() usavam um rnd2 local com Math.trunc
+ * fixo. Numa obra com modoCalculo = 'arredondar' isso derrubava um centavo em
+ * todo preço unitário terminado em meio centavo (135,79 × 1,25 = 169,7375 saía
+ * 169,73 em vez de 169,74), e o erro se multiplicava pela quantidade de cada
+ * item — o BM 01 fechava R$ 1.819.445,97 contra os R$ 1.819.627,17 corretos.
+ */
+export function rnd2Cfg(v, cfg) {
+  const modo = cfg?.modoCalculo || state.get('cfg')?.modoCalculo || 'truncar';
+  if (modo === 'truncar') {
+    // Normaliza o erro de ponto flutuante antes de truncar (63.16 × 1.25 =
+    // 78.94999999999999 no motor JS truncaria para 78.94).
+    return Math.trunc(Math.round(v * 100 * 100) / 100) / 100;
+  }
+  return Math.round(v * 100) / 100;
+}
+
+/**
  * Preço unitário com BDI de um item — fonte única de verdade.
  *
  * O campo `upBdi` (gravado na importação ou na edição manual do item) NÃO é
@@ -134,7 +157,7 @@ export function _clearAcumCache(obraId) {
  * colunas do boletim.
  */
 export function getUpBdi(item, cfg) {
-  const rnd2  = v => Math.trunc(Math.round(v * 100 * 100) / 100) / 100;
+  const rnd2  = v => rnd2Cfg(v, cfg);
   const calc  = rnd2((item?.up || 0) * (1 + getBdiEfetivo(item, cfg)));
   const salvo = parseFloat(item?.upBdi);
   if (!isFinite(salvo) || salvo <= 0) return calc;
@@ -164,7 +187,7 @@ export function getUpBdi(item, cfg) {
  */
 export function getValorContratual(itensContrato, cfg) {
   const itens = Array.isArray(itensContrato) ? itensContrato : [];
-  const rnd2  = v => Math.trunc(Math.round(v * 100 * 100) / 100) / 100;
+  const rnd2  = v => rnd2Cfg(v, cfg);
   const ids   = new Set(itens.map(i => i && i.id).filter(Boolean));
 
   // nível 1 = nenhum prefixo do id corresponde a outro item da planilha
@@ -329,15 +352,17 @@ export function getQtdMedicaoAtualItem(obraId, bmNum, itemId, itensContrato) {
  * considerando apenas linhas originárias de cada BM.
  */
 export function getValorAcumuladoTotal(obraId, bmNum, itensContrato, cfg) {
-  // FIX-E3.1: memoização — chave inclui bdi para invalidar quando cfg muda
-  const cacheKey = `${obraId}:${bmNum}:${safe(cfg?.bdi, 0.25)}:${safe(cfg?.bdiReduzido, 0.10)}`;
+  // FIX-E3.1: memoização — chave inclui bdi para invalidar quando cfg muda.
+  // modoCalculo também entra na chave: ele decide truncar × arredondar e muda
+  // o resultado em centavos por item.
+  const cacheKey = `${obraId}:${bmNum}:${safe(cfg?.bdi, 0.25)}:${safe(cfg?.bdiReduzido, 0.10)}` +
+                   `:${cfg?.modoCalculo || 'truncar'}`;
   if (_valorCache.has(cacheKey)) return _valorCache.get(cacheKey);
 
   const bdi = safe(cfg.bdi, 0.25);
-  // TRUNCAMENTO obrigatório para upBdi: cortar casas decimais após a segunda,
-  // nunca arredondar. Usa round(v*10000)/100 antes de trunc para compensar
-  // imprecisão de ponto flutuante (ex: 63.16*1.25 = 78.94999... → 78.94).
-  const rnd2 = v => Math.trunc(Math.round(v * 100 * 100) / 100) / 100;
+  // Arredondamento por item conforme o modo de cálculo da obra (truncar ou
+  // arredondar) — o mesmo critério das colunas do boletim, que usam fmtNum.
+  const rnd2 = v => rnd2Cfg(v, cfg);
   let total = 0;
   // FIX-4: rastreia qtd acumulada por item para aplicar o limite de 100% do contratado
   const qtdAcumMap = {};

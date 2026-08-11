@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { calcDimensional, fxCalc } from '../utils/formula-engine.js';
 import { classUnd }                 from '../utils/unit-normalizer.js';
+import { getUpBdi, rnd2Cfg }        from '../modules/boletim-medicao/bm-calculos.js';
 
 // ─── getBdiEfetivo (lógica replicada para teste isolado) ──────
 // Replica a lógica de getBdiEfetivo sem importar módulo Firebase-dependente
@@ -218,5 +219,75 @@ describe('Cenários reais — obra de pavimentação', () => {
     const vSubBase = 11100;
     const vMeioCio = 7500;
     expect(vSubBase + vMeioCio).toBeCloseTo(18600, 2);
+  });
+});
+
+// ─── getUpBdi × modoCalculo ──────────────────────────────────────────────
+// REGRESSÃO: getUpBdi nasceu com um rnd2 local de Math.trunc fixo. Numa obra
+// configurada para arredondar, todo preço unitário terminado em meio centavo
+// perdia 1 centavo (135,79 × 1,25 = 169,7375 → 169,73 em vez de 169,74) e o
+// erro se multiplicava pela quantidade contratada de cada item. No BM 01 da
+// UBS Triângulo Leal isso derrubou o valor do contrato de R$ 1.819.627,17
+// para R$ 1.819.445,97.
+describe('getUpBdi — respeita o modoCalculo da obra', () => {
+  const cfgArred = { bdi: 0.25, modoCalculo: 'arredondar' };
+  const cfgTrunc = { bdi: 0.25, modoCalculo: 'truncar' };
+
+  // [item, up, upBdi conforme boletim aprovado (modo arredondar)]
+  const itensUBS = [
+    ['1.2',  360.42,   450.53],
+    ['1.3',  135.79,   169.74],
+    ['1.4',  1551.38,  1939.23],
+    ['1.7',  3559.26,  4449.08],
+    ['1.8',  546.94,   683.68],
+    ['2.4',  1.98,     2.48],
+  ];
+
+  it.each(itensUBS)('item %s: up %s × 1,25 = %s no modo arredondar', (_id, up, esperado) => {
+    expect(getUpBdi({ up }, cfgArred)).toBe(esperado);
+  });
+
+  it('trunca quando a obra está configurada para truncar', () => {
+    expect(getUpBdi({ up: 135.79 }, cfgTrunc)).toBe(169.73);
+    expect(getUpBdi({ up: 1.98 },   cfgTrunc)).toBe(2.47);
+  });
+
+  it('valores exatos não mudam entre os dois modos', () => {
+    expect(getUpBdi({ up: 1567.52 }, cfgArred)).toBe(1959.40);
+    expect(getUpBdi({ up: 1567.52 }, cfgTrunc)).toBe(1959.40);
+  });
+
+  it('aceita o upBdi gravado quando confere com up × (1 + BDI)', () => {
+    expect(getUpBdi({ up: 135.79, upBdi: 169.74 }, cfgArred)).toBe(169.74);
+  });
+
+  it('descarta upBdi corrompido por separador de milhar ("1.968,54" → 1.968)', () => {
+    // 1968,54 gravado como 1.968 erra por ~1000x — deve cair no calculado
+    expect(getUpBdi({ up: 1574.832, upBdi: 1.968 }, cfgArred)).toBe(1968.54);
+  });
+
+  it('sem BDI configurado usa o padrão de 25%', () => {
+    expect(getUpBdi({ up: 100 }, { modoCalculo: 'arredondar' })).toBe(125);
+  });
+});
+
+describe('rnd2Cfg — arredondamento monetário por modo de cálculo', () => {
+  it('arredonda meio centavo para cima no modo arredondar', () => {
+    expect(rnd2Cfg(169.7375, { modoCalculo: 'arredondar' })).toBe(169.74);
+    expect(rnd2Cfg(2.475,    { modoCalculo: 'arredondar' })).toBe(2.48);
+  });
+
+  it('corta a partir da terceira casa no modo truncar', () => {
+    expect(rnd2Cfg(169.7375, { modoCalculo: 'truncar' })).toBe(169.73);
+    expect(rnd2Cfg(2.475,    { modoCalculo: 'truncar' })).toBe(2.47);
+  });
+
+  it('compensa imprecisão de ponto flutuante ao truncar (63,16 × 1,25)', () => {
+    // 63.16 * 1.25 = 78.94999999999999 no motor JS; Math.trunc direto daria 78,94
+    expect(rnd2Cfg(63.16 * 1.25, { modoCalculo: 'truncar' })).toBe(78.95);
+  });
+
+  it('cai em truncar quando o modo não está configurado', () => {
+    expect(rnd2Cfg(169.7375, {})).toBe(169.73);
   });
 });

@@ -24,18 +24,19 @@ import {
   getBdiEfetivo,
   getValorContratual,
   getUpBdi,
+  rnd2Cfg,
 } from './bm-calculos.js';
 
 // Soma o valor total contratado dos itens (qtd × upBdi).
 // Usado como fallback quando cfg.valor não está configurado.
 function _calcTotalContratado(itens, cfg) {
-  const rnd2 = v => Math.round(v * 100) / 100;
+  // Mesmas regras do motor: getUpBdi valida o upBdi gravado e rnd2Cfg respeita
+  // o modoCalculo da obra. Antes este fallback arredondava fixo, divergindo do
+  // total da planilha em obras configuradas para truncar.
   let total = 0;
   itens.forEach(it => {
     if (it.t) return; // ignora agregadores
-    const bdiEf = getBdiEfetivo(it, cfg);
-    const upBdi = it.upBdi ? it.upBdi : rnd2((it.up || 0) * (1 + bdiEf));
-    total += rnd2((it.qtd || 0) * upBdi);
+    total += rnd2Cfg((it.qtd || 0) * getUpBdi(it, cfg), cfg);
   });
   return Math.round(total * 100) / 100;
 }
