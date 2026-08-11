@@ -375,14 +375,26 @@ export class BoletimModule {
       const idNew = (g('bm-item-id')?.value||'').trim();
       const desc  = (g('bm-item-desc')?.value||'').trim();
       const und   = (g('bm-item-und')?.value||'').trim();
-      const qtd   = parseFloat((g('bm-item-qtd')?.value||'0').replace(',','.'))||0;
-      const up    = parseFloat((g('bm-item-up')?.value||'0').replace(',','.'))||0;
-      const upBdi = parseFloat((g('bm-item-upbdi')?.value||'0').replace(',','.').replace(/[^0-9.]/g,''))||0;
+      // FIX: os campos vêm formatados em pt-BR (toLocaleString), ex. "1.968,54".
+      // O parse anterior fazia replace(',','.') e caía em parseFloat("1.968.54")
+      // = 1.968 — o item era gravado valendo mil vezes menos e sumia dos totais.
+      const numBR = v => {
+        const s = String(v ?? '').replace(/[^\d.,-]/g, '').trim();
+        if (!s) return 0;
+        // vírgula presente → é o separador decimal e os pontos são de milhar
+        if (s.includes(',')) return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+        // sem vírgula: "1.968" / "1.234.567" são milhar; "1968.54" é decimal
+        if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) return parseFloat(s.replace(/\./g, '')) || 0;
+        return parseFloat(s) || 0;
+      };
+      const qtd   = numBR(g('bm-item-qtd')?.value);
+      const up    = numBR(g('bm-item-up')?.value);
+      const upBdi = numBR(g('bm-item-upbdi')?.value);
       const cod   = (g('bm-item-cod')?.value||'').trim();
       const banco = (g('bm-item-banco')?.value||'').trim();
       // TCU Acórdão 2.622/2013: tipo de BDI por item e preço de referência SINAPI/ORSE
       const tipoBdi = (g('bm-item-tipobdi')?.value||'').trim();
-      const upRef   = parseFloat((g('bm-item-upref')?.value||'0').replace(',','.'))||0;
+      const upRef   = numBR(g('bm-item-upref')?.value);
       const tipoAgr = g('bm-item-tipo')?.value||'';
       const ehGrupo = tipoAgr === 'G' || tipoAgr === 'SG';
 
