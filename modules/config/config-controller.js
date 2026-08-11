@@ -56,6 +56,8 @@ export class ConfigModule {
     this._setVal('cfgBdiReduzido', ((cfg.bdiReduzido||0.10)*100).toFixed(2));
     this._setVal('cfgObjeto',      cfg.objeto      || '');
     this._setVal('cfgApelido',     cfg.apelido     || '');
+    this._setVal('cfgEnderecoObra',  cfg.enderecoObra  || '');
+    this._setVal('cfgEnderecoOrgao', cfg.enderecoOrgao || '');
     this._setVal('cfgContratante', cfg.contratante || '');
     this._setVal('cfgContratada',  cfg.contratada  || '');
     this._setVal('cfgCnpj',        cfg.cnpj        || '');
@@ -403,6 +405,8 @@ export class ConfigModule {
       modoCalculo:       g('cfgModoCalculo') || 'truncar',
       objeto:            g('cfgObjeto').toUpperCase() || cfgAtual.objeto || '',
       contratante:       g('cfgContratante'),
+      enderecoObra:      g('cfgEnderecoObra'),
+      enderecoOrgao:     g('cfgEnderecoOrgao'),
       contratada:        g('cfgContratada'),
       cnpj:              g('cfgCnpj'),
       valor:             gn('cfgValor'),
