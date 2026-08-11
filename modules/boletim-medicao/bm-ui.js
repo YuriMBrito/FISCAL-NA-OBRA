@@ -596,10 +596,8 @@ export class BoletimUI {
     const vAcumAnt  = getValorAcumuladoAnterior(obraId, bmNum, itens, cfg);
     const vAcumTot  = getValorAcumuladoTotal(obraId, bmNum, itens, cfg);
     const vMedAtual = vAcumTot - vAcumAnt;
-    const saldo     = (cfg.valor || 0) - vAcumTot;
-    const pctMed    = cfg.valor > 0 ? (vMedAtual / cfg.valor * 100) : 0;
-    const pctAcum   = cfg.valor > 0 ? (vAcumTot  / cfg.valor * 100) : 0;
-    const pctSaldo  = cfg.valor > 0 ? (saldo     / cfg.valor * 100) : 0;
+    // Saldo e percentuais são calculados mais abaixo, sobre `valorBase`
+    // (soma dos macro itens), para cabeçalho e rodapé usarem a mesma base.
 
     // Helpers hierárquicos (mesmos do renderBoletim)
     const _filhoDireto = (paiId, filhoId) => {
@@ -790,6 +788,18 @@ export class BoletimUI {
     const pAtualG = gCont > 0 ? (gAtual / gCont * 100) : 0;
     const pAcumG  = gCont > 0 ? (gAcum  / gCont * 100) : 0;
 
+    // ── Base única do documento ────────────────────────────────
+    // O VALOR TOTAL do RESUMO e o TOTAL da planilha são a MESMA coisa: a soma
+    // dos macro itens. Antes o cabeçalho usava cfg.valor (digitado em
+    // Configurações), que podia divergir da planilha por centavos e mudava a
+    // base de todos os percentuais. Cai para cfg.valor só se não houver itens.
+    const valorBase  = gCont > 0 ? gCont : (cfg.valor || 0);
+    const saldoBase  = fmtNum(valorBase - vAcumTot);
+    const pctAntBase = valorBase > 0 ? (vAcumAnt  / valorBase * 100) : 0;
+    const pctMedBase = valorBase > 0 ? (vMedAtual / valorBase * 100) : 0;
+    const pctAcuBase = valorBase > 0 ? (vAcumTot  / valorBase * 100) : 0;
+    const pctSalBase = valorBase > 0 ? (saldoBase / valorBase * 100) : 0;
+
     // ── Blocos fixos do documento ──────────────────────────────
     const logoBM = state.get('logoBase64') || cfg.logo || '';
     const bdiPct = ((cfg.bdi || 0) * 100).toFixed(2).replace('.', ',');
@@ -826,11 +836,11 @@ export class BoletimUI {
         '<table class="info-dir">' +
           '<tr class="cab"><td colspan="3">RESUMO DO CONTRATO</td></tr>' +
           linhaResumo('CONTRATO N°:',        '<span class="az">' + esc(cfg.contrato || '—') + '</span>', '<span class="pt">%</span>', false) +
-          linhaResumo('VALOR TOTAL:',        '<span class="az">' + R$(cfg.valor || 0) + '</span>', '', true) +
-          linhaResumo('ACUMULADO ANTERIOR:', '<span class="az">' + R$(vAcumAnt)  + '</span>', '<span class="az">' + pctF(cfg.valor > 0 ? vAcumAnt / cfg.valor * 100 : 0) + '</span>', false) +
-          linhaResumo('MEDIÇÃO ATUAL:',      '<span class="az">' + R$(vMedAtual) + '</span>', '<span class="az">' + pctF(pctMed)   + '</span>', true) +
-          linhaResumo('ACUMULADO ATUAL:',    '<span class="az">' + R$(vAcumTot)  + '</span>', '<span class="az">' + pctF(pctAcum)  + '</span>', false) +
-          linhaResumo('SALDO:',              '<span class="az">' + R$(saldo)     + '</span>', '<span class="az">' + pctF(pctSaldo) + '</span>', true) +
+          linhaResumo('VALOR TOTAL:',        '<span class="az">' + R$(valorBase) + '</span>', '', true) +
+          linhaResumo('ACUMULADO ANTERIOR:', '<span class="az">' + R$(vAcumAnt)  + '</span>', '<span class="az">' + pctF(pctAntBase) + '</span>', false) +
+          linhaResumo('MEDIÇÃO ATUAL:',      '<span class="az">' + R$(vMedAtual) + '</span>', '<span class="az">' + pctF(pctMedBase) + '</span>', true) +
+          linhaResumo('ACUMULADO ATUAL:',    '<span class="az">' + R$(vAcumTot)  + '</span>', '<span class="az">' + pctF(pctAcuBase) + '</span>', false) +
+          linhaResumo('SALDO:',              '<span class="az">' + R$(saldoBase) + '</span>', '<span class="az">' + pctF(pctSalBase) + '</span>', true) +
           '<tr class="vaz"><td colspan="3"></td></tr>' +
         '</table>' +
       '</div>';
