@@ -85,6 +85,10 @@ export class ConfigModule {
 
     // ── Banner de origem dos dados ─────────────────────────────
     this._renderBannerOrigem(cfg);
+
+    // ── Preview da logo já salva ───────────────────────────────
+    // Sem isso a tela abria com o campo vazio mesmo havendo logo na obra.
+    this._renderLogoPreview(cfg);
   }
 
   _setVal(id, val) {
@@ -874,6 +878,53 @@ export class ConfigModule {
       : '<span style="color:#dc2626;font-weight:600">❌ Firebase não conectado — verifique as credenciais</span>';
   }
 
+  /** Mostra no preview a logo já salva na obra (state volátil ou cfg.logo). */
+  _renderLogoPreview(cfg = null) {
+    const img  = document.getElementById('logoPreviewImg');
+    const wrap = document.getElementById('logoPreviewWrap');
+    if (!img || !wrap) return;
+    const atual = state.get('logoBase64') || (cfg || state.get('cfg') || {}).logo || '';
+    img.src = atual;
+    wrap.style.display = atual ? 'block' : 'none';
+  }
+
+  /**
+   * Reduz a logo antes de guardar. Duas razões:
+   *  - o upload para o Storage pode ser negado pelas regras (exige custom claim
+   *    'role' + membresia na obra); nesse caso a imagem precisa caber no cfg
+   *    do Firestore, que tem limite de 1 MB por documento;
+   *  - imagem menor imprime mais rápido e sem depender da rede.
+   */
+  _reduzirLogo(dataUrl, maxW = 600, maxH = 200) {
+    return new Promise(resolve => {
+      try {
+        const im = new Image();
+        im.onload = () => {
+          try {
+            const escala = Math.min(1, maxW / im.width, maxH / im.height);
+            const w = Math.max(1, Math.round(im.width  * escala));
+            const h = Math.max(1, Math.round(im.height * escala));
+            const cv = document.createElement('canvas');
+            cv.width = w; cv.height = h;
+            cv.getContext('2d').drawImage(im, 0, 0, w, h);
+            let out = cv.toDataURL('image/png');   // preserva transparência
+            if (out.length > 250000) {             // grande demais → achata em JPEG
+              const cv2 = document.createElement('canvas');
+              cv2.width = w; cv2.height = h;
+              const c2 = cv2.getContext('2d');
+              c2.fillStyle = '#fff'; c2.fillRect(0, 0, w, h);
+              c2.drawImage(im, 0, 0, w, h);
+              out = cv2.toDataURL('image/jpeg', 0.85);
+            }
+            resolve(out.length < dataUrl.length ? out : dataUrl);
+          } catch { resolve(dataUrl); }
+        };
+        im.onerror = () => resolve(dataUrl);
+        im.src = dataUrl;
+      } catch { resolve(dataUrl); }
+    });
+  }
+
   _carregarLogo(event) {
     const file = event.target?.files?.[0];
     if (!file) return;
@@ -881,26 +932,38 @@ export class ConfigModule {
     reader.onload = async (e) => {
       const img  = document.getElementById('logoPreviewImg');
       const wrap = document.getElementById('logoPreviewWrap');
-      if (img)  img.src = e.target.result;
-      if (wrap) wrap.style.display = 'block';
-      // Persiste no Firebase Storage e atualiza o state
-      try {
-        const obraId = state.get('obraAtivaId');
-        const url = await FirebaseService.salvarLogo(obraId, e.target.result);
-        state.set('logoBase64', url || e.target.result);
+      const obraId   = state.get('obraAtivaId');
+      const reduzida = await this._reduzirLogo(e.target.result);
 
-        // FIX: a URL do Storage só ficava no state (volátil) — ao recarregar a
-        // página a logo sumia de todos os impressos, que leem `cfg.logo` como
-        // fallback. Grava no cfg da obra para persistir entre sessões.
-        // Só persiste a URL; base64 não vai para o Firestore (limite de 1 MB
-        // por documento).
-        if (url && /^https?:/i.test(url)) {
-          const cfgNova = { ...(state.get('cfg') || {}), logo: url };
+      if (img)  img.src = reduzida;
+      if (wrap) wrap.style.display = 'block';
+
+      // Tenta o Storage; se as regras negarem, seguimos com a imagem embutida.
+      let valor = reduzida;
+      try {
+        const url = await FirebaseService.salvarLogo(obraId, reduzida);
+        if (url && /^https?:/i.test(url)) valor = url;
+      } catch (err) {
+        console.warn('[Config] upload da logo falhou, usando imagem embutida:', err);
+      }
+      state.set('logoBase64', valor);
+
+      // FIX: sem gravar no cfg a logo só existia na sessão do upload — os
+      // impressos leem `cfg.logo` como fallback e ficavam sem brasão.
+      const cabeNoFirestore = /^https?:/i.test(valor) || valor.length < 300000;
+      if (cabeNoFirestore) {
+        try {
+          const cfgNova = { ...(state.get('cfg') || {}), logo: valor };
           state.set('cfg', cfgNova);
           await FirebaseService.setObraCfg?.(obraId, cfgNova, cfgNova.statusObra || 'Em andamento');
+          window.toast?.('✅ Logo salva na obra.', 'ok');
+        } catch (err) {
+          console.error('[Config] gravar cfg.logo:', err);
+          window.toast?.('⚠️ Logo aplicada nesta sessão, mas não foi possível salvá-la.', 'warn');
         }
-      } catch { state.set('logoBase64', e.target.result); }
-      window.toast?.('✅ Logo carregado.','ok');
+      } else {
+        window.toast?.('⚠️ Imagem muito pesada para salvar. Use um arquivo menor (até ~300 KB).', 'warn');
+      }
     };
     reader.readAsDataURL(file);
   }
