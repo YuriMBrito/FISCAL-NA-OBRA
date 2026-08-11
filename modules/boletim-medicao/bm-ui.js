@@ -1001,95 +1001,94 @@ export class BoletimUI {
   .rod .pag { position:absolute; right:0; top:9pt; color:#0000FF; }
 `;
 
-    const dadosJson = JSON.stringify(D).replace(/</g, '\\u003C');
-
     const w = window.open('', '_blank', 'width=1400,height=900');
     if (!w) { window.toast?.('⚠️ Permita popups para gerar o boletim.', 'warn'); return; }
+
+    // ATENÇÃO: a janela filha herda a CSP desta página, que tem
+    // script-src 'self' (sem 'unsafe-inline'). Um <script> inline escrito aqui
+    // seria BLOQUEADO e a folha sairia em branco. Por isso a paginação roda
+    // neste contexto, montando o DOM da janela de impressão de fora.
+    w.document.open();
     w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">' +
       '<title>BOLETIM DE MEDIÇÃO ' + esc(bm.label || bm.num) + '</title>' +
-      '<style>' + cssBM + '</style></head><body><div id="paginas"></div>' +
-      '<script>' + `
-(function(){
-  var D = ${dadosJson};
-  var LIMITE = 553.4 * 4 / 3;          // limite inferior da tabela, em px CSS
-  var alvo = document.getElementById('paginas');
+      '<style>' + cssBM + '</style></head><body><div id="paginas"></div></body></html>');
+    w.document.close();
 
-  function novaFolha(primeira){
-    var f = document.createElement('div');
-    f.className = 'folha';
-    f.innerHTML = (primeira ? D.cab1 : '') +
-      '<table class="principal">' + D.colgroup +
-      '<tbody>' + (primeira ? D.thead1 : D.theadN) + '</tbody></table>' + D.rod;
-    alvo.appendChild(f);
-    return f;
-  }
-  function cabe(folha, el){
-    return (el.getBoundingClientRect().bottom - folha.getBoundingClientRect().top) <= LIMITE + 0.6;
-  }
+    const doc    = w.document;
+    const alvo   = doc.getElementById('paginas');
+    const LIMITE = 553.4 * 4 / 3;   // limite inferior da tabela, em px CSS
 
-  var folha = novaFolha(true);
-  var tbody = folha.querySelector('table.principal > tbody');
-  var fixas = tbody.children.length;   // linhas de cabeçalho desta folha
+    const novaFolha = (primeira) => {
+      const f = doc.createElement('div');
+      f.className = 'folha';
+      f.innerHTML = (primeira ? D.cab1 : '') +
+        '<table class="principal">' + D.colgroup +
+        '<tbody>' + (primeira ? D.thead1 : D.theadN) + '</tbody></table>' + D.rod;
+      alvo.appendChild(f);
+      return f;
+    };
+    const cabe = (folha, el) =>
+      (el.getBoundingClientRect().bottom - folha.getBoundingClientRect().top) <= LIMITE + 0.6;
 
-  D.linhas.forEach(function(html){
-    tbody.insertAdjacentHTML('beforeend', html);
-    var tr = tbody.lastElementChild;
-    if (!cabe(folha, tr) && tbody.children.length > fixas + 1){
-      tr.remove();
+    let folha = novaFolha(true);
+    let tbody = folha.querySelector('table.principal > tbody');
+    let fixas = tbody.children.length;   // linhas de cabeçalho desta folha
+
+    D.linhas.forEach(linha => {
+      tbody.insertAdjacentHTML('beforeend', linha);
+      const tr = tbody.lastElementChild;
+      if (!cabe(folha, tr) && tbody.children.length > fixas + 1) {
+        tr.remove();
+        folha = novaFolha(false);
+        tbody = folha.querySelector('table.principal > tbody');
+        fixas = tbody.children.length;
+        tbody.insertAdjacentHTML('beforeend', linha);
+      }
+    });
+
+    // Fecho (espaçador + TOTAL + faixa) e assinaturas — última folha
+    const aplicaFecho = () => {
+      tbody.insertAdjacentHTML('beforeend', D.fecho);
+      folha.querySelector('.principal').insertAdjacentHTML('afterend', D.assin);
+      return folha.querySelector('.assin');
+    };
+    const bloco = aplicaFecho();
+    if (!cabe(folha, bloco)) {
+      bloco.remove();
+      for (let i = 0; i < 3; i++) tbody.removeChild(tbody.lastElementChild);
       folha = novaFolha(false);
       tbody = folha.querySelector('table.principal > tbody');
-      fixas = tbody.children.length;
-      tbody.insertAdjacentHTML('beforeend', html);
+      aplicaFecho();
     }
-  });
 
-  // Fecho (espaçador + TOTAL + faixa) e assinaturas — última folha
-  function aplicaFecho(){
-    tbody.insertAdjacentHTML('beforeend', D.fecho);
-    folha.querySelector('.principal').insertAdjacentHTML('afterend', D.assin);
-    return folha.querySelector('.assin');
-  }
-  var bloco = aplicaFecho();
-  if (!cabe(folha, bloco)){
-    bloco.remove();
-    for (var i = 0; i < 3; i++) tbody.removeChild(tbody.lastElementChild);
-    folha = novaFolha(false);
-    tbody = folha.querySelector('table.principal > tbody');
-    aplicaFecho();
-  }
+    // Numeração N/total
+    const folhas = alvo.querySelectorAll('.folha');
+    folhas.forEach((f, i) => {
+      const p = f.querySelector('.pag');
+      if (p) p.textContent = (i + 1) + '/' + folhas.length;
+    });
 
-  // Numeração N/total
-  var folhas = alvo.querySelectorAll('.folha');
-  for (var j = 0; j < folhas.length; j++){
-    var p = folhas[j].querySelector('.pag');
-    if (p) p.textContent = (j + 1) + '/' + folhas.length;
-  }
+    w.onafterprint = () => w.close();
 
-  window.onafterprint = function(){ window.close(); };
-
-  // Só imprime depois que o brasão terminar de carregar — a logo vem de uma
-  // URL do Storage e o print() disparado cedo demais saía sem ela.
-  var jaImprimiu = false;
-  function imprimir(){
-    if (jaImprimiu) return;
-    jaImprimiu = true;
-    setTimeout(function(){ window.print(); }, 150);
-  }
-  var imgs = alvo.querySelectorAll('img');
-  if (!imgs.length) {
-    imprimir();
-  } else {
-    var pendentes = imgs.length;
-    var pronta = function(){ if (--pendentes <= 0) imprimir(); };
-    for (var k = 0; k < imgs.length; k++){
-      if (imgs[k].complete && imgs[k].naturalWidth > 0) pronta();
-      else { imgs[k].onload = pronta; imgs[k].onerror = pronta; }
+    // Só imprime depois que o brasão carregar — print() cedo demais sai sem ele
+    let jaImprimiu = false;
+    const imprimir = () => {
+      if (jaImprimiu || w.closed) return;
+      jaImprimiu = true;
+      setTimeout(() => { try { w.print(); } catch (e) { console.error('[BM] print:', e); } }, 150);
+    };
+    const imgs = alvo.querySelectorAll('img');
+    if (!imgs.length) {
+      imprimir();
+    } else {
+      let pendentes = imgs.length;
+      const pronta = () => { if (--pendentes <= 0) imprimir(); };
+      imgs.forEach(im => {
+        if (im.complete && im.naturalWidth > 0) pronta();
+        else { im.onload = pronta; im.onerror = pronta; }
+      });
+      setTimeout(imprimir, 5000);   // rede lenta: imprime mesmo assim
     }
-    setTimeout(imprimir, 5000);   // rede lenta: imprime mesmo assim
-  }
-})();
-` + '<\/script></body></html>');
-    w.document.close();
   }
 
 
