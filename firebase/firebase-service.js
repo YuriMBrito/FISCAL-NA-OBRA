@@ -464,11 +464,42 @@ class FirebaseServiceClass {
 
   // ── Medições ────────────────────────────────────────────────
 
-  async setMedicoes(obraId, bmNum, medicoes) {
+  /**
+   * Grava as medições de um BM. ATENÇÃO: usa .set() — substitui o documento.
+   *
+   * FIX-DATALOSS: última barreira contra apagamento acidental. Se o store
+   * recebido está vazio, lê o documento antes de escrever: havendo dados
+   * gravados, a escrita é abortada (a menos que opts.permitirVazio seja true).
+   * Sem isso, um único salvamento com store vazio — cache frio, autosave fora
+   * da tela, race de carregamento — apagava toda a memória de cálculo do BM.
+   */
+  async setMedicoes(obraId, bmNum, medicoes, opts = {}) {
     const data = { v: 3, data: sanitize(medicoes), atualizadoEm: new Date().toISOString() };
     if (!this._ready) return;
+
+    const vazio = !medicoes || typeof medicoes !== 'object' || Object.keys(medicoes).length === 0;
+    const ref   = this._db.collection('obras').doc(obraId).collection('medicoes').doc(`bm${bmNum}`);
+
+    if (vazio && !opts.permitirVazio) {
+      try {
+        const snap = await ref.get();
+        const atual = snap.exists ? (snap.data().data || {}) : {};
+        if (Object.keys(atual).length > 0) {
+          console.warn(
+            `[Firebase] ⛔ setMedicoes abortado — BM${bmNum} da obra ${obraId} ` +
+            `tem ${Object.keys(atual).length} registro(s) e a gravação viria vazia.`
+          );
+          return;
+        }
+      } catch (err) {
+        // Não conseguimos confirmar o estado atual: não arriscamos apagar.
+        console.error('[Firebase] setMedicoes (verificação pré-escrita):', err);
+        return;
+      }
+    }
+
     try {
-      await this._db.collection('obras').doc(obraId).collection('medicoes').doc(`bm${bmNum}`).set(sanitize(data));
+      await ref.set(sanitize(data));
     } catch (err) {
       console.error('[Firebase] setMedicoes:', err);
     }
