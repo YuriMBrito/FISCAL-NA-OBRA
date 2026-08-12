@@ -23,6 +23,26 @@ rules_version = '2';
 // ║   usuarios       → administrador ou dono da obra                        ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  POLÍTICA DE LEITURA — decisão do responsável pelo sistema (12/08/2026)  ║
+// ║                                                                          ║
+// ║  Quem está autorizado a acessar o sistema enxerga TODAS as obras.        ║
+// ║  Por isso a leitura das obras e subcoleções usa estaAutenticado(), e     ║
+// ║  não vínculo por obra.                                                   ║
+// ║                                                                          ║
+// ║  Já foi tentado escopar a leitura com souMembroDaObra(obraId): derrubou  ║
+// ║  o acesso do próprio responsável às obras cadastradas e foi revertido.   ║
+// ║  Antes de tentar de novo, ler a nota em souMembroDaObra() sobre o        ║
+// ║  hasAny() — a checagem de lista compara o MAPA INTEIRO e por isso        ║
+// ║  praticamente nunca casa com os registros reais.                         ║
+// ║                                                                          ║
+// ║  Consequência aceita: qualquer conta autenticada lê os dados das obras.  ║
+// ║  O controle que importa passa a ser QUEM consegue autenticar — hoje o    ║
+// ║  login Google aceita qualquer conta, sem lista de permitidos. Fechar     ║
+// ║  esse ponto é o próximo passo, e é o que dá sentido a "autorizados".     ║
+// ║  Escrita continua restrita por papel (podeEscreverNaObra e afins).       ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -80,6 +100,16 @@ service cloud.firestore {
     // sintaxe 100% válida e documentada pela Firebase.
 
     // Membro ativo = dono da obra | admin global | está na lista de usuários
+    //
+    // ATENÇÃO — o ramo da lista quase nunca é verdadeiro na prática:
+    // hasAny([{'uid': meuUid()}]) exige que algum elemento seja EXATAMENTE o
+    // mapa {'uid': ...}. Os registros gravados por salvarUsuariosObra() têm
+    // mais campos (nome, perfil, email), e um mapa com chaves a mais não é
+    // igual — logo, não casa. O mesmo vale para podeEscreverNaObra() e para
+    // podeGerirAditivos(), que comparam {'uid':..., 'perfil':...}.
+    // Na prática, só dono da obra e admin global passam por estas funções.
+    // Corrigir exige guardar no documento da obra um array simples de uids
+    // (ex.: membros: ['uid1','uid2']) e testar com meuUid() in membros.
     function souMembroDaObra(obraId) {
       let listaOk = listaExiste(obraId)
         && listaUsuariosObra(obraId).lista.hasAny([{'uid': meuUid()}]);
@@ -250,7 +280,7 @@ service cloud.firestore {
       //  /obras/{obraId}/cfg/cfg — Configuração da obra
       // ────────────────────────────────────────────────────────────
       match /cfg/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         // Apenas gestor/admin/dono alteram configurações contratuais
         allow write:  if podeGerirDocumentosJuridicos(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
@@ -260,7 +290,7 @@ service cloud.firestore {
       //  /obras/{obraId}/bms/bms — Boletins de Medição
       // ────────────────────────────────────────────────────────────
       match /bms/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         // Fiscal, engenheiro, gestor, admin podem gerenciar BMs
         allow write:  if podeGerirAditivos(obraId); // mesmo nível mínimo
         allow delete: if souDonoDaObra(obraId) || souAdmin();
@@ -270,7 +300,7 @@ service cloud.firestore {
       //  /obras/{obraId}/itens/{chunkId} — Itens contratuais
       // ────────────────────────────────────────────────────────────
       match /itens/{chunkId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeGerirAditivos(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -280,7 +310,7 @@ service cloud.firestore {
       //  Validação: impede injeção de valores negativos ou v ausente
       // ────────────────────────────────────────────────────────────
       match /medicoes/{bmId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow create: if podeEscreverNaObra(obraId) && medicaoValida(request.resource.data);
         allow update: if podeEscreverNaObra(obraId) && medicaoValida(request.resource.data);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
@@ -292,7 +322,7 @@ service cloud.firestore {
       //  Validação: campos obrigatórios e tipos numéricos
       // ────────────────────────────────────────────────────────────
       match /aditivos/{aditivoId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow create: if podeGerirAditivos(obraId) && aditivoValido(request.resource.data);
         allow update: if podeGerirAditivos(obraId) && aditivoValido(request.resource.data);
         // Aditivos nunca são deletados (integridade contratual) — apenas admin por exceção
@@ -303,7 +333,7 @@ service cloud.firestore {
       //  /obras/{obraId}/ocorrencias — Registro de ocorrências
       // ────────────────────────────────────────────────────────────
       match /ocorrencias/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -312,7 +342,7 @@ service cloud.firestore {
       //  /obras/{obraId}/chuva — Dados pluviométricos
       // ────────────────────────────────────────────────────────────
       match /chuva/{ano} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -321,7 +351,7 @@ service cloud.firestore {
       //  /obras/{obraId}/diario — Diário de obra
       // ────────────────────────────────────────────────────────────
       match /diario/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -330,7 +360,7 @@ service cloud.firestore {
       //  /obras/{obraId}/notificacoes — Notificações contratuais
       // ────────────────────────────────────────────────────────────
       match /notificacoes/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -339,7 +369,7 @@ service cloud.firestore {
       //  /obras/{obraId}/documentos — Documentos vinculados
       // ────────────────────────────────────────────────────────────
       match /documentos/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -349,7 +379,7 @@ service cloud.firestore {
       //  Update e delete VEDADOS — imutabilidade de auditoria (TCU/CGU)
       // ────────────────────────────────────────────────────────────
       match /historico/{docId} {
-        allow read:    if souMembroDaObra(obraId);
+        allow read:    if estaAutenticado();
         allow create:  if podeEscreverNaObra(obraId);
         allow update:  if false; // IMUTÁVEL — nunca alterado
         allow delete:  if souAdmin(); // Admin pode apagar ao excluir a obra permanentemente
@@ -360,7 +390,7 @@ service cloud.firestore {
       //  Apenas dono e admin gerenciam membros da obra
       // ────────────────────────────────────────────────────────────
       match /usuarios/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if souDonoDaObra(obraId) || souAdmin();
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -369,7 +399,7 @@ service cloud.firestore {
       //  /obras/{obraId}/versoes — Versões contratuais (aditivos)
       // ────────────────────────────────────────────────────────────
       match /versoes/{versaoId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeGerirAditivos(obraId);
         allow delete: if souAdmin(); // versões não são deletadas por usuários comuns
       }
@@ -379,7 +409,7 @@ service cloud.firestore {
       //  Update e delete VEDADOS — imutabilidade absoluta (TCU/CGU)
       // ────────────────────────────────────────────────────────────
       match /auditoria/{docId} {
-        allow read:    if souMembroDaObra(obraId);
+        allow read:    if estaAutenticado();
         allow create:  if souMembroDaObra(obraId);
         allow update:  if false; // IMUTÁVEL — nunca alterado
         allow delete:  if souAdmin(); // Admin pode apagar ao excluir a obra permanentemente
@@ -390,7 +420,7 @@ service cloud.firestore {
       //  Papel mínimo: gestor (impacto jurídico severo)
       // ────────────────────────────────────────────────────────────
       match /sancoes/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeGerirDocumentosJuridicos(obraId);
         allow delete: if souAdmin(); // sanções não são deletadas
       }
@@ -400,7 +430,7 @@ service cloud.firestore {
       //  Papel mínimo: gestor (designação formal de fiscal/gestor)
       // ────────────────────────────────────────────────────────────
       match /responsaveis/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeGerirDocumentosJuridicos(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -410,7 +440,7 @@ service cloud.firestore {
       //  Papel mínimo: gestor
       // ────────────────────────────────────────────────────────────
       match /prazos/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeGerirDocumentosJuridicos(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -420,7 +450,7 @@ service cloud.firestore {
       //  Papel mínimo: gestor (ato formal com consequências jurídicas)
       // ────────────────────────────────────────────────────────────
       match /recebimentos/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeGerirDocumentosJuridicos(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -429,7 +459,7 @@ service cloud.firestore {
       //  /obras/{obraId}/riscos — Matriz de Riscos
       // ────────────────────────────────────────────────────────────
       match /riscos/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -438,25 +468,25 @@ service cloud.firestore {
       //  Subcoleções PAC / Obras Federais
       // ────────────────────────────────────────────────────────────
       match /fotos-medicao/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
 
       match /checklist-tecnico/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
 
       match /etapas-pac/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
 
       match /qualidade/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -468,7 +498,7 @@ service cloud.firestore {
       //  Escrita: membros com perfil técnico ou superior
       // ────────────────────────────────────────────────────────────
       match /lei14133/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -479,7 +509,7 @@ service cloud.firestore {
       //  Escrita: membros com perfil técnico ou superior
       // ────────────────────────────────────────────────────────────
       match /fiscais/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if podeEscreverNaObra(obraId);
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
@@ -490,7 +520,7 @@ service cloud.firestore {
       //  Escrita: apenas dono ou admin
       // ────────────────────────────────────────────────────────────
       match /acesso/{docId} {
-        allow read:   if souMembroDaObra(obraId);
+        allow read:   if estaAutenticado();
         allow write:  if souDonoDaObra(obraId) || souAdmin();
         allow delete: if souDonoDaObra(obraId) || souAdmin();
       }
