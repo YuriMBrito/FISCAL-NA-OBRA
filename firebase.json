@@ -8,13 +8,31 @@
       "storage.rules",
       ".firebaserc",
       ".gitignore",
-      "README.md",
-      "FAULT-ISOLATION.md",
-      "LGPD.md",
-      "guia-firebase.docx",
       "node_modules/**",
       "functions/**",
-      "tests/**"
+      "tests/**",
+
+      "**/*.md",
+      "**/*.pdf",
+      "**/*.docx",
+      "**/*.doc",
+      "**/*.xlsx",
+      "**/*.xls",
+      "**/*.csv",
+
+      "criar-usuario.js",
+      "package.json",
+      "package-lock.json",
+      "vite.config.js",
+      "vitest.config.js",
+      ".github/**",
+      ".claude/**",
+      ".vscode/**",
+      "**/*.log",
+      "**/serviceAccountKey.json",
+      "**/.env*",
+
+      "MUCURI_GOV_MUN_PRINCIPAL_HORIZONTAL_1COR_POSITIVO.jpg"
     ],
     "rewrites": [
       {
@@ -46,7 +64,7 @@
         "headers": [
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleusercontent.com https://firebasestorage.googleapis.com https://*.web.app; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.firebaseio.com https://firebasestorage.googleapis.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleusercontent.com https://firebasestorage.googleapis.com https://*.web.app; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.firebaseio.com https://firebasestorage.googleapis.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
           },
           {
             "key": "X-Content-Type-Options",
