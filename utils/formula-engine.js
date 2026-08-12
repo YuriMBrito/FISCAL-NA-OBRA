@@ -120,13 +120,82 @@ export function fxCalc(formula, comp, larg, alt, qtd) {
   if (open !== 0) return { result: 0, expr, erro: 'Parênteses desbalanceados.' };
 
   try {
-    const fn = new Function('"use strict"; return (' + expr + ')');
-    const r  = fn();
+    const r = avaliarAritmetica(expr);
     if (!isFinite(r)) return { result: 0, expr, erro: 'Divisão por zero ou resultado inválido.' };
     return { result: parseFloat(r.toFixed(6)), expr, erro: null };
   } catch (e) {
     return { result: 0, expr, erro: 'Erro de sintaxe.' };
   }
+}
+
+/**
+ * Avalia uma expressão aritmética simples: números, + - * /, parênteses e
+ * sinal unário. Nada além disso é reconhecido.
+ *
+ * Substitui o `new Function()` que estava aqui. O motivo não foi injeção — a
+ * whitelist acima já barrava qualquer identificador —, e sim o CSP: o hosting
+ * serve script-src sem 'unsafe-eval', então new Function() lançava EvalError
+ * em produção e toda fórmula especial virava "Erro de sintaxe". Os testes
+ * rodam em Node, sem CSP, e por isso passavam.
+ *
+ * @param {string} expr — expressão já validada pela whitelist
+ * @returns {number}
+ */
+function avaliarAritmetica(expr) {
+  let i = 0;
+  const espacos = () => { while (i < expr.length && /\s/.test(expr[i])) i++; };
+
+  // soma e subtração — menor precedência
+  function expressao() {
+    let v = termo();
+    for (;;) {
+      espacos();
+      const op = expr[i];
+      if (op !== '+' && op !== '-') return v;
+      i++;
+      const d = termo();
+      v = op === '+' ? v + d : v - d;
+    }
+  }
+
+  // multiplicação e divisão
+  function termo() {
+    let v = fator();
+    for (;;) {
+      espacos();
+      const op = expr[i];
+      if (op !== '*' && op !== '/') return v;
+      i++;
+      const d = fator();
+      v = op === '*' ? v * d : v / d;   // /0 vira Infinity e cai no isFinite
+    }
+  }
+
+  // sinal unário, parênteses e número
+  function fator() {
+    espacos();
+    if (expr[i] === '+') { i++; return fator(); }
+    if (expr[i] === '-') { i++; return -fator(); }
+    if (expr[i] === '(') {
+      i++;
+      const v = expressao();
+      espacos();
+      if (expr[i] !== ')') throw new Error('parentese');
+      i++;
+      return v;
+    }
+    const ini = i;
+    while (i < expr.length && /[\d.]/.test(expr[i])) i++;
+    if (i === ini) throw new Error('numero esperado');
+    const n = parseFloat(expr.slice(ini, i));
+    if (!Number.isFinite(n)) throw new Error('numero invalido');
+    return n;
+  }
+
+  const r = expressao();
+  espacos();
+  if (i < expr.length) throw new Error('sobra de tokens');
+  return r;
 }
 
 /**

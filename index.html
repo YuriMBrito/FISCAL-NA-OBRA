@@ -53,54 +53,11 @@
   <link rel="modulepreload" href="modules/fiscal-obras/fiscal-obras-controller.js">
 
   <!-- ═══════════════════════════════════════════════════════════════════ BIBLIOTECAS EXTERNAS ══ -->
-  <!-- SRI (Subresource Integrity): protege contra ataques de supply chain via CDN comprometido. -->
-  <!-- Para regenerar os hashes: node scripts/generate-sri.js                                    -->
-  <!-- SheetJS — sem integrity para evitar falha de SRI em ambientes locais/proxies.
-       Fallback automático para jsDelivr se cdnjs falhar. Igual à estratégia do PDF.js. -->
-  <script>
-    (function() {
-      var primary = document.createElement('script');
-      primary.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-      primary.crossOrigin = 'anonymous';
-      primary.onerror = function() {
-        console.warn('[SheetJS] cdnjs falhou — carregando fallback jsDelivr');
-        var fallback = document.createElement('script');
-        fallback.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-        document.head.appendChild(fallback);
-      };
-      document.head.appendChild(primary);
-    })();
-  </script>
+  <!-- SRI: ver comentario em js/vendor-loader.js. Os carregadores do SheetJS e do
+       PDF.js sairam daqui: script inline nao executa sob o CSP do hosting. -->
+  <script src="js/vendor-loader.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
           crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-  <!-- PDF.js — sem integrity para evitar falha de SRI em ambientes locais/proxies.
-       Fallback automático para jsDelivr se cdnjs falhar. -->
-  <script>
-    (function() {
-      var primary = document.createElement('script');
-      primary.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-      primary.crossOrigin = 'anonymous';
-      primary.onerror = function() {
-        console.warn('[PDF.js] cdnjs falhou — carregando fallback jsDelivr');
-        var fallback = document.createElement('script');
-        fallback.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
-        fallback.onload = function() {
-          if (typeof pdfjsLib !== 'undefined') {
-            pdfjsLib.GlobalWorkerOptions.workerSrc =
-              'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-          }
-        };
-        document.head.appendChild(fallback);
-      };
-      primary.onload = function() {
-        if (typeof pdfjsLib !== 'undefined') {
-          pdfjsLib.GlobalWorkerOptions.workerSrc =
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        }
-      };
-      document.head.appendChild(primary);
-    })();
-  </script>
 
   <!-- ═══════════════════════════════ CSS ═══════════════════════════════ -->
   <link rel="stylesheet" href="css/main.css">
@@ -337,7 +294,7 @@
           <div id="logoPreviewWrap" style="display:none;margin-bottom:10px">
             <img id="logoPreviewImg" style="max-height:80px;max-width:240px;object-fit:contain;border:1px solid var(--border);border-radius:6px;padding:4px">
           </div>
-          <input type="file" id="logoInput" accept="image/*" style="display:none" onchange="window.carregarLogo?.(event)">
+          <input type="file" id="logoInput" accept="image/*" style="display:none" data-action="carregarLogo">
           <div class="acoes">
             <button class="btn btn-cinza btn-sm" data-action="_cfgClickLogoInput">📁 Carregar Logo</button>
             <button class="btn btn-vermelho btn-sm" data-action="removerLogo">🗑️ Remover</button>
@@ -442,7 +399,7 @@
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
             <div class="titulo-secao" style="margin:0;border:none;padding:0">Boletim de Medição</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-              <select id="sel-bol-bm" onchange="window.renderBoletim?.()" style="width:auto;padding:6px 10px;font-size:12px"></select>
+              <select id="sel-bol-bm" data-action="renderBoletim" style="width:auto;padding:6px 10px;font-size:12px"></select>
               <button class="btn btn-verde btn-sm" data-action="abrirCrudItemBM" data-arg0="novo">➕ Adicionar Item</button>
               <button class="btn btn-laranja btn-sm" data-action="abrirCrudMacroItem">📦 Macro Item</button>
               <button class="btn btn-azul btn-sm" data-action="imprimirBoletim">🖨️ Gerar PDF</button>
@@ -511,7 +468,7 @@
                 <span style="font-size:11px;font-weight:600;color:var(--text-muted)">Boletim:</span>
                 <select id="sel-mem-bm" style="background:transparent;border:none;font-size:13px;
                   font-weight:700;color:var(--text-primary);cursor:pointer;outline:none;min-width:140px"
-                  onchange="window.renderMemoria?.()"></select>
+                  data-action="renderMemoria"></select>
               </div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -557,7 +514,7 @@
               <div id="mfx-info-item" style="font-size:11px;color:var(--text-muted);margin-bottom:12px;padding:8px 10px;background:var(--bg-warm,#1e2330);border-radius:4px;font-family:monospace"></div>
               <div class="campo">
                 <label>Fórmula (variáveis: C = Comprimento, L = Largura, H = Altura, Q = Quantidade)</label>
-                <input id="mfx-input" type="text" placeholder="Ex: C*L*Q ou (C*L + C*H)*2*Q" oninput="window._mfxRecalc?.()"
+                <input id="mfx-input" type="text" placeholder="Ex: C*L*Q ou (C*L + C*H)*2*Q" data-action="_mfxRecalc"
                   style="font-family:monospace;font-size:14px;padding:10px;border:2px solid var(--border);border-radius:6px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)">
                 <div id="mfx-err-msg" style="color:#ef4444;font-size:11px;margin-top:4px;min-height:16px"></div>
               </div>
@@ -575,10 +532,10 @@
               </div>
               <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">Teste em tempo real</div>
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:8px">
-                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">C (Comprimento)</label><input id="mfx-tc" type="number" value="1" oninput="window._mfxRecalc?.()" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
-                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">L (Largura)</label><input id="mfx-tl" type="number" value="1" oninput="window._mfxRecalc?.()" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
-                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">H (Altura)</label><input id="mfx-ta" type="number" value="1" oninput="window._mfxRecalc?.()" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
-                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Q (Quantidade)</label><input id="mfx-tq" type="number" value="1" oninput="window._mfxRecalc?.()" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
+                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">C (Comprimento)</label><input id="mfx-tc" type="number" value="1" data-action="_mfxRecalc" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
+                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">L (Largura)</label><input id="mfx-tl" type="number" value="1" data-action="_mfxRecalc" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
+                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">H (Altura)</label><input id="mfx-ta" type="number" value="1" data-action="_mfxRecalc" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
+                <div><label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Q (Quantidade)</label><input id="mfx-tq" type="number" value="1" data-action="_mfxRecalc" style="width:100%;padding:5px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1a1f2e);color:var(--text-primary,#f1f5f9)"></div>
               </div>
               <div id="mfx-preview" style="padding:10px 14px;background:var(--bg-warm,#1e2330);border-radius:6px;font-size:16px;font-weight:700;font-family:monospace;text-align:center;min-height:42px;border:2px solid var(--border)">—</div>
               <div id="mfx-remover-wrap" style="margin-top:10px;display:none">
@@ -644,11 +601,11 @@
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
             <div class="titulo-secao" style="margin:0;border:none;padding:0">Relatório Mensal de Acompanhamento</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <select id="sel-rel-bm" style="width:auto;padding:6px 10px;font-size:12px" onchange="window.renderRelatorio?.()"></select>
+              <select id="sel-rel-bm" style="width:auto;padding:6px 10px;font-size:12px" data-action="renderRelatorio"></select>
               <span style="font-size:10px;font-weight:700;color:#6b7280">PERÍODO:</span>
-              <input type="date" id="rel-data-ini" style="width:auto;padding:5px 8px;font-size:11px" onchange="window.renderRelatorio?.()">
+              <input type="date" id="rel-data-ini" style="width:auto;padding:5px 8px;font-size:11px" data-action="renderRelatorio">
               <span style="font-size:10px;color:#6b7280">até</span>
-              <input type="date" id="rel-data-fim" style="width:auto;padding:5px 8px;font-size:11px" onchange="window.renderRelatorio?.()">
+              <input type="date" id="rel-data-fim" style="width:auto;padding:5px 8px;font-size:11px" data-action="renderRelatorio">
               <button class="btn btn-cinza btn-sm" data-action="limparFiltroRelatorio">✕ Limpar</button>
               <button class="btn btn-azul btn-sm" data-action="imprimirRelatorio">🖨️ Gerar PDF</button>
               <button class="btn btn-cinza btn-sm" data-action="exportarCSVRelatorio" title="Exportar Relatório em CSV">📊 Exportar CSV</button>
@@ -677,9 +634,9 @@
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
             <div style="font-size:11px;font-weight:700">Filtrar por período:</div>
-            <input type="date" id="notif-filtro-ini" style="width:auto" onchange="window.renderNotificacoes?.()">
+            <input type="date" id="notif-filtro-ini" style="width:auto" data-action="renderNotificacoes">
             <span style="font-size:11px;color:#6b7280">até</span>
-            <input type="date" id="notif-filtro-fim" style="width:auto" onchange="window.renderNotificacoes?.()">
+            <input type="date" id="notif-filtro-fim" style="width:auto" data-action="renderNotificacoes">
             <button class="btn btn-cinza btn-sm" data-action="limparFiltroNotif">✕ Limpar</button>
             <button class="btn btn-pdf btn-sm" data-action="gerarPDFNotificacoes" style="margin-left:auto">📄 Gerar PDF</button>
             <button class="btn btn-cinza btn-sm" data-action="exportarCSVNotificacoes" title="Exportar Notificações em CSV">📊 Exportar CSV</button>

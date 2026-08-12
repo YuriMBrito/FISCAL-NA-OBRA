@@ -894,6 +894,20 @@ class App {
       // Relatório Mensal
       'exportarCSVRelatorio':      ()       => safeExecuteSync(() => window.exportarCSVRelatorio?.(),         { source: 'rel:csv' }),
 
+      // ── Controles do index.html que eram onchange/oninput inline ────────
+      // Não funcionavam em produção: o CSP do hosting traz script-src sem
+      // 'unsafe-inline', então o navegador bloqueava o handler do atributo.
+      // Trocar de BM, filtrar relatório/notificações por data, ver a prévia
+      // da fórmula especial e enviar o logo dependiam disso.
+      'renderBoletim':             ()       => safeExecuteSync(() => window.renderBoletim?.(),                { source: 'bm:trocarBM' }),
+      'renderRelatorio':           ()       => safeExecuteSync(() => window.renderRelatorio?.(),              { source: 'rel:filtro' }),
+      'renderNotificacoes':        ()       => safeExecuteSync(() => window.renderNotificacoes?.(),           { source: 'notif:filtro' }),
+      // Botão existia no index.html com data-action, mas sem handler aqui —
+      // o EventDelegate só logava "Action não tem handler registrado".
+      'exportarCSVNotificacoes':   ()       => safeExecuteSync(() => window.exportarCSVNotificacoes?.(),      { source: 'notif:csv' }),
+      '_mfxRecalc':                ()       => safeExecuteSync(() => window._mfxRecalc?.(),                   { source: 'mem:mfxRecalc' }),
+      'carregarLogo':              (ev)     => safeExecuteSync(() => window.carregarLogo?.(ev),               { source: 'cfg:carregarLogo' }),
+
       // SINAPI — file input
       '_sinapiClickFileInput': ()       => document.getElementById('sinapi-file-input')?.click(),
 
