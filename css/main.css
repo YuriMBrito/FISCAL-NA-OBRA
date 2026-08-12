@@ -3855,3 +3855,26 @@ input::placeholder, textarea::placeholder { color: #AAAAAA !important; }
   color: #fde68a;
   border-color: #d97706;
 }
+
+/* ════════════════════════════════════════════════════════════════
+   PÁGINAS DE TABELA LARGA — acompanham a largura do monitor
+   ────────────────────────────────────────────────────────────────
+   O padrão do sistema (--layout-max: 1400px) é bom para páginas de
+   leitura, mas espremia a planilha do Boletim/Memória: a largura
+   natural da tabela é ~1660px (colunas fixas + 24% da Descrição),
+   então ela nascia com scroll horizontal e a Descrição cortada —
+   enquanto sobrava espaço ocioso na lateral em monitores grandes.
+   Aqui o teto é removido: o card ocupa a área útil do .conteudo e a
+   tabela (width:100%) se estica junto. Em telas menores nada muda —
+   o min-width da tabela mantém o scroll como antes.
+
+   Para liberar outra página, basta acrescentar a classe .pagina-larga
+   no <div class="pagina"> correspondente no index.html.
+   ════════════════════════════════════════════════════════════════ */
+#boletim.pagina.ativa > .card,
+#memoria.pagina.ativa > .card,
+#memoria.pagina.ativa > .pagina-inner,
+.pagina-larga.pagina.ativa > .card,
+.pagina-larga.pagina.ativa > .pagina-inner {
+  max-width: none;
+}
