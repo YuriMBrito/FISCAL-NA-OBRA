@@ -623,11 +623,14 @@ class FirebaseServiceClass {
   // ── Chuva ───────────────────────────────────────────────────
 
   async salvarChuva(obraId, ano, dados) {
-    if (!this._ready) return;
+    // Erro propagado de propósito: engolir a exceção aqui fazia o Quadro de
+    // Chuvas exibir "registro salvo" mesmo quando a escrita era recusada.
+    if (!this._ready) throw new Error('Firebase indisponível');
     try {
       await this._db.collection('obras').doc(obraId).collection('chuva').doc(String(ano)).set(sanitize({ dados }));
     } catch (err) {
       console.error('[Firebase] salvarChuva:', err);
+      throw err;
     }
   }
 

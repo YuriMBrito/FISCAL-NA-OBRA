@@ -29,6 +29,11 @@ const PERIODOS = [
 
 const PRIO_CLIMAS = ['sem_chuva','sol','parcial','chuva_leve','chuva','tempestade','granizo'];
 
+// Registros anteriores a v15.5.2 eram gravados numa "obra" fictícia chamada
+// 'global' — fora do escopo de /obras/{obraAtiva}. Mantido apenas como leitura
+// de fallback: ao salvar, os dados migram para a obra ativa.
+const OBRA_LEGADO = 'global';
+
 // Ícone noturno: "sol" à noite vira lua. Demais climas mantêm ícone normal.
 const ICON_NOITE = { sol: '🌙' };
 const iconClima = (key, periodo) =>
@@ -47,7 +52,10 @@ export class ChuvaModule {
     this._selManha   = null;
     this._selTarde   = null;
     this._selNoite   = null;
+    this._legadoNaTela = false;   // dados exibidos vieram da obra 'global' antiga
   }
+
+  _obraId() { return state.get('obraAtivaId') || ''; }
 
   async init()    { try { this._bindEvents(); this._exposeGlobals(); } catch (e) { console.error('[ChuvaModule] init:', e); } }
   async onEnter() { try { this._render(); await this._carregarDados(); } catch (e) { console.error('[ChuvaModule] onEnter:', e); } }
@@ -75,23 +83,48 @@ export class ChuvaModule {
   async _carregarDados() {
     try {
       this._carregando = true; this._atualizarLoadingIndicator(true);
-      this._dados = await FirebaseService.getChuva('global', this._ano) || {};
-      this._renderCalendario(); this._renderResumo();
+      const obraId = this._obraId();
+      this._legadoNaTela = false;
+      if (!obraId) {
+        this._dados = {};
+        this._renderCalendario(); this._renderResumo(); this._renderAvisoLegado();
+        window.toast?.('⚠️ Selecione uma obra para usar o Quadro de Chuvas.', 'warn');
+        return;
+      }
+      let dados = await FirebaseService.getChuva(obraId, this._ano) || {};
+      if (!Object.keys(dados).length) {
+        const legado = await FirebaseService.getChuva(OBRA_LEGADO, this._ano) || {};
+        if (Object.keys(legado).length) { dados = legado; this._legadoNaTela = true; }
+      }
+      this._dados = dados;
+      this._renderCalendario(); this._renderResumo(); this._renderAvisoLegado();
     } catch (e) { console.error('[ChuvaModule] _carregarDados:', e); }
     finally { this._carregando = false; this._atualizarLoadingIndicator(false); }
   }
 
   async _salvarDia(data, manha, tarde, noite, obs) {
+    const obraId = this._obraId();
+    if (!obraId) { window.toast?.('⚠️ Nenhuma obra ativa — selecione uma obra antes de salvar.', 'warn'); return; }
+
+    const anterior = this._dados[data];
     try {
       if (manha || tarde || noite)
         this._dados[data] = { manha: manha||null, tarde: tarde||null, noite: noite||null, obs: obs||'' };
       else
         delete this._dados[data];
-      await FirebaseService.salvarChuva('global', this._ano, this._dados);
-      this._renderCalendario(); this._renderResumo();
+      await FirebaseService.salvarChuva(obraId, this._ano, this._dados);
+      this._legadoNaTela = false;
+      this._renderCalendario(); this._renderResumo(); this._renderAvisoLegado();
       this._fecharModal();
       window.toast?.('✅ Registro salvo!', 'ok');
-    } catch (e) { console.error('[ChuvaModule] _salvarDia:', e); window.toast?.('❌ Erro ao salvar.', 'error'); }
+    } catch (e) {
+      // Reverte o estado local — sem isso a tela mostra um registro que o
+      // Firestore recusou (ex.: sem permissão de escrita na obra).
+      if (anterior) this._dados[data] = anterior; else delete this._dados[data];
+      this._renderCalendario(); this._renderResumo();
+      console.error('[ChuvaModule] _salvarDia:', e);
+      window.toast?.('❌ Não foi possível salvar o registro.', 'error');
+    }
   }
 
   // ── Render ───────────────────────────────────────────────────
@@ -99,7 +132,8 @@ export class ChuvaModule {
     const c = document.getElementById('chuva-conteudo');
     if (!c) { this._renderLegado(); return; }
     c.innerHTML = this._htmlPrincipal();
-    this._bindControles(); this._renderCalendario(); this._renderResumo();
+    this._renderModal();
+    this._bindControles(); this._renderCalendario(); this._renderResumo(); this._renderAvisoLegado();
   }
 
   _renderLegado() {
@@ -110,6 +144,12 @@ export class ChuvaModule {
   }
 
   _htmlPrincipal() { return `
+    <style>
+      /* CSP (script-src sem 'unsafe-inline'): hover precisa ser CSS, não onmouseover */
+      #chuva-grade [data-dia]:hover { opacity:.72 }
+      #chuva-grade [data-dia]       { transition:opacity .12s }
+    </style>
+    <div id="chuva-aviso-legado"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:10px">
         <button id="chuva-btn-ant" class="btn btn-cinza btn-sm" style="font-size:16px;padding:5px 12px">‹</button>
@@ -138,10 +178,17 @@ export class ChuvaModule {
       <div class="titulo-secao" style="margin-bottom:14px">📊 Resumo Anual ${this._ano}</div>
       <div id="chuva-resumo"></div>
     </div>
-
-    <div id="chuva-modal-overlay" data-action="_chuva_fecharModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:900"></div>
-    <div id="chuva-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:901;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:24px;min-width:340px;max-width:490px;width:min(490px,94vw);max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-lg)"></div>
   `; }
+
+  _renderAvisoLegado() {
+    const el = document.getElementById('chuva-aviso-legado');
+    if (!el) return;
+    el.innerHTML = this._legadoNaTela
+      ? `<div style="display:flex;gap:8px;align-items:flex-start;padding:9px 12px;margin-bottom:12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:11px;color:#78350f">
+           <span>⚠️</span><span>Exibindo registros do quadro antigo (compartilhado entre obras). Ao salvar qualquer dia, eles passam a pertencer a esta obra.</span>
+         </div>`
+      : '';
+  }
 
   _bindControles() {
     document.getElementById('chuva-btn-ant')?.addEventListener('click',  () => this._mudarAno(-1));
@@ -194,8 +241,7 @@ export class ChuvaModule {
           border-radius:6px;cursor:pointer;transition:all .12s;gap:1px;padding:1px;
           background:${clima?clima.cor:'var(--bg-surface)'};
           border:${completo?'2px':'1.5px'} solid ${ehHoje?'var(--accent)':completo?(clima?.borda||'#94a3b8'):parcial?'#94a3b8':'transparent'};
-          color:${ehHoje?'var(--accent)':'var(--text-primary)'};"
-        onmouseover="this.style.opacity='.72'" onmouseout="this.style.opacity='1'">
+          color:${ehHoje?'var(--accent)':'var(--text-primary)'};">
         <span style="font-size:9px;line-height:1">${clima?clima.icon:''}</span>
         <span style="line-height:1.1;font-weight:${ehHoje?'800':'600'};font-size:10px">${dia}</span>
         <div style="display:flex;gap:2px;align-items:center;margin-top:1px">${dot('manha')}${dot('tarde')}${dot('noite')}</div>
@@ -209,6 +255,10 @@ export class ChuvaModule {
   }
 
   _bindDiasClick(c) {
+    // O container sobrevive aos re-renders (só o innerHTML é trocado); sem esta
+    // trava cada recarga somava mais um listener e o dia abria N vezes.
+    if (c.dataset.chuvaBound === '1') return;
+    c.dataset.chuvaBound = '1';
     c.addEventListener('click', (e) => { const cell = e.target.closest('[data-dia]'); if (cell?.dataset.dia) this._abrirModal(cell.dataset.dia); });
   }
 
@@ -231,7 +281,7 @@ export class ChuvaModule {
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${p.icon} ${p.label}</div>
         <div style="display:flex;flex-wrap:wrap;gap:4px" id="chuva-grid-${periodo}">
           ${CLIMAS.map(c=>{const a=sel===c.key; return `<button type="button" title="${c.label}"
-            onclick="window._chuva_selecionarPeriodo('${periodo}','${c.key}')"
+            data-action="_chuva_selecionarPeriodo" data-arg0="${periodo}" data-arg1="${c.key}"
             style="padding:5px 8px;border-radius:7px;cursor:pointer;font-size:14px;
               background:${a?c.cor:'var(--bg-surface)'};border:1.5px solid ${a?c.borda:'var(--border)'};transition:all .1s">${iconClima(c.key, periodo)}</button>`;}).join('')}
         </div>
@@ -274,19 +324,25 @@ export class ChuvaModule {
       this._salvarDia(this._diaAberto, this._selManha, this._selTarde, this._selNoite, obs);
     });
 
-    window._chuva_selecionarPeriodo = (periodo, climaKey) => {
-      if (periodo==='manha') this._selManha=climaKey;
-      if (periodo==='tarde') this._selTarde=climaKey;
-      if (periodo==='noite') this._selNoite=climaKey;
-      const grid  = document.getElementById(`chuva-grid-${periodo}`);
-      const label = document.getElementById(`chuva-label-${periodo}`);
-      if (grid) grid.querySelectorAll('button').forEach((btn,idx)=>{
-        const c=CLIMAS[idx], a=c.key===climaKey;
-        btn.style.background=a?c.cor:'var(--bg-surface)'; btn.style.borderColor=a?c.borda:'var(--border)';
-        btn.textContent = iconClima(c.key, periodo);
-      });
-      if (label) { const c=CLIMAS.find(x=>x.key===climaKey); label.innerHTML=c?c.label:'<em>Não registrado</em>'; }
-    };
+  }
+
+  // Clicar no clima já selecionado desmarca o período (volta a "Não registrado").
+  _selecionarPeriodo(periodo, climaKey) {
+    const atual = periodo==='manha' ? this._selManha : periodo==='tarde' ? this._selTarde : this._selNoite;
+    const novo  = atual === climaKey ? null : climaKey;
+    if (periodo==='manha') this._selManha=novo;
+    if (periodo==='tarde') this._selTarde=novo;
+    if (periodo==='noite') this._selNoite=novo;
+
+    const grid  = document.getElementById(`chuva-grid-${periodo}`);
+    const label = document.getElementById(`chuva-label-${periodo}`);
+    if (grid) grid.querySelectorAll('button').forEach((btn,idx)=>{
+      const c=CLIMAS[idx]; if (!c) return;
+      const a=c.key===novo;
+      btn.style.background=a?c.cor:'var(--bg-surface)'; btn.style.borderColor=a?c.borda:'var(--border)';
+      btn.textContent = iconClima(c.key, periodo);
+    });
+    if (label) { const c=CLIMAS.find(x=>x.key===novo); label.innerHTML=c?c.label:'<em>Não registrado</em>'; }
   }
 
   _fecharModal() {
@@ -295,15 +351,19 @@ export class ChuvaModule {
     this._diaAberto=null; this._selManha=this._selTarde=this._selNoite=null;
   }
 
-  _limparDia() {
+  async _limparDia() {
     if (!this._diaAberto) return;
-    if (confirm('Remover todos os registros de clima deste dia?'))
-      this._salvarDia(this._diaAberto, null, null, null, '');
+    const dia = this._diaAberto;
+    const ok  = window._confirm
+      ? await window._confirm('Remover todos os registros de clima deste dia?', { labelOk: 'Remover' })
+      : confirm('Remover todos os registros de clima deste dia?');
+    if (ok) this._salvarDia(dia, null, null, null, '');
   }
 
   _renderModal() {
     if (document.getElementById('chuva-modal')) return;
     const d = document.createElement('div');
+    d.id = 'chuva-modal-root';
     d.innerHTML=`
       <div id="chuva-modal-overlay" data-action="_chuva_fecharModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:900"></div>
       <div id="chuva-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:901;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:24px;min-width:340px;max-width:490px;width:min(490px,94vw);max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-lg)"></div>`;
@@ -440,6 +500,7 @@ export class ChuvaModule {
       htmlMeses+=`<div style="break-inside:avoid;margin-bottom:10px"><div style="font-size:8pt;font-weight:800;text-align:center;text-transform:uppercase;margin-bottom:4px">${MESES_PT[mes]}</div><table style="width:100%;border-collapse:collapse;font-size:6pt">${cel}</table></div>`;
     }
     const w=window.open('','_blank','width=900,height=700');
+    if (!w) { window.toast?.('⚠️ Permita pop-ups para gerar o PDF.', 'warn'); return; }
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Quadro de Chuvas ${this._ano}</title>
       <style>body{font-family:Arial,sans-serif;font-size:9pt;color:#000;padding:10mm}h1{font-size:12pt;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.leg{display:flex;align-items:center;gap:4px;font-size:7pt}td{border:1px solid #ddd;padding:2px 3px;font-size:6.5pt;vertical-align:middle}@media print{body{padding:5mm}@page{size:A4 landscape;margin:8mm}}</style>
       </head><body>
@@ -450,9 +511,12 @@ export class ChuvaModule {
         ${CLIMAS.filter(c=>c.key!=='sem_chuva').map(c=>`<span class="leg" style="background:${c.cor};border:1px solid ${c.borda};padding:2px 6px;border-radius:4px">${c.icon} ${c.label}: <strong>${cnt[c.key]||0} dias</strong></span>`).join('')}
       </div>
       <div class="grid">${htmlMeses}</div>
-      <button onclick="window.print()" style="margin-top:16px;padding:8px 20px;background:#111;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11pt">🖨️ Imprimir</button>
+      <button id="btn-print" style="margin-top:16px;padding:8px 20px;background:#111;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11pt">🖨️ Imprimir</button>
     </body></html>`);
     w.document.close();
+    // A janela herda o CSP do opener (script-src sem 'unsafe-inline'), então o
+    // onclick inline não roda: o listener é ligado daqui, pelo próprio opener.
+    w.document.getElementById('btn-print')?.addEventListener('click', () => w.print());
   }
 
   // ── CSV ──────────────────────────────────────────────────────
@@ -494,10 +558,14 @@ export class ChuvaModule {
     window.exportarCSVChuva   = ()    => { try { this._exportarCSV(); } catch(e){ console.error('[Chuva] CSV:',e); } };
     window._chuva_fecharModal = ()    => { try { this._fecharModal(); } catch(e){} };
     window._chuva_limparDia   = ()    => { try { this._limparDia(); } catch(e){} };
+    // Precisa existir antes de qualquer clique: o EventDelegate despacha
+    // data-action="_chuva_selecionarPeriodo" direto para este global.
+    window._chuva_selecionarPeriodo = (p, k) => { try { this._selecionarPeriodo(p, k); } catch(e){ console.error('[Chuva] selecionarPeriodo:', e); } };
   }
 
   destroy() {
     this._subs.forEach(u=>u()); this._subs=[];
+    document.getElementById('chuva-modal-root')?.remove();
     delete window._chuva_fecharModal; delete window._chuva_limparDia; delete window._chuva_selecionarPeriodo;
   }
 }
