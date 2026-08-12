@@ -207,6 +207,25 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    //  /obras/global/chuva/{ano} — LEGADO do Quadro de Chuvas
+    //
+    //  Até v15.5.2 o Quadro de Chuvas gravava numa "obra" fictícia
+    //  chamada 'global'. Esse documento de obra nunca existiu, então
+    //  souMembroDaObra('global') não consegue nem avaliar — o get() cai
+    //  em documento inexistente e a regra nega. Sem esta exceção, o
+    //  histórico antigo fica ilegível e some da tela.
+    //
+    //  Somente leitura e somente neste caminho. O módulo copia esses
+    //  registros para a obra ativa no primeiro carregamento; depois que
+    //  a migração de todas as obras terminar, este bloco pode sair.
+    //  Regras do Firestore são aditivas: isto libera apenas este path.
+    // ═══════════════════════════════════════════════════════════════
+    match /obras/global/chuva/{ano} {
+      allow read:  if estaAutenticado();
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     //  /obras/{obraId} — Documento raiz da obra
     // ═══════════════════════════════════════════════════════════════
     match /obras/{obraId} {

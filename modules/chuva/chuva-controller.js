@@ -94,7 +94,22 @@ export class ChuvaModule {
       let dados = await FirebaseService.getChuva(obraId, this._ano) || {};
       if (!Object.keys(dados).length) {
         const legado = await FirebaseService.getChuva(OBRA_LEGADO, this._ano) || {};
-        if (Object.keys(legado).length) { dados = legado; this._legadoNaTela = true; }
+        if (Object.keys(legado).length) {
+          dados = legado;
+          this._legadoNaTela = true;
+          // Copia para a obra ativa já no carregamento, em vez de esperar o
+          // usuário salvar algum dia. Enquanto os registros ficam só no
+          // caminho legado, qualquer aperto de regra neles some com o
+          // histórico da tela — foi exatamente o que aconteceu ao escopar a
+          // leitura por membro da obra ('global' não existe como documento).
+          try {
+            await FirebaseService.salvarChuva(obraId, this._ano, dados);
+            this._legadoNaTela = false;
+            console.info(`[ChuvaModule] ${Object.keys(dados).length} registros de ${this._ano} migrados para a obra ${obraId}.`);
+          } catch (e) {
+            console.warn('[ChuvaModule] migração adiada (sem permissão de escrita?):', e);
+          }
+        }
       }
       this._dados = dados;
       this._renderCalendario(); this._renderResumo(); this._renderAvisoLegado();
