@@ -27,7 +27,9 @@ export const formatters = {
       const f = 100;
       n = Math.trunc(Math.round(v * f * 100) / 100) / f;
     } else {
-      n = Math.round(v * 100) / 100;
+      // Mesma normalização no modo arredondar: 82,66 × 113,25 = 9.361,245 vira
+      // 9361.244999999999 em IEEE 754 e cairia para 9.361,24. Ver number().
+      n = Math.round(Math.round(v * 100 * 100) / 100) / 100;
     }
     return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   },
@@ -58,7 +60,14 @@ export const formatters = {
       // dentro do range seguro de inteiros IEEE 754.
       return Math.trunc(Math.round(v * factor * 100) / 100) / factor;
     }
-    return Math.round(v * factor) / factor;
+    // CORREÇÃO FLOATING-POINT (arredondar mode):
+    //   Problema: 82.66 * 113.25 = 9361.244999999999 no motor JS, quando o
+    //   valor matemático é exatamente 9361.245 (meio centavo).
+    //   Math.round(9361.244999... * 100) / 100 = 9361.24  ← ERRADO
+    //   Solução: normalizar as casas excedentes antes de decidir o
+    //   arredondamento, exatamente como já era feito no modo truncar.
+    //   Resultado: arredondar(82.66 * 113.25, 2) = 9361.25  ✓
+    return Math.round(Math.round(v * factor * 100) / 100) / factor;
   },
 
   /** n4() — número com 4 casas decimais para planilhas */

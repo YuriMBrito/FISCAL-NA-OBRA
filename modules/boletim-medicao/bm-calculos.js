@@ -139,7 +139,12 @@ export function rnd2Cfg(v, cfg) {
     // 78.94999999999999 no motor JS truncaria para 78.94).
     return Math.trunc(Math.round(v * 100 * 100) / 100) / 100;
   }
-  return Math.round(v * 100) / 100;
+  // A MESMA normalização é necessária ao arredondar: 82,66 × 113,25 vale
+  // 9.361,245 na matemática, mas 9361.2449999999990 em IEEE 754 — meio centavo
+  // logo ABAIXO do limite, então Math.round devolvia 9.361,24 onde a planilha
+  // devolve 9.361,25. Arredondar o excesso de casas primeiro recoloca o valor
+  // no ponto exato antes da decisão de arredondamento.
+  return Math.round(Math.round(v * 100 * 100) / 100) / 100;
 }
 
 /**
@@ -363,7 +368,8 @@ export function getValorAcumuladoTotal(obraId, bmNum, itensContrato, cfg) {
   // Arredondamento por item conforme o modo de cálculo da obra (truncar ou
   // arredondar) — o mesmo critério das colunas do boletim, que usam fmtNum.
   const rnd2 = v => rnd2Cfg(v, cfg);
-  let total = 0;
+
+  // FASE 1 — acumula a quantidade medida de cada item ao longo dos BMs.
   // FIX-4: rastreia qtd acumulada por item para aplicar o limite de 100% do contratado
   const qtdAcumMap = {};
   for (let n = 1; n <= bmNum; n++) {
@@ -376,11 +382,30 @@ export function getValorAcumuladoTotal(obraId, bmNum, itensContrato, cfg) {
       const cap      = it.qtd > 0 ? Math.max(0, it.qtd - jaAcum) : qtdBm;
       const safeQ    = Math.min(qtdBm, cap);
       qtdAcumMap[it.id] = jaAcum + safeQ;
-      // TCU Acórdão 2.622/2013: BDI efetivo por tipo de item.
-      // getUpBdi valida o upBdi gravado antes de confiar nele.
-      total += rnd2(safeQ * getUpBdi(it, cfg));
     });
   }
+
+  // FASE 2 — converte em dinheiro UMA vez por item, a partir da quantidade
+  // acumulada. Duas razões para não multiplicar BM a BM dentro do laço acima:
+  //
+  //   1. A quantidade medida é arredondada para 2 casas antes de virar dinheiro,
+  //      porque é assim que ela aparece impressa no boletim. Sem isso o item 2.2
+  //      da UBS Triângulo Leal imprimia 79,86 mas valia 79,859868 × R$ 113,25 =
+  //      R$ 9.044,13, enquanto a planilha (e qualquer conferência na calculadora)
+  //      dá 79,86 × 113,25 = R$ 9.044,15.
+  //   2. Arredondar por BM e somar daria resultado diferente de arredondar o
+  //      acumulado — e as LINHAS do boletim usam o acumulado. Fazendo aqui igual,
+  //      cabeçalho e planilha fecham por construção.
+  //
+  // TCU Acórdão 2.622/2013: BDI efetivo por tipo de item.
+  // getUpBdi valida o upBdi gravado antes de confiar nele.
+  let total = 0;
+  itensContrato.forEach(it => {
+    if (it.t) return;
+    const qAcum = qtdAcumMap[it.id];
+    if (!qAcum) return;
+    total += rnd2(rnd2Cfg(qAcum, cfg) * getUpBdi(it, cfg));
+  });
   // CORREÇÃO: arredondamento final do total acumulado (valor final de medição).
   // Independente do modoCalculo (truncar/arredondar), o TOTAL FINAL de medição
   // deve ser arredondado para 2 casas. Isso evita que 143030.07999... seja exibido

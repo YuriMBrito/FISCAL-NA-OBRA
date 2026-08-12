@@ -77,7 +77,9 @@ export class BoletimUI {
     const _safe = (v, decimals = 2) => {
       const f = Math.pow(10, decimals);
       if (mode === 'truncar') return Math.trunc(Math.round(v * f * 100) / 100) / f;
-      return Math.round(v * f) / f;
+      // Idem no modo arredondar: 82,66 × 113,25 = 9361.244999999999 em IEEE 754
+      // e cairia para 9.361,24 em vez dos 9.361,25 da planilha.
+      return Math.round(Math.round(v * f * 100) / 100) / f;
     };
     return {
       R$:     v => formatters.currency(v),
@@ -220,9 +222,9 @@ export class BoletimUI {
         } else {
           const upBdi = getUpBdi(sub, cfg);
           const tC    = fmtNum((sub.qtd || 0) * upBdi);
-          const qAnt  = getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens);
+          const qAnt  = rnd2Cfg(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens), cfg);
           const tAn   = fmtNum(qAnt * upBdi);
-          const qAcum = getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens);
+          const qAcum = rnd2Cfg(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens), cfg);
           const tAc   = fmtNum(qAcum * upBdi);
           const tAt   = fmtNum(tAc - tAn);
           tCont += tC; tAnt += tAn; tAtual += tAt;
@@ -251,9 +253,9 @@ export class BoletimUI {
         const upBdi = getUpBdi(sub, cfg);
         const tC    = fmtNum((sub.qtd || 0) * upBdi);
         const _cap  = q => (sub.qtd > 0 ? Math.min(q, sub.qtd) : q);
-        const qAnt  = _cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens));
+        const qAnt  = rnd2Cfg(_cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens)), cfg);
         const tAn   = fmtNum(qAnt * upBdi);
-        const qAcum = _cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens));
+        const qAcum = rnd2Cfg(_cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens)), cfg);
         const tAc   = fmtNum(qAcum * upBdi);
         const tAt   = fmtNum(tAc - tAn);
         tCont += tC; tAnt += tAn; tAtual += tAt;
@@ -442,10 +444,10 @@ export class BoletimUI {
       // TCU Acórdão 2.622/2013: usa BDI efetivo por tipo de item (integral/reduzido/zero)
       const upBdi   = getUpBdi(it, cfg);
       const totCont = fmtNum((it.qtd || 0) * upBdi);
-      const qtdAnt    = getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens);
+      const qtdAnt    = rnd2Cfg(getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens), cfg);
       const totAnt    = fmtNum(qtdAnt * upBdi);
       const pctAnt    = it.qtd > 0 ? (qtdAnt / it.qtd * 100) : 0;
-      const qtdAcumRaw= getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens);
+      const qtdAcumRaw= rnd2Cfg(getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens), cfg);
       // FIX-4: limita contabilização a 100% do item contratado
       const ultrapass4= it.qtd > 0 && qtdAcumRaw > it.qtd;
       const qtdAcum   = ultrapass4 ? it.qtd : qtdAcumRaw;
@@ -630,9 +632,9 @@ export class BoletimUI {
           const upBdi = getUpBdi(sub, cfg);
           const tC    = fmtNum((sub.qtd || 0) * upBdi);
           const _cap  = q => (sub.qtd > 0 ? Math.min(q, sub.qtd) : q);
-          const qAnt  = _cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens));
+          const qAnt  = rnd2Cfg(_cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens)), cfg);
           const tAn   = fmtNum(qAnt * upBdi);
-          const qAcum = _cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens));
+          const qAcum = rnd2Cfg(_cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens)), cfg);
           const tAc   = fmtNum(qAcum * upBdi);
           const tAt   = fmtNum(tAc - tAn);
           tCont += tC; tAnt += tAn; tAtual += tAt; tAcum += tAc; tSaldo += fmtNum(tC - tAc);
@@ -658,9 +660,9 @@ export class BoletimUI {
         const upBdi = getUpBdi(sub, cfg);
         const tC    = fmtNum((sub.qtd || 0) * upBdi);
         const _cap  = q => (sub.qtd > 0 ? Math.min(q, sub.qtd) : q);
-        const qAnt  = _cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens));
+        const qAnt  = rnd2Cfg(_cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens)), cfg);
         const tAn   = fmtNum(qAnt * upBdi);
-        const qAcum = _cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens));
+        const qAcum = rnd2Cfg(_cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens)), cfg);
         const tAc   = fmtNum(qAcum * upBdi);
         const tAt   = fmtNum(tAc - tAn);
         tCont += tC; tAnt += tAn; tAtual += tAt; tAcum += tAc; tSaldo += fmtNum(tC - tAc);
@@ -746,9 +748,9 @@ export class BoletimUI {
       const upBdi    = getUpBdi(it, cfg);
       const totCont  = fmtNum((it.qtd || 0) * upBdi);
       const _teto    = q => (it.qtd > 0 ? Math.min(q, it.qtd) : q);
-      const qtdAnt   = _teto(getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens));
+      const qtdAnt   = rnd2Cfg(_teto(getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens)), cfg);
       const totAnt   = fmtNum(qtdAnt * upBdi);
-      const qtdAcum  = _teto(getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens));
+      const qtdAcum  = rnd2Cfg(_teto(getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens)), cfg);
       const totAcum  = fmtNum(qtdAcum * upBdi);
       const qtdAtual = qtdAcum - qtdAnt;
       const totAtual = fmtNum(totAcum - totAnt);
@@ -1172,9 +1174,9 @@ export class BoletimUI {
         } else {
           const upBdi = getUpBdi(sub, cfg);
           const tC    = fmtNum((sub.qtd || 0) * upBdi);
-          const qAnt  = getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens);
+          const qAnt  = rnd2Cfg(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens), cfg);
           const tAn   = fmtNum(qAnt * upBdi);
-          const qAcum = getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens);
+          const qAcum = rnd2Cfg(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens), cfg);
           const tAc   = fmtNum(qAcum * upBdi);
           tCont += tC; tAnt += tAn; tAtual += fmtNum(tAc - tAn); tAcum += tAc;
         }
@@ -1199,9 +1201,9 @@ export class BoletimUI {
         const upBdi = getUpBdi(sub, cfg);
         const tC    = fmtNum((sub.qtd || 0) * upBdi);
         const _cap  = q => (sub.qtd > 0 ? Math.min(q, sub.qtd) : q);
-        const qAnt  = _cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens));
+        const qAnt  = rnd2Cfg(_cap(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens)), cfg);
         const tAn   = fmtNum(qAnt * upBdi);
-        const qAcum = _cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens));
+        const qAcum = rnd2Cfg(_cap(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens)), cfg);
         const tAc   = fmtNum(qAcum * upBdi);
         tCont += tC; tAnt += tAn; tAtual += fmtNum(tAc - tAn); tAcum += tAc;
       });
@@ -1271,10 +1273,10 @@ export class BoletimUI {
       // — idêntico a bm-caixa.js — para que PDF e tela exibam os mesmos valores unitários.
       const upBdi    = it.upBdi ? it.upBdi : rnd2pdf((it.up || 0) * (1 + getBdiEfetivo(it, cfg)));
       const totCont  = rnd2pdf((it.qtd || 0) * upBdi);
-      const qtdAnt_  = getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens);
+      const qtdAnt_  = rnd2Cfg(getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens), cfg);
       const totAnt_  = rnd2pdf(qtdAnt_ * upBdi);
       const pctAnt_  = it.qtd > 0 ? (qtdAnt_ / it.qtd * 100) : 0;
-      const qtdAcum_ = getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens);
+      const qtdAcum_ = rnd2Cfg(getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens), cfg);
       const totAcum_ = rnd2pdf(qtdAcum_ * upBdi);
       const pctAcum_ = it.qtd > 0 ? (qtdAcum_ / it.qtd * 100) : 0;
       const qtdAtual_= Math.max(0, qtdAcum_ - qtdAnt_);

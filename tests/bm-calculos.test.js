@@ -291,3 +291,92 @@ describe('rnd2Cfg — arredondamento monetário por modo de cálculo', () => {
     expect(rnd2Cfg(169.7375, {})).toBe(169.73);
   });
 });
+
+// ─── Meio centavo em ponto flutuante ─────────────────────────────────────
+// REGRESSÃO: o ramo 'arredondar' não compensava a imprecisão de IEEE 754.
+// 82,66 × 113,25 vale exatamente 9.361,245, mas em JS dá 9361.244999999999 —
+// meio centavo logo ABAIXO do limite. Math.round devolvia 9.361,24 onde a
+// planilha aprovada da UBS Triângulo Leal traz 9.361,25. O ramo 'truncar' já
+// tinha essa normalização desde sempre; o 'arredondar' não.
+describe('rnd2Cfg — meio centavo exato (IEEE 754)', () => {
+  const arred = { modoCalculo: 'arredondar' };
+
+  it('82,66 × 113,25 = 9.361,25 e não 9.361,24', () => {
+    expect(rnd2Cfg(82.66 * 113.25, arred)).toBe(9361.25);
+  });
+
+  it('arredonda meio centavo para cima de forma geral', () => {
+    expect(rnd2Cfg(2.675,  arred)).toBe(2.68);   // 2.674999999999999 em IEEE 754
+    expect(rnd2Cfg(1.005,  arred)).toBe(1.01);   // 1.00499999999999989
+    expect(rnd2Cfg(8.615,  arred)).toBe(8.62);
+  });
+
+  it('não empurra para cima valores genuinamente abaixo do meio centavo', () => {
+    expect(rnd2Cfg(9361.2449, arred)).toBe(9361.24);
+    expect(rnd2Cfg(2.6749,    arred)).toBe(2.67);
+  });
+
+  it('preserva o comportamento do modo truncar', () => {
+    expect(rnd2Cfg(82.66 * 113.25, { modoCalculo: 'truncar' })).toBe(9361.24);
+  });
+});
+
+// Folhas reais das páginas 1-2 do BM 01 conferidas contra a planilha aprovada.
+describe('BM 01 UBS Triângulo Leal — folhas batem com a planilha', () => {
+  const cfg = { bdi: 0.25, modoCalculo: 'arredondar' };
+  // [item, qtd, up, total conforme boletim aprovado]
+  const folhas = [
+    ['1.1',  819.21,  7.68,     7864.42],
+    ['1.2',  6.00,    360.42,   2703.18],
+    ['1.3',  388.06,  135.79,   65869.30],
+    ['1.4',  3.00,    1551.38,  5817.69],
+    ['1.7',  1.00,    3559.26,  4449.08],
+    ['1.10', 30.00,   739.25,   27721.80],
+    ['2.1',  52.42,   26.65,    1746.11],
+    ['2.2',  82.66,   90.60,    9361.25],
+    ['2.4',  3487.50, 1.98,     8649.00],
+    ['3.3',  381.80,  93.84,    44785.14],
+  ];
+
+  it.each(folhas)('item %s fecha em %s × %s = R$ %s', (_id, qtd, up, esperado) => {
+    expect(rnd2Cfg(qtd * getUpBdi({ up }, cfg), cfg)).toBe(esperado);
+  });
+});
+
+// ─── Quantidade medida arredondada antes de virar dinheiro ───────────────
+// O boletim IMPRIME a quantidade com 2 casas. Antes, o valor era calculado com
+// a quantidade cheia da memória de cálculo: o item 2.2 da UBS Triângulo Leal
+// aparecia como 79,86 mas valia 79,859868 × R$ 113,25 = R$ 9.044,13, enquanto
+// a planilha aprovada — e qualquer conferência na calculadora — dá R$ 9.044,15.
+// Regra: o número impresso tem que ser o número que multiplica.
+describe('quantidade medida — o que se lê é o que multiplica', () => {
+  const arred = { bdi: 0.25, modoCalculo: 'arredondar' };
+  const trunc = { bdi: 0.25, modoCalculo: 'truncar' };
+  const upBdi = 113.25;                 // item 2.2, up 90,60 + BDI 25%
+  const qtdReal = 9044.13 / upBdi;      // 79,859868… vindo da memória de cálculo
+
+  it('item 2.2 fecha em R$ 9.044,15 como na planilha', () => {
+    const q = rnd2Cfg(qtdReal, arred);
+    expect(q).toBe(79.86);
+    expect(rnd2Cfg(q * upBdi, arred)).toBe(9044.15);
+  });
+
+  it('a quantidade arredondada é a mesma que o boletim imprime', () => {
+    // n2 do boletim e rnd2Cfg têm que concordar, senão volta a divergir
+    expect(rnd2Cfg(qtdReal, arred).toFixed(2)).toBe('79.86');
+    expect(rnd2Cfg(qtdReal, trunc).toFixed(2)).toBe('79.85');
+  });
+
+  it('macro 2 = 2.1 + 2.2 fecha em R$ 9.937,86', () => {
+    const t21 = rnd2Cfg(rnd2Cfg(26.83, arred) * 33.31, arred);
+    const t22 = rnd2Cfg(rnd2Cfg(qtdReal, arred) * upBdi, arred);
+    expect(t21).toBe(893.71);
+    expect(Math.round((t21 + t22) * 100) / 100).toBe(9937.86);
+  });
+
+  it('não altera quantidades que já são exatas em 2 casas', () => {
+    for (const q of [455.68, 325.00, 26.83, 14.00, 1.00, 3487.50]) {
+      expect(rnd2Cfg(q, arred)).toBe(q);
+    }
+  });
+});

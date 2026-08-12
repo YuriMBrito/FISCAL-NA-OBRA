@@ -29,6 +29,7 @@ import {
   getValorAcumuladoAnterior,
   getBdiEfetivo,
   novoId,
+  rnd2Cfg,
 } from './bm-calculos.js';
 
 // ── Formatadores ──────────────────────────────────────────────
@@ -163,8 +164,8 @@ export class CaixaBM {
         // Usa upBdi salvo diretamente se disponível (evita perda de precisão na divisão/multiplicação por BDI)
         const upBdi  = sub.upBdi ? sub.upBdi : rnd2((sub.up || 0) * (1 + getBdiEfetivo(sub, cfg)));
         const tC     = rnd2((sub.qtd || 0) * upBdi);
-        const qAnt   = getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens);
-        const qAcum  = getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens);
+        const qAnt   = rnd2Cfg(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens), cfg);
+        const qAcum  = rnd2Cfg(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens), cfg);
         tCont  += tC;
         tAnt   += rnd2(qAnt  * upBdi);
         tAcum  += rnd2(qAcum * upBdi);
@@ -269,8 +270,8 @@ export class CaixaBM {
         itens.forEach(sub => {
           if (!_filhoDireto(it.id, sub.id) || sub.t) return;
           const upBdi = sub.upBdi ? sub.upBdi : rnd2((sub.up || 0) * (1 + getBdiEfetivo(sub, cfg)));
-          const qAnt  = getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens);
-          const qAcum = getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens);
+          const qAnt  = rnd2Cfg(getQtdAcumuladoAnteriorItem(obraId, bmNum, sub.id, itens), cfg);
+          const qAcum = rnd2Cfg(getQtdAcumuladoTotalItem(obraId, bmNum, sub.id, itens), cfg);
           tCont  += rnd2((sub.qtd || 0) * upBdi);
           tAnt   += rnd2(qAnt  * upBdi);
           tAcum  += rnd2(qAcum * upBdi);
@@ -308,7 +309,7 @@ export class CaixaBM {
       const totCont  = rnd2((it.qtd || 0) * upBdi);
 
       // Acumulado anterior (BMs 1..bmNum-1)
-      const qtdAnt   = getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens);
+      const qtdAnt   = rnd2Cfg(getQtdAcumuladoAnteriorItem(obraId, bmNum, it.id, itens), cfg);
       const pctAnt   = it.qtd > 0 ? qtdAnt / it.qtd * 100 : 0;
       const totAnt   = rnd2(qtdAnt * upBdi);
 
@@ -316,7 +317,7 @@ export class CaixaBM {
       const pctExec  = med[it.id]?._pctExec ?? null;
 
       // Acumulado total (BMs 1..bmNum) — vem do cache de medições
-      const qtdAcum  = getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens);
+      const qtdAcum  = rnd2Cfg(getQtdAcumuladoTotalItem(obraId, bmNum, it.id, itens), cfg);
       const pctAcum  = it.qtd > 0 ? qtdAcum / it.qtd * 100 : 0;
       const totAcum  = rnd2(qtdAcum * upBdi);
 
@@ -470,7 +471,7 @@ export class CaixaBM {
 
     // Quantidades
     const qtdAcumTotal = (item.qtd || 0) * (pct / 100);
-    const qtdAcumAnt   = getQtdAcumuladoAnteriorItem(obraId, bmNum, itemId, itens);
+    const qtdAcumAnt   = rnd2Cfg(getQtdAcumuladoAnteriorItem(obraId, bmNum, itemId, itens), cfg);
     const qtdAtual     = Math.max(0, qtdAcumTotal - qtdAcumAnt);
 
     // Persiste no cache e Firebase
