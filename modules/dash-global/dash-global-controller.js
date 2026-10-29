@@ -497,7 +497,7 @@ export class DashGlobalModule {
       : `<div style="display:flex;flex-direction:column;gap:8px">
           ${alertas.map(a=>{
             const k=cfg[a.nivel]||cfg.aviso;
-            return `<div style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:${D.card};border:1px solid rgba(255,255,255,.06);border-left:3px solid ${k.c};border-radius:10px;transition:background .15s" onmouseover="this.style.background='${D.card2}'" onmouseout="this.style.background='${D.card}'">
+            return `<div class="fo-hover-bg" style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:${D.card};border:1px solid rgba(255,255,255,.06);border-left:3px solid ${k.c};border-radius:10px;transition:background .15s;--fo-hover-bg:${D.card2}">
               <span style="font-size:20px;flex-shrink:0">${k.ico}</span>
               <div style="flex:1;min-width:0">
                 <div style="font-size:11px;font-weight:700;color:${k.c};text-transform:uppercase;letter-spacing:.3px">${esc(a.tipo)}</div>
@@ -598,16 +598,16 @@ export class DashGlobalModule {
   _htmlFiltros(statusOpts,contratadas,cidades,nVis,nTot) {
     return `<div class="dg2-card" style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <input id="dg-busca" class="dg2-input" type="text" placeholder="🔍 Buscar obra, contrato ou empresa..." value="${esc(this._busca)}" oninput="window._dgBusca(this.value)" style="flex:1;min-width:200px">
-        <select class="dg2-select" onchange="window._dgFiltro('status',this.value)">
+        <input id="dg-busca" class="dg2-input" type="text" placeholder="🔍 Buscar obra, contrato ou empresa..." value="${esc(this._busca)}" data-action="_dgBusca" data-value-from="this.value" data-event="input" style="flex:1;min-width:200px">
+        <select class="dg2-select" data-action="_dgFiltro" data-arg0="status" data-value-from="this.value" data-event="change">
           <option value="">Todos os status</option>
           ${statusOpts.map(s=>`<option value="${s}" ${this._filtros.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
-        <select class="dg2-select" onchange="window._dgFiltro('contratada',this.value)" style="max-width:200px">
+        <select class="dg2-select" data-action="_dgFiltro" data-arg0="contratada" data-value-from="this.value" data-event="change" style="max-width:200px">
           <option value="">Todas empresas</option>
           ${contratadas.map(c=>`<option value="${c}" ${this._filtros.contratada===c?'selected':''}>${c.slice(0,28)}</option>`).join('')}
         </select>
-        <select class="dg2-select" onchange="window._dgFiltro('cidade',this.value)">
+        <select class="dg2-select" data-action="_dgFiltro" data-arg0="cidade" data-value-from="this.value" data-event="change">
           <option value="">Todas cidades</option>
           ${cidades.map(c=>`<option value="${c}" ${this._filtros.cidade===c?'selected':''}>${c.slice(0,22)}</option>`).join('')}
         </select>

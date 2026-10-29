@@ -82,7 +82,7 @@ export class HistoricoModule {
     el.innerHTML = `
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
         <input type="text" placeholder="🔍 Filtrar histórico..." value="${this._filtro}"
-          oninput="window._hist_filtro(this.value)"
+          data-action="_hist_filtro" data-value-from="this.value" data-event="input"
           style="flex:1;min-width:140px;padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)">
         <span style="font-size:11px;color:var(--text-muted)">${lista.length} registro(s)</span>
       </div>

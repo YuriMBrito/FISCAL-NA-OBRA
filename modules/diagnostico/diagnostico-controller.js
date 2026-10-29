@@ -114,7 +114,7 @@ export class DiagnosticoModule {
             <div class="titulo-secao" style="margin:0;border:none;padding:0">📋 Log em Tempo Real</div>
             <div style="display:flex;gap:6px;align-items:center">
               <select id="diag-log-level" style="font-size:11px;padding:3px 6px;width:auto"
-                onchange="window._FO_diag?.setLogLevel(this.value)">
+                data-action="_diagSetLogLevel" data-value-from="this.value" data-event="change">
                 <option value="0">DEBUG (tudo)</option>
                 <option value="1" selected>INFO+</option>
                 <option value="2">WARN+</option>

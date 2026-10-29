@@ -20,6 +20,7 @@ import state           from '../../core/state.js';
 import router          from '../../core/router.js';
 import { formatters }  from '../../utils/formatters.js';
 import FirebaseService from '../../firebase/firebase-service.js';
+import { abrirParaImpressao } from '../../utils/imprimir-janela.js';
 
 const fmtBRL = v   => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
 const fmtBR  = iso => iso ? new Date(iso+'T12:00:00').toLocaleDateString('pt-BR') : '—';
@@ -339,13 +340,13 @@ export class RelatorioFederalModule {
 
   _imprimir() {
     const conteudo = this._gerarConteudo();
-    const win      = window.open('', '_blank');
-    if (!win) { window.toast?.('⚠️ Popup bloqueado. Permita popups para imprimir.', 'warn'); return; }
-    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
+    abrirParaImpressao(`<!DOCTYPE html><html lang="pt-BR"><head>
       <meta charset="UTF-8"><title>Relatório Circunstanciado — Fiscal na Obra</title>
       <style>body{margin:20px;font-family:Arial,sans-serif}@media print{body{margin:10mm}}</style>
-    </head><body>${conteudo}<script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}<\/script></body></html>`);
-    win.document.close();
+    </head><body>${conteudo}</body></html>`, {
+      fecharDepois: true,
+      aviso: '⚠️ Popup bloqueado. Permita popups para imprimir.',
+    });
   }
 
   _bindEvents() {

@@ -232,7 +232,7 @@ export class ChecklistTecnicoModule {
       <!-- Ação -->
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:14px;flex-wrap:wrap">
         <select id="ck-tipo-sel" style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)"
-          onchange="window._ck_setTipo(this.value)">
+          data-action="_ck_setTipo" data-value-from="this.value" data-event="change">
           ${Object.entries(TEMPLATES).map(([k,v]) => `<option value="${k}" ${this._tipoObra===k?'selected':''}>${v.label}</option>`).join('')}
         </select>
         <button data-action="_ck_iniciarNova"
@@ -250,7 +250,7 @@ export class ChecklistTecnicoModule {
       }
 
       <!-- Modal overlay -->
-      <div id="ck-overlay" data-action="if" data-arg0="event.target===this)window._ck_fecharModal("
+      <div id="ck-overlay" data-action="_ck_fecharModalSeFundo" data-event="click"
         style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;overflow-y:auto;padding:20px;box-sizing:border-box">
         <div id="ck-modal"
           style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:24px;width:min(100%,680px);margin:auto;
@@ -348,10 +348,10 @@ export class ChecklistTecnicoModule {
           <h3 style="margin:0 0 4px;font-size:15px;font-weight:800;color:var(--text-primary)">📋 ${tpl.label}</h3>
           <div style="font-size:11px;color:var(--text-muted)">Data da inspeção: <input type="date" id="ck-data" value="${insp.data}"
             style="border:none;background:transparent;color:var(--text-muted);font-size:11px;cursor:pointer"
-            onchange="window._ck_setData(this.value)">
+            data-action="_ck_setData" data-value-from="this.value" data-event="change">
           &nbsp;|&nbsp; Fiscal: <input type="text" id="ck-fiscal" value="${insp.fiscal}" placeholder="Nome do fiscal"
             style="border:none;background:transparent;color:var(--text-muted);font-size:11px;width:160px"
-            onchange="window._ck_setFiscal(this.value)"></div>
+            data-action="_ck_setFiscal" data-value-from="this.value" data-event="change"></div>
         </div>
         <button data-action="_ck_fecharModal"
           style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-muted)">✕</button>
@@ -384,7 +384,7 @@ export class ChecklistTecnicoModule {
                     background:${resp==='na'?'var(--text-muted)':'var(--bg-card)'};color:${resp==='na'?'#fff':'var(--text-muted)'};
                     border:1px solid var(--border)">N/A</button>
                   <input type="text" placeholder="Observação..." value="${obs}"
-                    onchange="window._ck_obs('${id}','${key}',this.value)"
+                    data-action="_ck_obs" data-arg0="${id}" data-arg1="${key}" data-value-from="this.value" data-event="change"
                     style="flex:1;min-width:120px;padding:4px 8px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary)">
                 </div>
               </div>

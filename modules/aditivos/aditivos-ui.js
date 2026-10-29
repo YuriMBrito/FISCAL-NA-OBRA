@@ -7,6 +7,7 @@
 
 import state       from '../../core/state.js';
 import { formatters } from '../../utils/formatters.js';
+import { abrirParaImpressao } from '../../utils/imprimir-janela.js';
 import {
   trunc2, classificarItem, classeRealce, calcularTotais,
   dataParaInput, dataBR,
@@ -196,7 +197,7 @@ export class AditivosUI {
           </div>
           <div>
             <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Tipo de Aditivo</label>
-            <select id="adt-tipo" class="campo-input" style="width:100%" onchange="window._adtOnTipoChange?.(this.value)">
+            <select id="adt-tipo" class="campo-input" style="width:100%" data-action="_adtOnTipoChange" data-value-from="this.value" data-event="change">
               <option value="misto">⏱️💰 Tempo e Valor</option>
               <option value="valor">💰 Valor</option>
               <option value="prazo">⏱️ Prazo</option>
@@ -219,7 +220,7 @@ export class AditivosUI {
           </div>
           <div>
             <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Status</label>
-            <select id="adt-status" class="campo-input" style="width:100%" onchange="window._adtOnStatusChange?.(this.value)">
+            <select id="adt-status" class="campo-input" style="width:100%" data-action="_adtOnStatusChange" data-value-from="this.value" data-event="change">
               <option value="Rascunho">📝 Rascunho</option>
               <option value="Aprovado">✅ Aprovado</option>
             </select>
@@ -238,11 +239,11 @@ export class AditivosUI {
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
             <div>
               <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Valor Anterior (R$)</label>
-              <input type="number" id="adt-valor-anterior" step="0.01" class="campo-input" style="width:100%" oninput="window._adtCalcVariacao?.()">
+              <input type="number" id="adt-valor-anterior" step="0.01" class="campo-input" style="width:100%" data-action="_adtCalcVariacao" data-event="input">
             </div>
             <div>
               <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Novo Valor (R$)</label>
-              <input type="number" id="adt-valor-novo" step="0.01" class="campo-input" style="width:100%" oninput="window._adtCalcVariacao?.()">
+              <input type="number" id="adt-valor-novo" step="0.01" class="campo-input" style="width:100%" data-action="_adtCalcVariacao" data-event="input">
             </div>
             <div>
               <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Variação</label>
@@ -261,7 +262,7 @@ export class AditivosUI {
             </div>
             <div>
               <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Prazo Adicional (dias)</label>
-              <input type="number" id="adt-prazo-adicional" class="campo-input" style="width:100%" oninput="window._adtCalcTermino?.()">
+              <input type="number" id="adt-prazo-adicional" class="campo-input" style="width:100%" data-action="_adtCalcTermino" data-event="input">
             </div>
             <div>
               <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Novo Término</label>
@@ -303,7 +304,7 @@ export class AditivosUI {
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
             <div>
               <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Índice de Reajuste <span style="color:#ef4444">*</span></label>
-              <select id="adt-reaj-indice" class="campo-input" style="width:100%" onchange="window._adtOnReajusteIndice?.(this.value)">
+              <select id="adt-reaj-indice" class="campo-input" style="width:100%" data-action="_adtOnReajusteIndice" data-value-from="this.value" data-event="change">
                 <option value="">Selecione...</option>
                 <option value="SINAPI">SINAPI (obras e serviços de engenharia)</option>
                 <option value="INCC">INCC — Índice Nacional da Construção Civil</option>
@@ -597,7 +598,7 @@ export class AditivosUI {
             placeholder="Ex.: 4.5.6"
             class="campo-input"
             style="width:100%;font-family:var(--font-mono);font-size:14px;font-weight:700;letter-spacing:.5px"
-            oninput="window._adtNovoItemPreviewPosicao?.()">
+            data-action="_adtNovoItemPreviewPosicao" data-event="input">
           <div id="adt-ni-preview" style="margin-top:6px;font-size:11px;color:var(--text-muted);min-height:16px"></div>
         </div>
 
@@ -628,7 +629,7 @@ export class AditivosUI {
               step="0.0001" min="0"
               class="campo-input"
               style="width:100%;text-align:right;font-family:var(--font-mono)"
-              oninput="window._adtNovoItemCalcTotal?.()">
+              data-action="_adtNovoItemCalcTotal" data-event="input">
           </div>
           <div>
             <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:5px">Preço Unit. (s/BDI)</label>
@@ -637,7 +638,7 @@ export class AditivosUI {
               step="0.01" min="0"
               class="campo-input"
               style="width:100%;text-align:right;font-family:var(--font-mono)"
-              oninput="window._adtNovoItemCalcTotal?.()">
+              data-action="_adtNovoItemCalcTotal" data-event="input">
           </div>
         </div>
 
@@ -781,18 +782,18 @@ export class AditivosUI {
       return `<tr class="${trClass}" style="border-bottom:1px solid var(--border-subtle);${removido ? 'opacity:.55;text-decoration:line-through;' : ''}">
         <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;${tdBg}">${it.id || ''}</td>
         <td style="padding:6px 10px;${tdBg}">
-          <input value="${(it.desc || '').replace(/"/g,"'")}" onchange="window._adtPlanilhaEditDesc?.(${idx},this.value)"
+          <input value="${(it.desc || '').replace(/"/g,"'")}" data-action="_adtPlanilhaEditDesc" data-arg0="${idx}" data-value-from="this.value" data-event="change"
             style="background:transparent;border:none;width:100%;font-size:11.5px;color:var(--text-primary);outline:none;padding:0" ${removido ? 'disabled' : ''}>
         </td>
         <td style="padding:6px 10px;text-align:center;font-family:var(--font-mono);font-size:10px;${tdBg}">${it.un || ''}</td>
         <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono);color:var(--text-muted);font-size:10px;${tdBg}">${base !== undefined ? fmtN(qtdB) : '—'}</td>
         <td style="padding:6px 10px;text-align:right;${tdBg}">
-          <input type="number" value="${qtdD || ''}" step="0.0001" onchange="window._adtPlanilhaEditQtd?.(${idx},parseFloat(this.value)||0)"
+          <input type="number" value="${qtdD || ''}" step="0.0001" data-action="_adtPlanilhaEditQtd" data-arg0="${idx}" data-value-from="this.value" data-event="change"
             style="background:transparent;border:1px solid var(--border);border-radius:4px;width:72px;text-align:right;padding:3px 6px;font-size:11.5px;font-family:var(--font-mono);color:var(--text-primary)" ${removido ? 'disabled' : ''}>
         </td>
         <td style="padding:6px 10px;text-align:right;${tdBg}">${deltaBadge}</td>
         <td style="padding:6px 10px;text-align:right;${tdBg}">
-          <input type="text" value="${upFormatted}" onchange="window._adtPlanilhaEditUp?.(${idx},(v=>parseFloat(v.replace(/[R$\\s]/g,'').replace(/\\./g,'').replace(',','.'))||0)(this.value))"
+          <input type="text" value="${upFormatted}" data-action="_adtPlanilhaEditUp" data-arg0="${idx}" data-value-from="this.value" data-event="change"
             style="background:transparent;border:1px solid var(--border);border-radius:4px;width:105px;text-align:right;padding:3px 6px;font-size:11.5px;font-family:var(--font-mono);color:var(--text-primary)" ${removido ? 'disabled' : ''}>
         </td>
         <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px;${tdBg}">${removido ? '<span style="color:var(--red)">EXCLUÍDO</span>' : R$(total)}</td>
@@ -1341,13 +1342,8 @@ export class AditivosUI {
       <div class="rodape">
         Fiscal na Obra · Planilha do Aditivo Nº ${String(aditivo.numero).padStart(2, '0')} · Emitido em ${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
       </div>
-      <script>window.onload=function(){ setTimeout(function(){ window.print(); }, 500); }</script>
     </body></html>`;
 
-    const janela = window.open('', `adt_pdf_${aditivo.id}`, 'width=1000,height=700,scrollbars=yes');
-    if (janela) {
-      janela.document.write(html);
-      janela.document.close();
-    }
+    abrirParaImpressao(html, { largura: 1000, altura: 700 });
   }
 }

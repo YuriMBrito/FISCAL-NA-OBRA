@@ -170,7 +170,7 @@ export class SancoesModule {
             <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px">Tipo de Sanção *</label>
             <select id="sanc-tipo" style="width:100%;padding:8px;border-radius:7px;border:1px solid var(--border);
               background:var(--bg-card);color:var(--text-primary);font-size:12px"
-              onchange="window._sancToggleValor()">
+              data-action="_sancToggleValor" data-event="change">
               ${TIPOS_SANCAO.map(t => `<option value="${t.key}" ${s?.tipo === t.key ? 'selected' : ''}>${t.icon} ${t.label}</option>`).join('')}
             </select>
           </div>

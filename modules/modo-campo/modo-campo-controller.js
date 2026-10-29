@@ -257,7 +257,7 @@ export class ModoCampoModule {
           style="width:100%;padding:10px;font-size:14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);resize:none;box-sizing:border-box"></textarea>
       </div>
       <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
-        <input type="file" id="mc-foto-oc" accept="image/*" capture="environment" style="display:none" onchange="window._mc_previewFotoOc(this)">
+        <input type="file" id="mc-foto-oc" accept="image/*" capture="environment" style="display:none" data-action="_mc_previewFotoOc" data-event="change">
         <button data-action="_mcFotoOcClick"
           style="flex:1;padding:12px;border-radius:8px;border:2px dashed var(--border);background:var(--bg-surface);color:var(--text-muted);font-size:13px;cursor:pointer">
           📸 Tirar Foto

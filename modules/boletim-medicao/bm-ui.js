@@ -10,6 +10,7 @@
 import state      from '../../core/state.js';
 import { formatters } from '../../utils/formatters.js';
 import { guardFocus } from '../../utils/dom-patcher.js';
+import { inserirAvisoDestino } from '../../utils/imprimir-janela.js';
 import {
   getMedicoes,
   getLinhasItem,
@@ -156,25 +157,25 @@ export class BoletimUI {
           <div class="bm-info-label">💳 Nº Empenho</div>
           <input id="bm-pag-empenho" value="${pgEmpenho}" placeholder="—"
             style="font-size:12px;font-family:var(--font-mono);border:none;background:transparent;color:var(--text-primary);width:100%;padding:0;outline:none"
-            onchange="window._bmSalvarPagamento?.(${bmNum})">
+            data-action="_bmSalvarPagamento" data-arg0="${bmNum}" data-event="change">
         </div>
         <div class="bm-info-box" style="min-width:140px">
           <div class="bm-info-label">🧾 Nota Fiscal</div>
           <input id="bm-pag-nf" value="${pgNF}" placeholder="—"
             style="font-size:12px;font-family:var(--font-mono);border:none;background:transparent;color:var(--text-primary);width:100%;padding:0;outline:none"
-            onchange="window._bmSalvarPagamento?.(${bmNum})">
+            data-action="_bmSalvarPagamento" data-arg0="${bmNum}" data-event="change">
         </div>
         <div class="bm-info-box" style="min-width:130px">
           <div class="bm-info-label">📅 Data Pagamento</div>
           <input id="bm-pag-data" type="date" value="${pgDataPag}"
             style="font-size:11px;border:none;background:transparent;color:var(--text-primary);width:100%;padding:0;outline:none"
-            onchange="window._bmSalvarPagamento?.(${bmNum})">
+            data-action="_bmSalvarPagamento" data-arg0="${bmNum}" data-event="change">
         </div>
         <div class="bm-info-box" style="min-width:100px;border-left:3px solid ${pgPago?'#16a34a':'#e5e7eb'}">
           <div class="bm-info-label">Pagamento</div>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;margin-top:4px">
             <input type="checkbox" id="bm-pag-pago" ${pgPago?'checked':''} style="width:14px;height:14px"
-              onchange="window._bmSalvarPagamento?.(${bmNum})">
+              data-action="_bmSalvarPagamento" data-arg0="${bmNum}" data-event="change">
             <span style="font-size:11px;font-weight:700;color:${pgPago?'#16a34a':'#d97706'}">${pgPago?'✅ Pago':'⏳ Pendente'}</span>
           </label>
         </div>
@@ -1032,6 +1033,7 @@ export class BoletimUI {
     w.document.close();
 
     const doc    = w.document;
+    inserirAvisoDestino(doc);
     const alvo   = doc.getElementById('paginas');
     const LIMITE = 553.4 * 4 / 3;   // limite inferior da tabela, em px CSS
 
@@ -1506,9 +1508,14 @@ export class BoletimUI {
 </style>
 </head><body>
 ${html}
-<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>
 </body></html>`);
     w.document.close();
+
+    // O <script> inline que ficava neste HTML era bloqueado pela CSP (ver
+    // utils/imprimir-janela.js): a janela abria e nunca imprimia. Quem manda
+    // imprimir é o opener, que tem acesso à janela por ser a mesma origem.
+    w.onafterprint = () => w.close();
+    setTimeout(() => { try { w.focus(); w.print(); } catch (e) { console.error('[BM] print:', e); } }, 50);
   }
 
   // ── Cabeçalho para PDF ──────────────────────────────────────

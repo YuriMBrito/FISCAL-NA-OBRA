@@ -112,7 +112,7 @@ export class DocumentosModule {
       <!-- Busca -->
       <div style="margin-bottom:16px">
         <input type="text" placeholder="🔍 Buscar documentos..." value="${this._busca}"
-          oninput="window._doc_busca(this.value)"
+          data-action="_doc_busca" data-value-from="this.value" data-event="input"
           style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border);
           border-radius:7px;background:var(--bg-card);color:var(--text-primary);font-size:12px">
       </div>
@@ -242,19 +242,20 @@ export class DocumentosModule {
         <div>
           <label style="display:block;font-size:10px;font-weight:700;color:var(--text-muted);
             text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Arquivo *</label>
-          <div id="doc-drop" ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
-            ondragleave="this.style.borderColor='var(--border)'"
-            ondrop="window._doc_handleDrop(event)"
+          <div id="doc-drop" class="fo-drop"
+            data-action-dragover="_dropZoneSobre"
+            data-action-dragleave="_dropZoneSai"
+            data-action-drop="_doc_handleDrop"
             data-action="_docClickFileInput"
             style="border:2px dashed var(--border);border-radius:8px;padding:28px;text-align:center;
-            cursor:pointer;transition:border-color .2s">
+            cursor:pointer;transition:border-color .2s;--fo-drop-bd:var(--accent)">
             <div style="font-size:28px">📂</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:6px">
               Arraste ou clique para selecionar<br>
               <span style="font-size:11px">PDF, JPG, PNG</span>
             </div>
             <input type="file" id="doc-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none"
-              onchange="window._doc_fileSelected(event)">
+              data-action="_doc_fileSelected" data-event="change">
           </div>
           <div id="doc-file-info" style="font-size:11px;color:var(--accent);margin-top:6px;display:none"></div>
         </div>

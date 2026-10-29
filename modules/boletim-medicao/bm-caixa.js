@@ -367,7 +367,7 @@ export class CaixaBM {
         ? `<span style="font-size:11px;font-family:var(--font-mono);color:var(--text-primary);font-weight:700">
              ${pctExec != null ? pctExec.toFixed(2) + '%' : '—'}
            </span>`
-        : `<input
+        : `<input class="fo-focus-ring"
              id="cx-input-${c}"
              type="number" min="0" max="100" step="0.01"
              value="${pctExec != null ? pctExec : ''}"
@@ -380,9 +380,8 @@ export class CaixaBM {
                color:#92400e;font-size:12px;font-family:var(--font-mono);
                text-align:right;font-weight:700;outline:none;
                box-shadow:0 0 0 0 rgba(245,158,11,.4);
-               transition:box-shadow .15s"
-             onfocus="this.style.boxShadow='0 0 0 3px rgba(245,158,11,.3)'"
-             onblur="this.style.boxShadow='0 0 0 0 rgba(245,158,11,.4)'">`;
+               transition:box-shadow .15s;--fo-focus-ring:0 0 0 3px rgba(245,158,11,.3)"
+            >`;
 
       html += `<tr style="${rowBg}" data-item-id="${it.id}">
         <td class="td-c" style="padding:3px 4px">${btnAcoes}</td>

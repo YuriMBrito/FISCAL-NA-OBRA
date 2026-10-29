@@ -309,7 +309,7 @@ export class RelatorioModule {
               color:var(--text-primary)">
               <input type="checkbox" id="chk-${item.id}"
                 ${this._checklist[item.id] ? 'checked' : ''}
-                onchange="window._rel_checklist('${item.id}', this.checked)"
+                data-action="_rel_checklist" data-arg0="${item.id}" data-value-from="this.checked" data-event="change"
                 style="width:14px;height:14px;cursor:pointer;accent-color:var(--accent)">
               ${item.label}
             </label>`).join('')}
@@ -346,8 +346,8 @@ export class RelatorioModule {
           | OBSERVAÇÕES DO FISCAL</div>
         <div style="padding:12px 14px">
           <textarea id="rel-obs" rows="4" placeholder="Descreva as principais observações e conclusões do período..."
-            onchange="window._rel_salvarObs(this.value)"
-            oninput="window._rel_salvarObs(this.value)"
+            data-action="_rel_salvarObs" data-value-from="this.value" data-event="change"
+            data-action="_rel_salvarObs" data-value-from="this.value" data-event="input"
             style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);
             border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:12px;
             resize:vertical">${this._obs}</textarea>

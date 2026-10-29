@@ -521,12 +521,18 @@ ${aditivos.length>0?`
 </div>
 
 <br>
-<button data-action="print" style="background:#1e293b;color:#fff;border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-size:10pt">🖨️ Imprimir / Salvar PDF</button>
+<button id="pc-imprimir" style="background:#1e293b;color:#fff;border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-size:10pt">🖨️ Imprimir / Salvar PDF</button>
 </body></html>`;
 
     const w = window.open('', '_blank', 'width=900,height=750');
     w.document.write(html);
     w.document.close();
+
+    // data-action="print" nunca funcionou: o EventDelegate roda no documento
+    // do app, não nesta janela, e aqui não há handler nenhum para 'print'.
+    // A janela é da mesma origem, então o opener registra o listener nela.
+    w.document.getElementById('pc-imprimir')
+      ?.addEventListener('click', () => w.print());
   }
 
   destroy() { this._subs.forEach(u=>u()); this._subs=[]; }

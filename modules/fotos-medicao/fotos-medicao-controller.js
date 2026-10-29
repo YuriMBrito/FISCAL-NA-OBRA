@@ -114,13 +114,13 @@ export class FotosMedicaoModule {
 
       <!-- Filtros + ação -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-        <select onchange="window._fm_filtro('bm', this.value)"
+        <select data-action="_fm_filtro" data-arg0="bm" data-value-from="this.value" data-event="change"
           style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)">
           <option value="">Todos os BMs</option>
           ${bms.map(b => `<option value="${b.num}" ${this._filtro.bm==b.num?'selected':''}>${b.label}</option>`).join('')}
         </select>
         <input type="text" placeholder="🔍 Filtrar por item..." value="${this._filtro.item}"
-          oninput="window._fm_filtro('item', this.value)"
+          data-action="_fm_filtro" data-arg0="item" data-value-from="this.value" data-event="input"
           style="flex:1;min-width:140px;padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)">
         <button data-action="_fm_abrirForm"
           style="padding:8px 16px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
@@ -224,7 +224,7 @@ export class FotosMedicaoModule {
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px">Boletim de Medição *</label>
           <select id="fm-bm" style="width:100%;padding:8px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);font-size:12px;box-sizing:border-box"
-            onchange="window._fm_filtrarItens(this.value)">
+            data-action="_fm_filtrarItens" data-value-from="this.value" data-event="change">
             <option value="">Selecione o BM…</option>
             ${bms.map(b => `<option value="${b.num}">${b.label}</option>`).join('')}
           </select>
@@ -258,7 +258,7 @@ export class FotosMedicaoModule {
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px">Foto *</label>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <input type="file" id="fm-foto-input" accept="image/*" style="display:none" onchange="window._fm_adicionarFoto(this)">
+            <input type="file" id="fm-foto-input" accept="image/*" style="display:none" data-action="_fm_adicionarFoto" data-event="change">
             <button data-action="_fmFotoClick"
               style="padding:7px 14px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);font-size:11px;cursor:pointer">
               📁 Galeria

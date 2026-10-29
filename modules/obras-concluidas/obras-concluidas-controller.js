@@ -81,7 +81,7 @@ export class ObrasConcluiModule {
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <input type="text" placeholder="🔍 Buscar obra..." value="${this._busca}"
-          oninput="window._obrc_busca(this.value)"
+          data-action="_obrc_busca" data-value-from="this.value" data-event="input"
           style="flex:1;min-width:140px;padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)">
         <span style="font-size:11px;color:var(--text-muted)">${lista.length} obra(s)</span>
       </div>
@@ -118,7 +118,12 @@ export class ObrasConcluiModule {
     const vExec   = parseFloat(lastBm?.valorAcumulado||0);
     const pctFin  = vTotal>0?(vExec/vTotal*100):0;
 
-    return '<div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:border-color .2s" data-action="_consultarObraConcluida" data-arg0="+o.id+" onmouseenter="this.style.borderColor=\'var(--accent)\'" onmouseleave="this.style.borderColor=\'var(--border)\'">'+
+    // data-arg0 era '"+o.id+"' DENTRO da string simples: o atributo recebia o
+    // texto literal +o.id+, não o id da obra, e clicar no card chamava
+    // _consultarObra("+o.id+") — que morria no catch e não abria nada.
+    // O hover saiu para o CSS (.fo-hover-bd) porque a CSP de produção não
+    // executa handler inline.
+    return '<div class="fo-hover-bd" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:border-color .2s;--fo-hover-bd:var(--accent)" data-action="_consultarObraConcluida" data-event="click" data-arg0="'+o.id+'">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">'+
       '<span style="font-size:11px;font-weight:700;color:var(--text-primary)">'+(o.nome||cfg.objeto||'Obra sem nome')+'</span>'+
       '<span style="font-size:10px;background:#22c55e22;color:#16a34a;padding:3px 9px;border-radius:10px;font-weight:700">✅ Concluída</span>'+

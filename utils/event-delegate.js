@@ -9,6 +9,15 @@
  *   Antes: <button onclick="window._bmSalvar('x', 1)">
  *   Depois: <button data-action="bmSalvar" data-arg0="x" data-arg1="1">
  *
+ *   Valor do próprio campo:
+ *     <input data-action="_qa_filtro" data-value-from="this.value"
+ *            data-event="input">
+ *
+ *   data-event (opcional) prende a ação a UM tipo de evento. Use sempre em
+ *   campo de formulário: <select> e <input> emitem 'input' E 'change', e sem
+ *   o filtro a ação roda duas vezes por interação. Sem data-event vale o
+ *   comportamento antigo — qualquer evento escutado dispara.
+ *
  * REGISTRO DE HANDLERS:
  *   EventDelegate.register('bmSalvar', (arg0, arg1) => { ... });
  *
@@ -21,6 +30,16 @@
 
 const _handlers = new Map();
 const _initialized = new Set();
+
+// Eventos em que um data-action SEM data-event dispara.
+//
+// Fica restrito aos quatro originais de propósito. keydown, focusin,
+// focusout e os de arrastar entraram depois, para a migração dos handlers
+// inline, e um data-action antigo não os esperava: um botão com
+// data-action="salvar" passaria a salvar ao receber o foco pelo Tab, e de
+// novo no clique. Nos eventos novos só vale data-action-<evento>, que é
+// explícito por construção.
+const EVENTOS_CLASSICOS = new Set(['click', 'change', 'input', 'submit']);
 
 export const EventDelegate = {
 
@@ -63,6 +82,17 @@ export const EventDelegate = {
     // 'input' usa bubble phase (false) — o valor do campo (el.value) só fica
     // atualizado APÓS a fase de captura, por isso não usamos capture aqui.
     container.addEventListener('input',  this._dispatchInput.bind(this), false);
+
+    // Eventos acrescentados ao migrar os handlers inline que a CSP de
+    // produção bloqueia (script-src sem 'unsafe-inline'). focusin/focusout
+    // em vez de focus/blur: estes dois não sobem no DOM, então não dá para
+    // delegá-los do container.
+    container.addEventListener('keydown',   this._dispatch.bind(this), true);
+    container.addEventListener('focusin',   this._dispatch.bind(this), true);
+    container.addEventListener('focusout',  this._dispatch.bind(this), true);
+    container.addEventListener('dragover',  this._dispatch.bind(this), true);
+    container.addEventListener('dragleave', this._dispatch.bind(this), true);
+    container.addEventListener('drop',      this._dispatch.bind(this), true);
   },
 
   /** @private */
@@ -70,7 +100,26 @@ export const EventDelegate = {
     // Sobe o DOM a partir do target até encontrar data-action
     let el = event.target;
     while (el && el !== document.body) {
-      const action = el.dataset?.action;
+      // data-action-<evento> tem precedência e permite VÁRIOS eventos no
+      // mesmo elemento — uma zona de arrastar-soltar precisa de dragover,
+      // dragleave e drop ao mesmo tempo, e data-action comporta só um.
+      const tipo = event.type;
+      const especifico = el.dataset?.[`action${tipo.charAt(0).toUpperCase()}${tipo.slice(1)}`];
+
+      // data-event restringe o data-action genérico a UM tipo de evento. Sem
+      // ele vale o comportamento histórico — qualquer EVENTO_CLASSICO dispara,
+      // que é do que os ~470 data-action anteriores dependem.
+      //
+      // Com ele a migração dos handlers inline fica correta: um <select>
+      // emite 'input' E 'change', e um <input> emite 'input' a cada tecla e
+      // 'change' ao sair do campo — sem o filtro, cada onchange="..."
+      // convertido viraria duas chamadas por interação.
+      const sóNoEvento = el.dataset?.event;
+      const generico = EVENTOS_CLASSICOS.has(tipo) && !(sóNoEvento && sóNoEvento !== tipo)
+        ? el.dataset?.action
+        : undefined;
+
+      const action = especifico || generico;
       if (action) {
         const handler = _handlers.get(action);
         if (handler) {
@@ -81,10 +130,14 @@ export const EventDelegate = {
             if (v !== undefined) args.push(_tryParse(v));
             else break;
           }
-          // Suporte a data-value-from="this.value" para inputs numéricos (ex: CAIXA %)
-          // Injeta o valor atual do input como último argumento antes de event/el
+          // data-value-from injeta o estado atual do campo como último
+          // argumento, antes de event/el. 'this.checked' entrou junto com a
+          // migração dos handlers inline: checkbox precisa do booleano, e
+          // el.value num checkbox devolve sempre "on".
           if (el.dataset.valueFrom === 'this.value') {
             args.push(el.value);
+          } else if (el.dataset.valueFrom === 'this.checked') {
+            args.push(el.checked);
           }
           try {
             handler(...args, event, el);

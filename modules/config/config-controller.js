@@ -17,6 +17,12 @@ import { validarCNPJ } from '../../utils/server-validators.js';
 import { formatters }  from '../../utils/formatters.js';
 import FirebaseService from '../../firebase/firebase-service.js';
 import storageUtils    from '../../utils/storage.js';
+import {
+  getMedicoes,
+  getValorAcumuladoTotal,
+  getValorAcumuladoAnterior,
+  _injetarCacheMedicoes,
+} from '../boletim-medicao/bm-calculos.js';
 
 const R$ = v => formatters.currency ? formatters.currency(v)
   : (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -210,7 +216,7 @@ export class ConfigModule {
         <select id="cfgTipoObra"
           style="width:100%;padding:8px 10px;border-radius:7px;border:1px solid var(--border);
             background:var(--bg-surface);color:var(--text-primary);font-size:12px"
-          onchange="window._cfgToggleCaixaCampos?.()">
+          data-action="_cfgToggleCaixaCampos" data-event="change">
           <option value="prefeitura" ${tipoAtual==='prefeitura'?'selected':''}>🏛️ Prefeitura / Padrão</option>
           <option value="caixa"      ${tipoAtual==='caixa'     ?'selected':''}>🏦 CAIXA Econômica Federal</option>
         </select>
@@ -325,9 +331,9 @@ export class ConfigModule {
           ✅ Atualizar Status
         </button>
         <div style="width:1px;height:28px;background:var(--border);margin:0 4px"></div>
-        <button class="btn btn-sm" data-action="_cfgExcluirObra"
-          style="background:#dc262618;border:1px solid #dc262644;color:#dc2626;font-weight:700;font-size:11px;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all .15s"
-          onmouseover="this.style.background='#dc262630'" onmouseout="this.style.background='#dc262618'">
+        <button class="btn btn-sm fo-hover-bg" data-action="_cfgExcluirObra"
+          style="background:#dc262618;border:1px solid #dc262644;color:#dc2626;font-weight:700;font-size:11px;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all .15s;--fo-hover-bg:#dc262630"
+         >
           🗑️ Excluir Obra
         </button>
       </div>`;
@@ -336,7 +342,31 @@ export class ConfigModule {
   // ═══════════════════════════════════════════════════════════════
   //  BMs NA CONFIG
   // ═══════════════════════════════════════════════════════════════
-  _renderBMs(obraId, bms, itens, cfg) {
+  /**
+   * Carrega as medições de todos os BMs no MemCache antes de calcular.
+   *
+   * Mesmo motivo do _carregarMedicoesDash do dashboard: getValorAcumuladoTotal
+   * lê do cache de forma síncrona, e quem abre Configurações sem passar pelo
+   * módulo de BM encontra o cache frio — todo valor sairia R$ 0,00.
+   */
+  async _carregarMedicoesBMs(obraId, bms) {
+    if (!obraId || !bms.length) return;
+    const total = bms[bms.length - 1].num;
+    const pendentes = [];
+    for (let n = 1; n <= total; n++) {
+      if (Object.keys(getMedicoes(obraId, n)).length > 0) continue; // já em cache
+      pendentes.push(
+        FirebaseService.getMedicoes(obraId, n)
+          .then(med => {
+            if (med && Object.keys(med).length > 0) _injetarCacheMedicoes(obraId, n, med);
+          })
+          .catch(() => {})
+      );
+    }
+    await Promise.all(pendentes);
+  }
+
+  async _renderBMs(obraId, bms, itens, cfg) {
     const tbody = document.getElementById('config-bms-lista');
     if (!tbody) return;
     if (!bms.length) {
@@ -345,24 +375,30 @@ export class ConfigModule {
       return;
     }
     try {
-      const { getValorAcumuladoTotal, getValorAcumuladoAnterior } =
-        /* dynamic import cache */ window._bmCalcModule || {};
+      // As funções vinham de `window._bmCalcModule`, um global que NUNCA foi
+      // atribuído em lugar nenhum do projeto. O resultado era sempre undefined,
+      // a guarda `if (getValorAcumuladoTotal)` nunca passava e a coluna exibia
+      // R$ 0,00 fixo — não era valor zerado, era valor nunca calculado.
+      // Agora o import é estático, como nos demais módulos.
+      await this._carregarMedicoesBMs(obraId, bms);
 
       tbody.innerHTML = bms.map(bm => {
-        let vBm=0, vAcum=0;
+        // null = não foi possível calcular. Diferente de 0, que é um valor real.
+        let vBm = null, vAcum = null;
         try {
-          if (getValorAcumuladoTotal) {
-            vAcum = getValorAcumuladoTotal(obraId, bm.num, itens, cfg);
-            vBm   = vAcum - (getValorAcumuladoAnterior(obraId, bm.num, itens, cfg)||0);
-          }
-        } catch {}
+          vAcum = getValorAcumuladoTotal(obraId, bm.num, itens, cfg);
+          vBm   = vAcum - (getValorAcumuladoAnterior(obraId, bm.num, itens, cfg) || 0);
+        } catch (e) {
+          console.error(`[Config] cálculo do ${bm.label || 'BM ' + bm.num} falhou:`, e);
+        }
+        const cell = v => v === null ? '—' : R$(v);
         return `
           <tr>
             <td class="td-c" style="font-weight:700">${bm.label||`BM ${bm.num}`}</td>
             <td>${bm.mes||'—'}</td>
             <td class="td-c">${bm.data||'—'}</td>
-            <td class="td-r" style="font-family:var(--font-mono)">${R$(vBm)}</td>
-            <td class="td-r" style="font-family:var(--font-mono)">${R$(vAcum)}</td>
+            <td class="td-r" style="font-family:var(--font-mono)">${cell(vBm)}</td>
+            <td class="td-r" style="font-family:var(--font-mono)">${cell(vAcum)}</td>
             <td class="td-c" style="white-space:nowrap">
               <button class="btn btn-cinza btn-sm" style="padding:2px 8px;font-size:10px"
                 data-action="_cfgEditarBM" data-arg0="${bm.num}">✏️</button>
@@ -633,12 +669,12 @@ export class ConfigModule {
               </div>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0">
-              <button data-action="_cfgLixeiraRestaurar" data-arg0="${item.id}" style="padding:5px 12px;font-size:10px;font-weight:700;background:#16a34a18;border:1px solid #16a34a44;color:#16a34a;border-radius:6px;cursor:pointer;transition:all .15s"
-                onmouseover="this.style.background='#16a34a30'" onmouseout="this.style.background='#16a34a18'">
+              <button class="fo-hover-bg" data-action="_cfgLixeiraRestaurar" data-arg0="${item.id}" style="padding:5px 12px;font-size:10px;font-weight:700;background:#16a34a18;border:1px solid #16a34a44;color:#16a34a;border-radius:6px;cursor:pointer;transition:all .15s;--fo-hover-bg:#16a34a30"
+               >
                 ♻️ Restaurar
               </button>
-              <button data-action="_cfgLixeiraDeletarPermanente" data-arg0="${item.id}" style="padding:5px 12px;font-size:10px;font-weight:700;background:#dc262618;border:1px solid #dc262644;color:#dc2626;border-radius:6px;cursor:pointer;transition:all .15s"
-                onmouseover="this.style.background='#dc262630'" onmouseout="this.style.background='#dc262618'">
+              <button class="fo-hover-bg" data-action="_cfgLixeiraDeletarPermanente" data-arg0="${item.id}" style="padding:5px 12px;font-size:10px;font-weight:700;background:#dc262618;border:1px solid #dc262644;color:#dc2626;border-radius:6px;cursor:pointer;transition:all .15s;--fo-hover-bg:#dc262630"
+               >
                 ❌ Excluir Permanente
               </button>
             </div>
@@ -687,7 +723,9 @@ export class ConfigModule {
           if (bmRestaurado && !bms.find(b => b.num === bmRestaurado.num)) {
             const novosBms = [...bms, bmRestaurado].sort((a,b) => a.num - b.num);
             state.set('bms', novosBms);
-            await FirebaseService.setBMs?.(obraId, novosBms);
+            // Restauração que não grava tem de falhar visível: o BM voltaria
+            // para a tela e sumiria de novo no próximo F5.
+            if (!await this._gravarBMs(obraId, novosBms, bms)) return;
             EventBus.emit('boletim:atualizado', { bms: novosBms });
           }
         }
@@ -787,10 +825,35 @@ export class ConfigModule {
     const novoBm = { num: prox, label: `BM ${String(prox).padStart(2,'0')}`, mes: mes||'', data: data||'', contractVersion: 1 };
     const novosBms = [...bms, novoBm];
     state.set('bms', novosBms);
-    await FirebaseService.setBMs?.(obraId, novosBms);
+
+    if (!await this._gravarBMs(obraId, novosBms, bms)) return;
+
     EventBus.emit('boletim:atualizado', { obraId });
     this._renderCfg();
     window.toast?.(`✅ BM ${novoBm.label} adicionado.`,'ok');
+  }
+
+  /**
+   * Grava a lista de BMs e reverte a tela se o servidor recusar.
+   *
+   * Estes fluxos de BM da tela de Configurações são uma segunda implementação,
+   * paralela à do módulo Boletim de Medição, e faziam `state.set()` seguido de
+   * `await setBMs()` sem tratamento: com a gravação recusada, sobrava um BM
+   * fantasma na tela, um "✅ adicionado" mentiroso e um unhandled rejection.
+   *
+   * @returns {Promise<boolean>} true se persistiu. Nunca rejeita.
+   */
+  async _gravarBMs(obraId, novosBms, bmsAnteriores) {
+    try {
+      await FirebaseService.setBMs(obraId, novosBms);
+      return true;
+    } catch (e) {
+      // A mensagem ao usuário já sai pelo evento 'dados:escrita-falhou'.
+      console.error('[Config] gravação de BMs falhou — revertendo a tela:', e);
+      state.set('bms', bmsAnteriores);
+      this._renderCfg();
+      return false;
+    }
   }
 
   async _editarBM(num) {
@@ -804,9 +867,12 @@ export class ConfigModule {
     if (mes === null) return;
     const data= prompt('Data da medição:', bm.data||'');
     if (data === null) return;
+    const anteriores = state.get('bms') || [];
     bms[idx] = { ...bm, mes: mes||bm.mes, data: data||bm.data };
     state.set('bms', bms);
-    await FirebaseService.setBMs?.(obraId, bms);
+
+    if (!await this._gravarBMs(obraId, bms, anteriores)) return;
+
     EventBus.emit('boletim:atualizado', { obraId });
     this._renderCfg();
     window.toast?.('✅ BM atualizado.','ok');
@@ -821,7 +887,9 @@ export class ConfigModule {
     if (!confirm(`Excluir ${bm.label}?\n\nAs medições deste BM serão removidas.`)) return;
     const novos  = bms.filter(b => b.num !== numInt);
     state.set('bms', novos);
-    await FirebaseService.setBMs?.(obraId, novos);
+
+    if (!await this._gravarBMs(obraId, novos, bms)) return;
+
     EventBus.emit('boletim:atualizado', { obraId });
     this._renderCfg();
     window.toast?.(`🗑️ ${bm.label} excluído.`,'warn');

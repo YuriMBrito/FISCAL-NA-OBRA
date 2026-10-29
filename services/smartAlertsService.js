@@ -250,12 +250,12 @@ const SmartAlertsService = {
                   display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
         <strong style="font-size:0.95rem;">🔔 Alertas (${total})</strong>
         <div style="display:flex;gap:8px;align-items:center;">
-          ${total > 0 ? `<button onclick="window.smartAlertsService.limpar()"
+          ${total > 0 ? `<button data-action="_alertasLimpar" data-event="click"
             style="font-size:0.75rem;background:none;border:1px solid #cbd5e0;
                    border-radius:4px;padding:2px 8px;cursor:pointer;color:#718096;">
             Limpar
           </button>` : ''}
-          <button onclick="window.smartAlertsService._fecharPainel()"
+          <button data-action="_alertasFechar" data-event="click"
             style="background:none;border:none;cursor:pointer;font-size:1.1rem;
                    line-height:1;color:#718096;">✕</button>
         </div>

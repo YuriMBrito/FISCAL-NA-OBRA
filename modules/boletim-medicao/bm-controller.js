@@ -369,6 +369,36 @@ export class BoletimModule {
       if (btnA) { btnA.style.background = isAgr?'#7c3aed':'var(--bg-surface)'; btnA.style.borderColor = isAgr?'#7c3aed':'var(--border)'; btnA.style.color = isAgr?'#fff':'var(--text-muted)'; }
     };
 
+    // Espelha preço unitário com e sem BDI enquanto o usuário digita.
+    //
+    // Era um IIFE de ~280 caracteres dentro de oninput="...". Em produção não
+    // rodava: a CSP não tem 'unsafe-inline' em script-src, então os dois
+    // campos simplesmente não se atualizavam. Como função de verdade, dá para
+    // ler — e o cálculo é o mesmo.
+    //
+    // destino 'upbdi' → digitou SEM BDI, preenche o campo COM BDI (2 casas).
+    // destino 'up'    → digitou COM BDI, preenche o campo SEM BDI (4 casas,
+    //                   porque é dele que sai o valor gravado).
+    window._bmItemSincronizaBdi = (destino, bdiReduzido, bdiPadrao, valor) => {
+      const tipo = document.getElementById('bm-item-tipobdi')?.value || '';
+      const bdi  = tipo === 'zero'     ? 0
+                 : tipo === 'reduzido' ? (parseFloat(bdiReduzido) || 0)
+                 : (parseFloat(bdiPadrao) || 0);
+
+      const v    = parseFloat(String(valor ?? '').replace(',', '.')) || 0;
+      const alvo = document.getElementById('bm-item-' + destino);
+      if (!alvo) return;
+
+      const casas = destino === 'upbdi' ? 2 : 4;
+      const saida = destino === 'upbdi' ? v * (1 + bdi)
+                                        : (bdi > 0 ? v / (1 + bdi) : v);
+
+      alvo.value = saida.toLocaleString('pt-BR', {
+        minimumFractionDigits: casas,
+        maximumFractionDigits: casas,
+      });
+    };
+
     // Salvar item
     window._bmSalvarItem = (modo, itemId) => {
       const g     = id => document.getElementById(id);
@@ -474,7 +504,9 @@ export class BoletimModule {
             style="width:100%;padding:8px 10px;border-radius:7px;border:1px solid var(--border);
               background:var(--bg-surface);color:var(--text-primary);font-size:12px;box-sizing:border-box;
               font-family:var(--font-mono)"
-            oninput="(function(el){var tb=document.getElementById('bm-item-tipobdi');var bdiT=tb?tb.value:'';var bdi=bdiT==='zero'?0:bdiT==='reduzido'?${cfg.bdiReduzido||0.10}:${cfg.bdi||0.25};var v=parseFloat(el.value.replace(',','.'))||0;var el2=document.getElementById('bm-item-upbdi');if(el2)el2.value=(v*(1+bdi)).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});})(this)">
+            data-action="_bmItemSincronizaBdi" data-arg0="upbdi"
+            data-arg1="${cfg.bdiReduzido||0.10}" data-arg2="${cfg.bdi||0.25}"
+            data-value-from="this.value" data-event="input">
         </div>
         <div>${lbl('Preço Unitário c/BDI (R$)')}
           <input id="bm-item-upbdi" type="text"
@@ -483,7 +515,9 @@ export class BoletimModule {
             style="width:100%;padding:8px 10px;border-radius:7px;border:2px solid #86efac;
               background:#f0fdf4;color:#166534;font-size:12px;box-sizing:border-box;
               font-family:var(--font-mono)"
-            oninput="(function(el){var tb=document.getElementById('bm-item-tipobdi');var bdiT=tb?tb.value:'';var bdi=bdiT==='zero'?0:bdiT==='reduzido'?${cfg.bdiReduzido||0.10}:${cfg.bdi||0.25};var v=parseFloat(el.value.replace(',','.'))||0;var el2=document.getElementById('bm-item-up');if(el2)el2.value=(bdi>0?(v/(1+bdi)):v).toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4});})(this)">
+            data-action="_bmItemSincronizaBdi" data-arg0="up"
+            data-arg1="${cfg.bdiReduzido||0.10}" data-arg2="${cfg.bdi||0.25}"
+            data-value-from="this.value" data-event="input">
         </div>
       </div>` : `
       <input type="hidden" id="bm-item-und" value="">
@@ -820,7 +854,7 @@ export class BoletimModule {
     this._abrirCrudItemBM('novo', null);
   }
 
-  adicionarBM() {
+  async adicionarBM() {
     try {
       const bms    = state.get('bms');
       const cfg    = state.get('cfg');
@@ -847,9 +881,13 @@ export class BoletimModule {
 
       const novosBms = [...bms, novoBM];
       state.set('bms', novosBms);
-
-      this._persistBMs(obraId, novosBms);
       this._atualizarSelects();
+
+      // O "✅ criado" só sai DEPOIS de o Firestore confirmar a gravação.
+      // Se não confirmar, _persistBMsOuReverter tira o BM da tela e o
+      // FirebaseService já explicou ao usuário por que não salvou.
+      const gravou = await this._persistBMsOuReverter(obraId, novosBms, bms);
+      if (!gravou) return;
 
       const prevLabel = num > 1
         ? (bms.find(b => b.num === num - 1)?.label || `BM ${String(num-1).padStart(2,'0')}`)
@@ -864,7 +902,7 @@ export class BoletimModule {
     }
   }
 
-  editarBM(num) {
+  async editarBM(num) {
     try {
       const bms = state.get('bms');
       const bm  = bms.find(b => b.num === num);
@@ -906,8 +944,10 @@ export class BoletimModule {
       state.set('bms', novosBms);
 
       const obraId = state.get('obraAtivaId');
-      this._persistBMs(obraId, novosBms);
       this._atualizarSelects();
+
+      const gravou = await this._persistBMsOuReverter(obraId, novosBms, bms);
+      if (!gravou) return;
 
       EventBus.emit('boletim:atualizado', { bms: novosBms });
       EventBus.emit('ui:toast', { msg: '✅ Boletim atualizado!' });
@@ -916,7 +956,7 @@ export class BoletimModule {
     }
   }
 
-  excluirBM(numExcluir) {
+  async excluirBM(numExcluir) {
     try {
       const bms    = state.get('bms');
       const obraId = state.get('obraAtivaId');
@@ -965,8 +1005,10 @@ export class BoletimModule {
 
       state.set('bms', novosBms);
       invalidarCacheMedicoes(obraId);
-      this._persistBMs(obraId, novosBms);
       this._atualizarSelects();
+
+      const gravou = await this._persistBMsOuReverter(obraId, novosBms, bms);
+      if (!gravou) return;
 
       EventBus.emit('boletim:excluido', { bmNum: numExcluir });
       EventBus.emit('boletim:atualizado', { bms: novosBms });
@@ -990,15 +1032,37 @@ export class BoletimModule {
   // Para usar a transação atômica (ex: bloquear BM ao salvar medição):
   //   this._persistBMs(obraId, novosBms, bmNum, getMedicoes(obraId, bmNum));
   _persistBMs(obraId, bms, bmNum, medicoes) {
+    // Devolve a promise SEM engolir o erro. Quem chama decide o que fazer;
+    // a mensagem ao usuário já é emitida pelo FirebaseService
+    // (evento 'dados:escrita-falhou' → toast), então não duplicamos aqui.
     if (bmNum !== undefined && medicoes !== undefined) {
-      FirebaseService.setBMsComMedicoes(obraId, bms, bmNum, medicoes).catch(e => {
-        console.error('[BoletimModule] setBMsComMedicoes:', e);
-        window.toast?.('⚠️ Erro ao salvar BM. Verifique a conexão e tente novamente.', 'error');
-      });
-    } else {
-      FirebaseService.setBMs(obraId, bms).catch(e =>
-        console.error('[BoletimModule] setBMs Firebase:', e)
-      );
+      return FirebaseService.setBMsComMedicoes(obraId, bms, bmNum, medicoes);
+    }
+    return FirebaseService.setBMs(obraId, bms);
+  }
+
+  /**
+   * Persiste a lista de BMs e, se a gravação NÃO acontecer, devolve a tela ao
+   * estado anterior.
+   *
+   * É o fecho do incidente do BM sumido: antes, o state ficava com o BM novo,
+   * a tela dizia "✅ criado" e o Firestore continuava sem ele — a divergência
+   * só aparecia no F5 do dia seguinte, parecendo que o BM tinha sumido.
+   * Agora ou a lista está gravada, ou a tela mostra exatamente o que está
+   * gravado. Nunca as duas coisas em desacordo.
+   *
+   * @returns {Promise<boolean>} true se persistiu. Nunca rejeita.
+   */
+  async _persistBMsOuReverter(obraId, novosBms, bmsAnteriores, { bmNum, medicoes } = {}) {
+    try {
+      await this._persistBMs(obraId, novosBms, bmNum, medicoes);
+      return true;
+    } catch (e) {
+      console.error('[BoletimModule] gravação de BMs falhou — revertendo a tela:', e);
+      state.set('bms', bmsAnteriores);
+      this._atualizarSelects();
+      if (router.current === 'boletim') this._render();
+      return false;
     }
   }
 
@@ -1110,7 +1174,7 @@ export class BoletimModule {
           pago:          g('bm-pag-pago')?.checked          ?? b.pago ?? false,
         } : b);
         state.set('bms', novosBms);
-        this._persistBMs(obraId, novosBms);
+        this._persistBMsOuReverter(obraId, novosBms, bms);
         window.auditRegistrar?.({ modulo: 'Boletim de Medição', tipo: 'pagamento', registro: `BM ${String(bmNum).padStart(2,'0')}`, detalhe: `Dados de pagamento atualizados` });
       } catch(e) { console.warn('[BM] salvarPagamento:', e); }
     };

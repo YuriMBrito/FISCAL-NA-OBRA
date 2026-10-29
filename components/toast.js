@@ -52,7 +52,7 @@ export const ToastComponent = {
         <div style="font-size:10.5px;font-weight:700;color:${colors[t]};letter-spacing:.4px;text-transform:uppercase;margin-bottom:2px">${labels[t]}</div>
         <div style="font-size:12.5px;color:#D4D4D4;line-height:1.45">${msg}</div>
       </div>
-      <span style="font-size:15px;color:#404040;flex-shrink:0;margin-top:-1px;cursor:pointer;transition:color .15s" onmouseover="this.style.color='#A3A3A3'" onmouseout="this.style.color='#404040'">✕</span>
+      <span class="fo-hover-fg" style="font-size:15px;color:#404040;flex-shrink:0;margin-top:-1px;cursor:pointer;transition:color .15s;--fo-hover-fg:#A3A3A3">✕</span>
     `;
     el.addEventListener('click', () => this._remove(el));
     this._container.appendChild(el);

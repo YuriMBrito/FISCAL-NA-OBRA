@@ -249,8 +249,8 @@ export const SidebarComponent = {
             type="text"
             placeholder="Buscar módulo..."
             autocomplete="off"
-            oninput="window._sidebarSearch(this.value)"
-            onfocus="this.select()"
+            data-action="_sidebarSearch" data-value-from="this.value" data-event="input"
+            data-action-focusin="_foSelecionarTexto"
             style="
               width:100%;box-sizing:border-box;
               padding:6px 8px 6px 26px;
@@ -395,6 +395,13 @@ export const SidebarComponent = {
     EventBus.on('config:salva',     () => this._updateObraInfo(), 'sidebar');
     EventBus.on('auth:login',  ({ user }) => this._updateUserInfo(user),  'sidebar');
     EventBus.on('auth:logout', ()         => this._updateUserInfo(null),  'sidebar');
+
+    // Estado atual, não só os eventos futuros.
+    // O login acontece no passo 4 do boot e a sidebar é montada no passo 5:
+    // o 'auth:login' passava antes de existir quem escutasse, e o rótulo ficava
+    // congelado no "Não logado" do HTML mesmo com a sessão ativa. Isso mandou
+    // caçar sessão perdida quando o problema real era permissão de escrita.
+    this._updateUserInfo(state.get('usuarioLogado') || null);
 
 
 

@@ -74,10 +74,9 @@ export const TopbarComponent = {
         <button class="header-btn" id="topbar-fullscreen" title="Tela cheia">⛶</button>
         <button id="topbar-nova-obra" title="Inserir nova obra" style="background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:8px;color:rgba(255,255,255,.85);cursor:pointer;height:34px;padding:0 12px;font-size:11px;font-weight:700;letter-spacing:.3px;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:all .15s">➕ Inserir Obra</button>
         <div class="header-btn" id="topbar-user" title="Usuário" style="cursor:pointer">👤</div>
-        <button id="topbar-logout-btn" title="Sair da conta" data-action="_logoutConfirm"
-          style="display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.6);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap"
-          onmouseover="this.style.background='rgba(220,38,38,.15)';this.style.borderColor='rgba(220,38,38,.4)';this.style.color='#fca5a5'"
-          onmouseout="this.style.background='transparent';this.style.borderColor='rgba(255,255,255,.15)';this.style.color='rgba(255,255,255,.6)'">
+        <button class="fo-hover-bg fo-hover-bd fo-hover-fg" id="topbar-logout-btn" title="Sair da conta" data-action="_logoutConfirm"
+          style="display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.6);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;--fo-hover-bg:rgba(220,38,38,.15);--fo-hover-bd:rgba(220,38,38,.4);--fo-hover-fg:#fca5a5"
+         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
           </svg>

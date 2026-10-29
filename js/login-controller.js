@@ -1,6 +1,6 @@
 /**
  * FISCAL NA OBRA — js/login-controller.js
- * Lógica da tela de login: toggle, abas, Google Auth, estado de loading.
+ * Lógica da tela de login: toggle, abas, estado de loading, modo offline.
  * Extraído do index.html inline para facilitar manutenção e testes.
  *
  * Dependências: Firebase SDK (window.firebase), window.toast, window.router
@@ -32,101 +32,22 @@ window._abaLogin = function(aba) {
   }
 };
 
-// ── Login com Google (Firebase GoogleAuthProvider) ──────────────
-window._loginGoogle = async function() {
-  // CORREÇÃO v15.3: botão agora usa data-action="_loginGoogle", não onclick.
-  // querySelector por onclick foi removido — busca pelo data-action.
-  const btnGoogle = document.querySelector('button[data-action="_loginGoogle"]');
-  const erroEl    = document.getElementById('login-erro');
-
-  if (erroEl) erroEl.innerHTML = '';
-
-  // Verifica se o Firebase está pronto
-  if (!window.firebase || !window.firebase.apps || !window.firebase.apps.length) {
-    if (erroEl) erroEl.innerHTML = '❌ Firebase não inicializado. Verifique a conexão.';
-    return;
-  }
-
-  // Desabilita botão durante o processo
-  if (btnGoogle) {
-    btnGoogle.disabled = true;
-    btnGoogle.innerHTML = '<svg style="animation:spin .8s linear infinite;width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg> Aguardando Google...';
-  }
-
-  try {
-    const provider = new window.firebase.auth.GoogleAuthProvider();
-    provider.addScope('email');
-    provider.addScope('profile');
-    // Força seleção de conta mesmo que já esteja logado
-    provider.setCustomParameters({ prompt: 'select_account' });
-
-    // Tenta popup primeiro (melhor UX no Chrome)
-    await window.firebase.auth().signInWithPopup(provider);
-    // Sucesso: o onAuthStateChanged do FirebaseService dispara auth:login
-
-  } catch (err) {
-    const code = err?.code || '';
-
-    if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
-      // Chrome bloqueou o popup → fallback para redirect
-      if (erroEl) erroEl.innerHTML = '↩️ Redirecionando para login Google...';
-      try {
-        const provider2 = new window.firebase.auth.GoogleAuthProvider();
-        provider2.setCustomParameters({ prompt: 'select_account' });
-        await window.firebase.auth().signInWithRedirect(provider2);
-        // Página será recarregada; o resultado é capturado em _verificarRedirectGoogle()
-        return;
-      } catch (e2) {
-        if (erroEl) erroEl.innerHTML = '❌ Não foi possível abrir o Google. Tente novamente.';
-      }
-    } else if (code === 'auth/account-exists-with-different-credential') {
-      if (erroEl) erroEl.innerHTML = '❌ Este e-mail já está associado a outro método de login.';
-    } else if (code === 'auth/cancelled-popup-request') {
-      // Usuário fechou o popup — silencioso
-    } else if (code === 'auth/network-request-failed') {
-      if (erroEl) erroEl.innerHTML = '🌐 Sem conexão. Verifique sua internet.';
-    } else if (code === 'auth/unauthorized-domain') {
-      if (erroEl) erroEl.innerHTML = '❌ Domínio não autorizado. Configure o Firebase Console.';
-    } else if (err?.message) {
-      if (erroEl) erroEl.innerHTML = `❌ ${err.message}`;
-    }
-
-    console.error('[LoginGoogle]', code, err?.message);
-  } finally {
-    // Restaura botão
-    if (btnGoogle) {
-      btnGoogle.disabled = false;
-      btnGoogle.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66 2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84z"/></svg> Entrar com Google`;
-    }
-  }
-};
-
-// ── Captura resultado do signInWithRedirect (após retornar do Google) ──
-window._verificarRedirectGoogle = async function() {
-  if (!window.firebase || !window.firebase.apps || !window.firebase.apps.length) return;
-  try {
-    const result = await window.firebase.auth().getRedirectResult();
-    if (result && result.user) {
-      // Autenticado via redirect — o onAuthStateChanged já vai disparar auth:login
-      console.log('[LoginGoogle] Redirect OK:', result.user.email);
-    }
-  } catch (err) {
-    const erroEl = document.getElementById('login-erro');
-    if (erroEl && err?.code !== 'auth/no-auth-event') {
-      erroEl.innerHTML = '❌ Falha no login com Google. Tente novamente.';
-    }
-    console.error('[LoginGoogle] getRedirectResult:', err?.code, err?.message);
-  }
-};
-
-// Executa verificação de redirect assim que o Firebase estiver pronto
-if (window._firebaseSDKReady) {
-  window._firebaseSDKReady.then(() => {
-    // Aguarda a inicialização do FirebaseService pelo app.js
-    setTimeout(window._verificarRedirectGoogle, 1500);
-  });
-}
-
+// ── Login com Google: REMOVIDO em 13/08/2026 ────────────────────
+//
+// A partir da abertura da escrita para qualquer conta autenticada
+// (ver o cabeçalho de firestore.rules), o Authentication virou a única
+// fronteira de segurança do sistema. O login do Google aceitava QUALQUER
+// conta Google do mundo, sem lista de permitidos — ou seja, a fronteira
+// não filtrava ninguém. Entrada agora é só por conta provisionada pelo
+// administrador (criar-usuario.cjs / definir-perfil.mjs, via Admin SDK).
+//
+// Tirar o botão e este código NÃO desliga o provedor: enquanto ele estiver
+// habilitado em Authentication → Sign-in method, dá para autenticar por
+// fora do app. Desligar lá é parte da mesma tarefa.
+//
+// _loginGoogle e _verificarRedirectGoogle foram apagados daqui. Se um
+// data-action antigo em cache ainda apontar para eles, o EventDelegate
+// não acha o global e não faz nada — que é o comportamento desejado.
 window._setLoginLoading = function(loading) {
   const btn = document.getElementById('login-btn');
   if (!btn) return;

@@ -127,7 +127,7 @@ export class AcessoObraModule {
               style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:7px;
                 border:1px solid var(--border);background:var(--bg-card);
                 color:var(--text-primary);font-size:13px;outline:none"
-              onkeydown="if(event.key==='Enter') window._acessoObra_buscarEmail?.()">
+              data-action-keydown="_acessoObraEnter">
           </div>
           <div>
             <label style="font-size:11px;font-weight:700;color:var(--text-muted);
@@ -232,12 +232,11 @@ export class AcessoObraModule {
 
         <!-- Ação revogar (só para donos) -->
         ${souDono ? `
-          <button data-action="_acessoObra_revogar" data-arg0="${esc(u.uid)}" style="padding:5px 11px;background:transparent;border:1px solid #fca5a5;
+          <button class="fo-hover-bg" data-action="_acessoObra_revogar" data-arg0="${esc(u.uid)}" style="padding:5px 11px;background:transparent;border:1px solid #fca5a5;
               border-radius:6px;color:#ef4444;font-size:11px;font-weight:600;
-              cursor:pointer;flex-shrink:0;transition:all .15s"
+              cursor:pointer;flex-shrink:0;transition:all .15s;--fo-hover-bg:#fee2e2"
             title="Revogar acesso de ${esc(u.nome || u.email)}"
-            onmouseover="this.style.background='#fee2e2'"
-            onmouseout="this.style.background='transparent'">
+           >
             🚫 Revogar
           </button>` : ''}
       </div>`;
@@ -349,11 +348,10 @@ export class AcessoObraModule {
             <div style="font-size:13px;font-weight:700;color:#15803d">${esc(usuario.nome || usuario.email)}</div>
             <div style="font-size:11px;color:#166534">${esc(usuario.email)} · Perfil: ${esc(perfilLabel)}</div>
           </div>
-          <button data-action="_acessoObra_conceder" data-arg0="${esc(usuario.uid)}" data-arg1="${esc(usuario.email)}" data-arg2="${esc(usuario.nome||'')}" data-arg3="${esc(perfil)}" style="padding:8px 16px;background:#16a34a;border:none;border-radius:7px;
+          <button class="fo-hover-op" data-action="_acessoObra_conceder" data-arg0="${esc(usuario.uid)}" data-arg1="${esc(usuario.email)}" data-arg2="${esc(usuario.nome||'')}" data-arg3="${esc(perfil)}" style="padding:8px 16px;background:#16a34a;border:none;border-radius:7px;
               color:#fff;font-size:12px;font-weight:700;cursor:pointer;
-              white-space:nowrap;transition:opacity .15s"
-            onmouseover="this.style.opacity='.85'"
-            onmouseout="this.style.opacity='1'">
+              white-space:nowrap;transition:opacity .15s;--fo-hover-op:.85"
+           >
             ✅ Conceder acesso
           </button>
         </div>`;

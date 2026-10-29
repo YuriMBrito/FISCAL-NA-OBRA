@@ -47,24 +47,22 @@ export const FallbackUI = {
       </details>` : '';
 
     const reloadBtn = disabled ? '' : `
-      <button
+      <button class="fo-hover-bg"
         data-action="_FO_reloadModule" data-arg0="${safeModuleId}"
         style="margin-top:14px;padding:8px 20px;border:none;border-radius:6px;
                background:#2563eb;color:#fff;font-size:12px;font-weight:700;
                cursor:pointer;display:inline-flex;align-items:center;gap:6px;
-               transition:background .2s"
-        onmouseover="this.style.background='#1d4ed8'"
-        onmouseout="this.style.background='#2563eb'">
+               transition:background .2s;--fo-hover-bg:#1d4ed8"
+       >
         🔄 Tentar novamente
       </button>`;
 
     const reportBtn = `
-      <button
+      <button class="fo-hover-fg"
         data-action="_FO_reportModule" data-arg0="${safeModuleId}"
         style="margin-top:14px;margin-left:8px;padding:8px 14px;border:1px solid #374151;border-radius:6px;
-               background:transparent;color:#9ca3af;font-size:11px;cursor:pointer"
-        onmouseover="this.style.color='#f1f5f9'"
-        onmouseout="this.style.color='#9ca3af'">
+               background:transparent;color:#9ca3af;font-size:11px;cursor:pointer;--fo-hover-fg:#f1f5f9"
+       >
         📋 Ver logs
       </button>`;
 

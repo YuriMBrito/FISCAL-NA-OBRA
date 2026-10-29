@@ -209,10 +209,9 @@ export class ObrasManagerModule {
     return `<div>
       <label style="display:block;font-size:10px;font-weight:700;color:var(--text-muted);
         text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px">${label}</label>
-      <input type="${type}" id="${id}" placeholder="${placeholder}" value="${value}"
+      <input class="fo-focus-bd" type="${type}" id="${id}" placeholder="${placeholder}" value="${value}"
         style="width:100%;box-sizing:border-box;background:var(--bg-card);border:1px solid var(--border);
-          border-radius:7px;color:var(--text-primary);font-size:13px;padding:9px 12px;outline:none;transition:border-color .15s"
-        onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
+          border-radius:7px;color:var(--text-primary);font-size:13px;padding:9px 12px;outline:none;transition:border-color .15s;--fo-focus-bd:var(--accent)"
         ${required?'required':''}></div>`;
   }
 

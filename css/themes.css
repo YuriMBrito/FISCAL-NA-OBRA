@@ -1,6 +1,8 @@
 /* Fiscal na Obra v13 — Temas */
 
-r: #CCCCCC; box-shadow: 0 1px 6px rgba(0,0,0,.05); }
+/* A linha que estava aqui — "r: #CCCCCC; box-shadow: ...; }" — era a
+   segunda metade de .alerta-item:hover, partida quando o CSS foi dividido
+   em arquivos. Voltou inteira para components.css, junto com a primeira. */
 .alerta-item.resolvido { opacity: .5; }
 .alerta-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; filter: grayscale(1); }
 .alerta-body { flex: 1; min-width: 0; }

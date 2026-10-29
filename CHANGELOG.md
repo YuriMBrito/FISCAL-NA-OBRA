@@ -2,6 +2,413 @@
 
 ---
 
+## v15.5.6 (2026-10-29) — PDF que não copia, e janelas que não imprimiam
+
+Origem: relato de PDF exportado cujo texto sai como símbolo ao ser copiado.
+A causa estava fora do sistema (ver no fim), mas a investigação encontrou
+dois defeitos reais no caminho de exportação.
+
+### 13 janelas de impressão paradas, pelo mesmo motivo da v15.5.5
+
+As exportações montavam o documento e pediam a impressão com um
+`<script>window.print()<\/script>` escrito dentro do HTML da janela nova. A
+janela aberta por `window.open('')` herda a CSP do app, que tem `script-src`
+sem `'unsafe-inline'`: o script era bloqueado, a janela abria e ficava parada.
+Em `vite dev` funcionava, porque lá não há header de CSP — só quem usava o
+sistema publicado via o defeito, e o sintoma era "abriu e não aconteceu nada".
+
+Novo `utils/imprimir-janela.js`: o opener abre a janela, escreve o documento
+e chama `print()` de fora — a janela é da mesma origem, então nenhum script
+precisa atravessar a CSP. Espera as imagens carregarem (sem isso a folha sai
+sem o brasão, porque `print()` não aguarda download pendente) com teto de 3 s
+para rede lenta não travar a exportação.
+
+Migrados: dashboard (2), diário (2), notificações (2), memória de cálculo,
+aditivos, relatório federal, boletim de medição e integração Lei 14.133.
+Fica de fora `modules/boletim-medicao/bm-ui_modules.js`, que tem mais dois —
+é arquivo morto, sem nenhuma referência no projeto (ver a revisão).
+
+### `worker-src` faltando na CSP degradava a importação de BM por PDF
+
+O PDF.js cria o worker a partir de uma URL `blob:`. A CSP não declarava
+`worker-src`, então valia o `script-src` como fallback, que não tem `blob:` —
+worker bloqueado. A biblioteca cai sozinha para "fake worker" e processa na
+thread principal, então a importação funcionava, mas travando a interface em
+PDF grande. Adicionado `worker-src 'self' blob:`.
+
+### O PDF com texto embaralhado: causa encontrada, e não é do sistema
+
+O `BOLETIM DE MEDIÇÃO BM 03.pdf` foi analisado descomprimindo os objetos:
+
+```
+Creator  : PDFCreator Free 4.4.0
+Producer : GPL Ghostscript 9.52
+Type3    : 8        ToUnicode : 0        319 KB por página
+```
+
+Extraindo o texto com o PDF.js do próprio sistema, a primeira página devolve
+`\u0000 \u0001 \u0002 \u0003…` — índices de glifo crus. São exatamente os
+"símbolos estranhos" ao colar.
+
+A causa é **fonte Type3**: cada letra está guardada como DESENHO VETORIAL,
+sem nenhuma semântica de caractere. Não há mapa `/ToUnicode` a recuperar — o
+texto, para o PDF, virou rabisco. Também é o que faz o arquivo ser 8× maior
+por página.
+
+Quem produz isso é o PDFCreator, que converte o trabalho de impressão via
+Ghostscript. O mesmo boletim impresso pelo "Microsoft Print to PDF"
+(`BM02.pdf`, no repositório) sai com CIDFontType2 + ToUnicode e copia
+perfeitamente, acentuação inclusive. O HTML gerado pelo sistema está correto
+nos dois casos: fontes de sistema (Arial/Times), `<meta charset="UTF-8">`,
+nada rasterizado. Quem decide é a impressora virtual escolhida no diálogo, e
+isso nenhuma mudança no código alcança.
+
+Confirmado pelo responsável com um terceiro arquivo, o "BM 01", exportado
+pelo "Salvar como PDF" do próprio navegador:
+
+```
+Gerado por : Skia/PDF m156          (o escritor de PDF do Chrome)
+Fontes     : AAAAAA+Arial-BoldMT · BAAAAA+ArialMT · CAAAAA+Arial-ItalicMT
+             todas Type0/Identity-H, todas com ToUnicode
+Tamanho    : 162 KB por página      (metade do arquivo do PDFCreator)
+```
+
+Mesmo boletim, mesmo HTML, mesma máquina: muda só o destino da impressão.
+
+O que dá para fazer, e foi feito:
+
+- `utils/imprimir-janela.js` passou a inserir uma faixa de orientação no topo
+  da janela de impressão — só na TELA, escondida no papel por `@media print` —
+  dizendo para escolher "Salvar como PDF" ou "Microsoft Print to PDF". A faixa
+  também entra na janela do Boletim de Medição, que tem caminho próprio.
+- `tests/diagnostico-pdf.mjs`: classifica qualquer PDF em copiável /
+  Type3 / sem ToUnicode / rasterizado, e diz o que fazer.
+  Uso: `node tests/diagnostico-pdf.mjs "<arquivo.pdf>"`.
+  A primeira versão deste script dava "0 fontes" neste mesmo arquivo, porque
+  lia o PDF cru: de 1.5 em diante os dicionários vêm dentro de streams
+  comprimidos. Agora descomprime antes de analisar.
+
+O `BM02.pdf` do repositório foi analisado com o próprio PDF.js do projeto: as
+9 páginas extraem texto perfeito, acentuação inclusive — os únicos caracteres
+"fora do padrão" são `m²`, `m³` e `Nº`, todos corretos. Ou seja, a exportação
+do Boletim de Medição copia bem. Todos os caminhos de exportação usam Arial ou
+Times New Roman (fontes de sistema, que não quebram extração), nenhum
+rasteriza o conteúdo, e todos declaram `<meta charset="UTF-8">`. Falta saber
+qual exportação apresenta o problema.
+
+---
+
+## v15.5.5 (2026-10-29) — Nada do que era inline funcionava em produção
+
+Origem: os dois itens de risco alto da revisão. Os dois eram invisíveis em
+desenvolvimento e só existiam no ar, que é o pior formato possível de defeito.
+
+### A CSP de produção bloqueava 148 handlers inline
+
+`script-src` do `firebase.json` não tem `'unsafe-inline'` — corretamente. Só
+que o código gerava 135 atributos `onclick`/`onchange`/`oninput`/`onmouseover`…
+em JS e mais 13 no `index.html`. Nenhum deles executava no site publicado.
+`vite dev` não manda header de CSP nenhum, então em desenvolvimento tudo
+parecia certo.
+
+- **Comportamento** (88 sítios): viraram `data-action` + ponte em `core/app.js`.
+  A lista de nomes é a lista de permitidos: de propósito NÃO existe um fallback
+  genérico para `window[action]`, que transformaria um `data-action="eval"`
+  injetado em execução de código — o que a CSP está ali para impedir.
+- **Hover e foco** (37 sítios): viraram classes utilitárias em
+  `css/components.css` (`.fo-hover-bg`, `.fo-focus-bd`, …), com o valor numa
+  custom property no próprio elemento. O estado normal continua no `style`, e
+  o CSS devolve sozinho ao sair — o `onmouseout` que repunha o valor na mão
+  deixou de ser necessário.
+- **Arrastar-soltar** (3 zonas × 3 eventos): `dragover` precisa de
+  `preventDefault`, senão o browser recusa o drop e abre o arquivo numa aba.
+  Como `dragover`/`dragleave` não têm pseudo-classe, a moldura de destaque é
+  uma classe que a delegação põe e tira.
+- **Janelas de impressão** (importação e painel contratual): `window.print()`
+  e `data-action="print"` em HTML escrito com `document.write` numa janela
+  nova. Ali nem CSP nem delegação resolviam — a janela herda a CSP do app e o
+  EventDelegate roda no documento do app, não nela. Agora o próprio opener
+  registra o listener na janela, que é da mesma origem.
+- **Atalho de acessibilidade** (e-MAG 2.2): o "Ir para o conteúdo principal"
+  aparecia com `onfocus="this.style.top='0'"`. Em produção, nunca aparecia
+  para quem navega por teclado. Agora é `.skip-link:focus`.
+
+`utils/event-delegate.js` ganhou o necessário para isso:
+`data-action-<evento>` (vários eventos no mesmo elemento), `data-event`
+(prende a ação a um tipo — sem ele, um `<select>` emite `input` E `change` e a
+ação rodaria duas vezes), `data-value-from="this.checked"`, e os eventos
+keydown/focusin/focusout/drag*. **Os eventos novos só respondem a
+`data-action-<evento>`**: um `data-action` antigo sem `data-event` continua
+valendo só para click/change/input/submit, senão um botão passaria a disparar
+ao receber o foco pelo Tab, e de novo no clique.
+
+### `npm run build` gerava um `dist/` pela metade
+
+`core/module-loader.js` fazia `import(entry.config.path)` — especificador em
+variável, que o Rollup não consegue analisar. Resultado: **6 dos 36 módulos**
+entravam no bundle, e os 9 serviços de `_initNewServices` nenhum. Em produção
+não quebrava por acaso: o hosting serve o código-fonte (`"public": "."`), não
+o `dist/`. Quem apontasse o hosting para `dist/` perderia 30 módulos.
+
+Agora cada entrada do registro tem um thunk `importar: () => import('…')` com
+especificador literal — o Vite analisa e o browser executa nativamente, então
+o mesmo arquivo serve aos dois modos. Idem para os serviços. O `dist/` foi de
+28 para 54 arquivos, com os 36 módulos e os 9 serviços presentes.
+
+### Dois achados que apareceram no caminho
+
+**52 ações no markup nunca tiveram handler.** Ao cruzar os `data-action` do
+HTML gerado com os handlers registrados: os módulos criavam `window._x`, o
+markup pedia `data-action="_x"`, e ninguém ligava os dois. O EventDelegate
+escrevia "Action X não tem handler registrado" no console e devolvia sem fazer
+nada. Na tela: botão que não responde ao clique — em checklist técnico,
+documentos, fotos de medição, modo campo, qualidade, recebimento, relatório,
+relatório federal, usuários, acesso à obra, histórico, importação de BM em PDF
+e obras concluídas. Religados pela mesma ponte. Não tem relação com a CSP.
+
+**~360 linhas de CSS mortas por uma regra partida ao meio.** `components.css`
+tinha `.alerta-item:hover { border-colo` — sem valor, sem `;` e sem fechar a
+chave. A chave aberta engolia o resto do arquivo. A outra metade estava no
+TOPO de `themes.css`, como fragmento solto
+(`r: #CCCCCC; box-shadow: …; }`): o CSS foi fatiado em main/components/themes
+no meio desta declaração. Com a regra remontada, `components.css` passou de
+344 para 404 regras interpretadas — e voltaram, entre outras, as 10 regras do
+realce de linhas da planilha de aditivos, que o comentário do próprio arquivo
+descreve como cuidadosamente calibradas para vencer o design-system. Havia um
+segundo fragmento órfão (`items: center; }`) cujo seletor se perdeu; removido,
+com nota no lugar.
+
+Também corrigido, do mesmo caso: `data-arg0="+o.id+"` no card de obra
+concluída estava dentro de uma string simples, então o atributo recebia o
+texto literal `+o.id+` e clicar no card não abria nada; e `data-action="if"`
+com `data-arg0="event.target===this)window._ck_fecharModal("` no checklist,
+resto de uma conversão anterior que picotou um `onclick="if(…)"` no meio.
+
+### Verificação
+
+`vite dev` não serve para isto: não manda CSP. O emulador de hosting também
+não — conferido, ele ignora os `headers` do `firebase.json`. A verificação
+rodou num servidor estático que aplica o header de CSP lido do próprio
+`firebase.json`:
+
+- 30/30 módulos ativos, 9/9 serviços, **zero erro no console**, zero violação
+  de CSP.
+- **Zero** atributos de handler inline no DOM vivo.
+- As classes de hover/foco com regra interpretada, seletor casando e custom
+  property resolvendo nos elementos.
+- `vite build` sem nenhum erro de sintaxe CSS (eram 4).
+- Suíte: 316 testes passando.
+
+---
+
+## v15.5.4 (2026-10-27) — O papel voltou, agora pelo custom claim do token
+
+Origem: revisão do sistema inteiro. Três achados críticos, e os três vinham do
+mesmo lugar — a reescrita de 13/08 abriu a escrita no Firestore e o resto do
+sistema continuou assumindo o modelo antigo.
+
+### `firestore.rules` — papel por `request.auth.token.role`
+
+O motivo que derrubou o modelo de papéis não existia mais: `criar-usuario.cjs`
+e `definir-perfil.mjs` já gravavam `role` e `adminGlobal` como custom claims
+desde a v15.1, para as Storage Rules. A informação estava no token; faltava
+ler dela em vez da lista cadastral.
+
+- `nivelExigido(subcolecao)` é a tabela de permissões do sistema, num lugar só:
+  **1 tecnico** operação de campo (diario, ocorrencias, chuva, documentos,
+  notificacoes, fotos-medicao, checklist-tecnico, etapas-pac, qualidade e
+  qualquer subcoleção futura) · **2 engenheiro** dinheiro (bms, medicoes,
+  itens, aditivos) · **4 gestor** contrato e jurídico (cfg, sancoes,
+  responsaveis, prazos, recebimentos, riscos, lei14133, versoes, fiscais,
+  acesso) · **5 administrador** usuarios da obra.
+- Documento raiz da obra: criar e editar em 4, excluir em 5. Criar obra grava
+  `cfg` no mesmo fluxo, então os dois ficaram no mesmo nível — não existe obra
+  meio-criada.
+- Leitura segue liberada a qualquer autenticado, em qualquer obra: é a política
+  de 13/08 e ela fica. Esconder leitura nunca foi o que custou dado aqui.
+- Sem `get()` nem `exists()` em escrita: nenhuma leitura cobrada, e o bug de
+  comparar mapas inteiros não tem como voltar.
+- `auditoria`/`historico`: `delete` saiu de "qualquer autenticado" para 5.
+  Trilha append-only que qualquer um apaga não é append-only.
+- `lixeira`: `create` em 1 de propósito — é por onde passam excluir aditivo,
+  BM, entrada de diário e documento, e é operação que PRESERVA dado. Só
+  esvaziar a lixeira (`delete`) é 4.
+- `souAdmin()` aceita o claim primeiro (`||` curto-circuita, então quem tem o
+  claim não gera leitura) e usa `.get('perfil','')` — antes, documento de
+  perfil sem o campo fazia a regra errar em vez de devolver false.
+
+⚠️ Conta **sem** o claim cai em `papelPadrao()` = `'fiscal'`, o mesmo padrão de
+`criar-usuario.cjs --migrar`. Negar trancaria fora quem foi criado direto no
+Console antes dos claims. Depois de rodar a migração, endurecer para
+`'visualizador'` é trocar uma linha.
+
+⚠️ Papel limita o que cada conta faz, **não quem entra**. Desabilitar o
+provedor Google em Authentication → Sign-in method segue obrigatório.
+
+### `storage.rules` — reescrito; anexo estava trancado para a equipe inteira
+
+O arquivo tinha ficado para trás com o padrão exato que derrubou as Firestore
+Rules: `lista.hasAny([{'uid': request.auth.uid}])`, que compara mapas inteiros
+contra registros que não têm `uid` (a tela de usuários cadastra pessoas antes
+de elas terem conta). Nunca casava. Resultado: logo, documentos e fotos de
+medição só abriam para o dono da obra e para o `adminGlobal` — Firestore
+aberto a todos e anexo trancado para quase todos, falhando em silêncio.
+
+- Papel por claim, sem `firestore.get()`: nenhuma leitura cruzada cobrada.
+- Leitura de anexo: qualquer autenticado, igual ao Firestore.
+- `docs/` e pastas de foto: escrita em 1. `logo`: 4. `delete`: 4 — antes era
+  `adminGlobal` e só, então documento anexado por engano não tinha como sair.
+- **`diario/` e `ocorrencias/` passaram a existir aqui.** O app sempre enviou
+  foto de diário e de ocorrência para essas pastas (`uploadFotoStorage`), elas
+  caíam no bloqueio final, e o `catch` devolvia o base64 — que ia inteiro para
+  dentro do documento no Firestore, empurrando a obra contra o limite de 1 MiB.
+
+### `salvarObrasLista()` transferia o dono de todas as obras
+
+`batch.set(ref, { ...o, uid })` gravava o uid de **quem estava salvando** em
+**todas** as obras do lote. E `uid` é o campo que decide o dono — inclusive
+para o Storage. Concluir, excluir, restaurar ou renomear uma obra movia a
+propriedade de todo o lote, sem erro e sem log. Agora o campo não é escrito
+aqui: `criarObra()` o define uma vez, e o `merge` preserva o dono gravado.
+
+### `criar-usuario.cjs --migrar` era código inalcançável
+
+Havia um `criarUsuario()` solto no meio do módulo, que rodava **sempre**. Com
+`--migrar` ele batia na validação de e-mail/senha e encerrava o processo antes
+de a migração começar — e é ela que coloca o claim `role` nas contas
+existentes, de que as rules novas dependem. Agora há um dispatcher único no
+fim do arquivo, e as validações de criação estão atrás de `MODO_MIGRAR`.
+
+### Cliente alinhado ao servidor
+
+- `FirebaseService` lê o claim no `onAuthStateChanged` (`_carregarPapel()`) e
+  deixa o papel em `state.usuarioLogado.perfil`. Fica fora do caminho do boot:
+  atrasar o `auth:login` atrasaria a tela inteira.
+- `utils/rbac.js` passou a ler esse papel. Saíram a busca na lista de usuários
+  da obra (as rules não a consultam mais, e `state.usuariosObra` nunca era
+  populado — caminho morto) e o atalho "dono da obra vale gestor" (não existe
+  no servidor; prometer aqui o que o servidor nega é o erro que o arquivo
+  existe para evitar). `PAPEL_PADRAO` é exportado e usado também pelo
+  FirebaseService, para cliente e rules não divergirem no padrão.
+- `window.requirePerfil` **falha fechada**. Lia o papel de `state.usuarios` —
+  que nenhum módulo nunca populou — e liberava por dois caminhos (`!usuarios.length`
+  e `!meuPerfil`), ambos sempre verdadeiros: devolvia `true` em qualquer
+  cenário, um no-op com aparência de controle de acesso.
+
+### Testes
+
+- `tests/rules/testar-rules.mjs`: 16 → **39 casos**, um por papel e por faixa
+  de `nivelExigido()`, incluindo a conta sem claim (que não pode ficar trancada
+  fora) e o papel desconhecido (que não pode virar privilégio). Rodados no
+  emulador: 39/39.
+- `tests/rbac.test.js`: 9 → 13 casos. `setUser()` agora preenche `cfg` e
+  `usuariosObra` com valores que contradizem o papel, para provar que não
+  influenciam mais nada.
+- Suíte: 316 passando. Cobertura de `rbac.js`: 67,85% → 93,33% de ramos.
+- `test:security` **removido**. Fazia `require('./storage.rules')` num projeto
+  ESM, engolia o erro com `2>/dev/null` e caía num `|| echo "Rules file
+  present"`: passava sempre, inclusive com as regras quebradas — e foi com ele
+  verde que o `storage.rules` ficou meses trancando anexo. Tentei trocar por
+  uma compilação no emulador de Storage e **ele também não serve**: sobe com
+  regra inválida e sai com código 0 (verificado de propósito com uma regra
+  quebrada). `storage.rules` é validado pelo `firebase deploy`, que recusa
+  ruleset inválido.
+
+---
+
+## v15.5.3 (2026-08-13) — Fim do controle por papel; acesso fecha no login
+
+Origem: editar o clima de um dia no Quadro de Chuvas devolvia
+`Missing or insufficient permissions`. Não era só a chuva — medição, diário,
+auditoria, ocorrências e documentos caíam junto, e a mensagem não dizia nada
+sobre o motivo. Decisão do responsável pelo sistema: **acabar com a checagem de
+papel e fechar a porta no Authentication**, que é onde ela sempre esteve aberta.
+
+### `firestore.rules` — reescrito
+
+O modelo antigo prometia papéis e não entregava: a checagem usava
+`lista.hasAny([{'uid':..., 'perfil':...}])`, que compara **mapas inteiros** e
+nunca casava com os registros reais — que sequer têm `uid`, porque a tela de
+usuários cadastra pessoas antes de elas terem conta. Na prática só dono da obra
+e admin global escreviam.
+
+- Autenticado lê e escreve em qualquer obra. Uma regra recursiva cobre todas as
+  subcoleções, inclusive as que ainda não existem.
+- `souDonoDaObra`, `souMembroDaObra`, `podeEscreverNaObra`, `podeGerirAditivos`,
+  `podeGerirDocumentosJuridicos` e os validadores de campo: removidos.
+- `/obras/global/chuva/{ano}` (legado do Quadro de Chuvas) deixou de precisar de
+  exceção própria — cai na regra da obra como qualquer outra.
+- Continuam bloqueados, de propósito: `create` em `/usuarios/{uid}` (evita
+  autopromoção a administrador), `update` em `auditoria` e `historico`
+  (append-only, TCU/CGU), `update` na lixeira e tudo fora de
+  `/usuarios`, `/obras` e `/lixeira`.
+
+### Login do Google removido
+
+Com a escrita aberta, o Authentication virou a única fronteira — e ele aceitava
+qualquer conta Google do mundo, sem lista de permitidos. Removidos o botão
+(`index.html`), `_loginGoogle` e `_verificarRedirectGoogle`
+(`js/login-controller.js`), o despacho em `core/app.js` e as liberações de CSP
+para `apis.google.com` e `accounts.google.com` (`firebase.json`).
+Entrada agora é só por conta provisionada via Admin SDK (`criar-usuario.cjs`,
+`definir-perfil.mjs`).
+
+⚠️ Tirar o botão não desliga o provedor: é obrigatório desabilitar o Google em
+**Authentication → Sign-in method** no Console, senão ainda dá para autenticar
+por fora do app.
+
+### Testes
+
+`npm run test:rules` — 16 casos contra o emulador do Firestore
+(`tests/rules/testar-rules.mjs`): o que a abertura liberou, a fronteira que
+sobrou (sem sessão, nada passa) e as exceções mantidas.
+
+## v15.5.2 (2026-08-12) — Falha de I/O deixa de ser silenciosa
+
+Origem: um BM criado na obra da UBS "sumiu" no dia seguinte, e o histórico do
+Quadro de Chuvas dias antes. Nenhum dado foi perdido nos dois casos — o Firestore
+recusou a operação, o código engoliu o erro e a tela mostrou estado inventado.
+
+### Novo: `firebase/integridade-dados.js`
+
+Registra por (obra, domínio, escopo) qual leitura falhou. Expõe a barreira
+`exigirLeituraIntegra()` que recusa gravações capazes de sobrescrever dado não lido.
+
+### `firebase/firebase-service.js` — helpers `_lerDoc` / `_lerColecao` / `_gravar`
+
+- Leitura recusada não devolve mais dado fabricado. `getBMs()` distingue
+  "documento não existe" (→ BM 01 em branco) de "leitura falhou" (→ `[]` + alerta).
+- Gravação recusada rejeita a promise em vez de resolver em silêncio — 59 dos 75
+  `catch` que só logavam foram eliminados.
+- `.set()` de documento inteiro é bloqueado enquanto a leitura do mesmo dado
+  estiver degradada (impede o estado neutro de apagar o dado real).
+- `getItens()` passa a tratar chunk faltando como falha, não como fim da planilha
+  — devolver a lista truncada fazia o próximo salvamento gravar a versão mutilada.
+- `softDeleteObra()` aborta se o snapshot de restauração não puder ser coletado
+  por inteiro; `salvarItemLixeiraFirebase()` propaga o erro (a obra era marcada
+  como excluída mesmo quando a lixeira ficava sem o que restaurar).
+- Corrigido `this._ss`, usado 40 vezes e nunca definido na classe: todo caminho
+  de erro dos módulos da Lei 14.133/PAC lançava `TypeError` no lugar do erro real.
+
+### Novo: `components/aviso-integridade.js`
+
+Faixa fixa quando a tela está incompleta — diz o que não carregou, que a gravação
+está bloqueada e oferece recarregar. Toast de erro quando a gravação é recusada.
+Sem `onclick=` inline (a CSP de produção mata handlers inline).
+
+### `modules/boletim-medicao/bm-controller.js`
+
+`adicionarBM`, `editarBM` e `excluirBM` passam a aguardar a confirmação do
+Firestore. O "✅ BM criado" só aparece depois de gravado; se a gravação falhar, a
+tela é revertida ao estado do servidor em vez de exibir um BM que não existe lá.
+
+### Testes
+
+`tests/integridade-dados.test.js` (13) e `tests/firebase-service-guardas.test.js`
+(15), com o incidente do BM sumido codificado como teste de regressão.
+
+---
+
 ## v15.5.1 (2026-03-20) — Edição de Itens no BM CAIXA
 
 ### Botões ✏️ e 🗑️ adicionados a cada item da tabela CAIXA

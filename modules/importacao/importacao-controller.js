@@ -103,7 +103,7 @@ export class ImportacaoModule {
           📥 Tipo de Planilha para Importação
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0">
-          <button onclick="window._siSetTipoImportacao('prefeitura')"
+          <button data-action="_siSetTipoImportacao" data-arg0="prefeitura" data-event="click"
             style="padding:14px 16px;border:none;border-right:1px solid #2d3748;cursor:pointer;
               text-align:left;transition:background .15s;
               background:${isPref?'#1e3a5f':'#1e2330'};
@@ -115,7 +115,7 @@ export class ImportacaoModule {
               Planilhas da prefeitura (9 colunas)
             </div>
           </button>
-          <button onclick="window._siSetTipoImportacao('obra')"
+          <button data-action="_siSetTipoImportacao" data-arg0="obra" data-event="click"
             style="padding:14px 16px;border:none;border-right:1px solid #2d3748;cursor:pointer;
               text-align:left;transition:background .15s;
               background:${isObra?'#2a1f3d':'#1e2330'};
@@ -127,7 +127,7 @@ export class ImportacaoModule {
               Planilhas de obra sem Cód./Banco (7 colunas)
             </div>
           </button>
-          <button onclick="window._siSetTipoImportacao('caixa')"
+          <button data-action="_siSetTipoImportacao" data-arg0="caixa" data-event="click"
             style="padding:14px 16px;border:none;cursor:pointer;text-align:left;transition:background .15s;
               background:${isCaixa?'#1a2e1a':'#1e2330'};
               border-bottom:3px solid ${isCaixa?'#22c55e':'transparent'}">
@@ -154,14 +154,14 @@ export class ImportacaoModule {
 
       <!-- ── BOTÕES DE MODO (NOVA OBRA / INSERIR) ───────────── -->
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-        <button onclick="window._siSetModo('nova')"
+        <button data-action="_siSetModo" data-arg0="nova" data-event="click"
           style="padding:5px 16px;border-radius:20px;font-size:11px;font-weight:700;border:2px solid #1e40af;
                  background:${this._modo==='nova'?'#dbeafe':'transparent'};
                  color:${this._modo==='nova'?'#1e40af':'#6b7280'};cursor:pointer">
           🏗️ NOVA OBRA
         </button>
         ${podeInserir ? `
-        <button onclick="window._siSetModo('inserir')"
+        <button data-action="_siSetModo" data-arg0="inserir" data-event="click"
           style="padding:5px 16px;border-radius:20px;font-size:11px;font-weight:700;border:2px solid #059669;
                  background:${this._modo==='inserir'?'#dcfce7':'transparent'};
                  color:${this._modo==='inserir'?'#1A1A1A':'#6b7280'};cursor:pointer">
@@ -292,13 +292,13 @@ export class ImportacaoModule {
         </div>
       </div>
 
-        <div id="si-drop-zone"
-          ondragover="event.preventDefault();this.style.borderColor='#60a5fa'"
-          ondragleave="this.style.borderColor='#2d3748'"
-          ondrop="window._siHandleDrop(event)"
-          onclick="document.getElementById('si-file-input').click()"
+        <div id="si-drop-zone" class="fo-drop"
+          data-action-dragover="_dropZoneSobre"
+          data-action-dragleave="_dropZoneSai"
+          data-action-drop="_siHandleDrop"
+          data-action="_siAbrirSeletorArquivo" data-event="click"
           style="border:2px dashed ${isCaixa?'#16a34a':'#2d3748'};border-radius:12px;padding:40px;text-align:center;
-                 cursor:pointer;transition:all .2s;background:#1e2330;margin-bottom:16px">
+                 cursor:pointer;transition:all .2s;background:#1e2330;margin-bottom:16px;--fo-drop-bd:#60a5fa">
           <div style="font-size:36px;margin-bottom:8px">${isCaixa?'🏦':'📂'}</div>
           <div style="font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:4px">Arraste ou clique para selecionar</div>
           <div style="font-size:11px;color:#6b7280">${isCaixa
@@ -306,7 +306,7 @@ export class ImportacaoModule {
             : `Suporta <strong style="color:#94a3b8">.xlsx</strong>, <strong style="color:#94a3b8">.xls</strong> e <strong style="color:#94a3b8">.pdf</strong>`
           }</div>
           <input type="file" id="si-file-input" accept=".pdf,.xls,.xlsx" style="display:none"
-            onchange="window._siProcessarArquivo(event)">
+            data-action="_siProcessarArquivo" data-event="change">
         </div>
         <div id="si-status" style="min-height:22px;font-size:12px;color:#94a3b8"></div>
       </div>
@@ -317,11 +317,11 @@ export class ImportacaoModule {
           <div style="font-size:11px;color:#94a3b8;margin-bottom:16px">Indique qual coluna corresponde a cada campo:</div>
           <div id="si-mapeamento-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px"></div>
           <div style="display:flex;gap:10px">
-            <button onclick="window._siAplicarMapeamento()"
+            <button data-action="_siAplicarMapeamento" data-event="click"
               style="background:#059669;color:#fff;border:none;padding:9px 18px;border-radius:7px;cursor:pointer;font-weight:700;font-size:12px">
               ✅ Aplicar Mapeamento
             </button>
-            <button onclick="window._siVoltarUpload()"
+            <button data-action="_siVoltarUpload" data-event="click"
               style="background:#374151;color:#94a3b8;border:none;padding:9px 18px;border-radius:7px;cursor:pointer;font-size:12px">
               ← Voltar
             </button>
@@ -332,11 +332,11 @@ export class ImportacaoModule {
       <div id="si-fase-preview" style="display:none">
         <div id="si-resumo-validacao" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px"></div>
         <div style="border-bottom:1px solid #2d3748;display:flex;gap:0">
-          <button id="si-tab-preview"   onclick="window._siAbaAtiva('preview')"
+          <button id="si-tab-preview"   data-action="_siAbaAtiva" data-arg0="preview" data-event="click"
             style="padding:9px 16px;border:none;border-bottom:3px solid #60a5fa;background:none;font-weight:700;color:#f1f5f9;cursor:pointer;font-size:12px">📋 Preview</button>
-          <button id="si-tab-relatorio" onclick="window._siAbaAtiva('relatorio')"
+          <button id="si-tab-relatorio" data-action="_siAbaAtiva" data-arg0="relatorio" data-event="click"
             style="padding:9px 16px;border:none;border-bottom:3px solid transparent;background:none;color:#6b7280;cursor:pointer;font-size:12px">📊 Relatório TCU</button>
-          <button id="si-tab-log"       onclick="window._siAbaAtiva('log')"
+          <button id="si-tab-log"       data-action="_siAbaAtiva" data-arg0="log" data-event="click"
             style="padding:9px 16px;border:none;border-bottom:3px solid transparent;background:none;color:#6b7280;cursor:pointer;font-size:12px">📄 Log</button>
         </div>
         <div id="si-aba-preview" style="max-height:380px;overflow-y:auto;border:1px solid #2d3748;border-top:none;border-radius:0 0 8px 8px">
@@ -361,15 +361,15 @@ export class ImportacaoModule {
         <div id="si-aba-relatorio" style="display:none;max-height:380px;overflow-y:auto;border:1px solid #2d3748;border-top:none;border-radius:0 0 8px 8px;background:#1e2330"></div>
         <div id="si-aba-log" style="display:none;max-height:380px;overflow-y:auto;background:#0f172a;color:#94a3b8;font-family:monospace;font-size:10.5px;padding:12px;border-radius:0 0 8px 8px;white-space:pre-wrap;border:1px solid #2d3748;border-top:none"></div>
         <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
-          <button id="si-btn-criar" onclick="window._siCriarObra()"
+          <button id="si-btn-criar" data-action="_siCriarObra" data-event="click"
             style="background:#059669;color:#fff;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:800;font-size:13px">
             ${labelBtn}
           </button>
-          <button onclick="window._siExportarRelatorioPDF()"
+          <button data-action="_siExportarRelatorioPDF" data-event="click"
             style="background:#1e2330;color:#94a3b8;border:1px solid #2d3748;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:12px">
             🖨️ Exportar Relatório PDF
           </button>
-          <button onclick="window._siVoltarUpload()"
+          <button data-action="_siVoltarUpload" data-event="click"
             style="background:#1e2330;color:#94a3b8;border:1px solid #2d3748;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:12px">
             ← Novo arquivo
           </button>
@@ -1589,9 +1589,17 @@ export class ImportacaoModule {
           <td style="text-align:right">${this._R(upBdi)}</td><td style="text-align:right;font-weight:700">${this._R(tot)}</td>
           <td style="text-align:center">${it._ok!==false?'<span class="badge ok-b">OK</span>':'<span class="badge err-b">ERR</span>'}</td></tr>`;
       }).join('')}</tbody></table>
-      <button onclick="window.print()" style="margin-top:20px;padding:10px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">🖨️ Imprimir / Salvar PDF</button>
+      <button id="si-imprimir" style="margin-top:20px;padding:10px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">🖨️ Imprimir / Salvar PDF</button>
     </body></html>`);
     w.document.close();
+
+    // O onclick="window.print()" que estava neste botão não funcionava em
+    // produção: a janela criada por window.open() herda a CSP do app, que não
+    // tem 'unsafe-inline' em script-src. E delegar não resolveria — o
+    // EventDelegate roda no documento do app, não neste. Como a janela é da
+    // mesma origem, o próprio opener registra o listener aqui.
+    w.document.getElementById('si-imprimir')
+      ?.addEventListener('click', () => w.print());
   }
 
   // ─── Utilitários ────────────────────────────────────────────────

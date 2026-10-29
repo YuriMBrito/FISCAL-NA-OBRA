@@ -96,9 +96,9 @@ export class QualidadeModule {
       <!-- Filtros + ação -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
         <input type="text" placeholder="🔍 Buscar material, NF, laudo..." value="${this._filtro}"
-          oninput="window._qa_filtro(this.value)"
+          data-action="_qa_filtro" data-value-from="this.value" data-event="input"
           style="flex:1;min-width:160px;padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)">
-        <select onchange="window._qa_filtroTipo(this.value)"
+        <select data-action="_qa_filtroTipo" data-value-from="this.value" data-event="change"
           style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)">
           <option value="">Todos os tipos</option>
           ${TIPOS_REGISTRO.map(t => `<option value="${t.key}" ${this._filtroTipo===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}

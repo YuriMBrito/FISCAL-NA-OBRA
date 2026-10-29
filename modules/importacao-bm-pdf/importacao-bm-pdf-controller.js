@@ -202,13 +202,13 @@ export class ImportacaoBmPdfModule {
     </div>
 
     <!-- ── Drop zone ── -->
-    <div id="bmpdf-drop"
-      ondragover="event.preventDefault();this.style.borderColor='${C.blue}'"
-      ondragleave="this.style.borderColor='#16a34a'"
-      ondrop="window._bmpdfDrop(event)"
+    <div id="bmpdf-drop" class="fo-drop"
+      data-action-dragover="_dropZoneSobre"
+      data-action-dragleave="_dropZoneSai"
+      data-action-drop="_bmpdfDrop"
       data-action="_bmpdfClickInput"
       style="border:2px dashed #16a34a;border-radius:12px;padding:36px;text-align:center;
-        cursor:pointer;transition:all .2s;background:#0d1f14;margin-bottom:16px">
+        cursor:pointer;transition:all .2s;background:#0d1f14;margin-bottom:16px;--fo-drop-bd:${C.blue}">
       <div style="font-size:36px;margin-bottom:8px">📄</div>
       <div style="font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:4px">
         Arraste o PDF aqui ou clique para selecionar
@@ -217,7 +217,7 @@ export class ImportacaoBmPdfModule {
         BM no modelo Convênio/CAIXA · somente <strong>.pdf</strong>
       </div>
       <input type="file" id="bmpdf-input" accept=".pdf" style="display:none"
-        onchange="window._bmpdfArquivo(event)">
+        data-action="_bmpdfArquivo" data-event="change">
     </div>
 
     <div id="bmpdf-status" style="min-height:22px;font-size:12px;color:#94a3b8;

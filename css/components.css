@@ -1,6 +1,11 @@
 /* Fiscal na Obra v13 — Componentes */
 
-items: center; }
+/* Havia aqui outro fragmento órfão da mesma divisão de arquivos:
+   "items: center; }", a cauda de uma regra cujo início se perdeu (pelo que
+   vem depois, algo como .mfx-preview { display:flex; align-items:center }).
+   Não dá para reconstruir o seletor, e a linha solta só gerava erro de
+   sintaxe no build. Removida; se o preview do .mfx aparecer desalinhado,
+   é aqui que faltava a regra. */
 .mfx-preview.err { color: #f87171; }
 
 /* ═══ TOAST ═══ */
@@ -554,7 +559,19 @@ body.light-mode .bkp-card { background: #FFFFFF; border-color: #EBEBEB; }
 
 /* ═══ CURVA-S / ALERTAS ═══ */
 .alerta-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid #EBEBEB; margin-bottom: 6px; transition: all .15s; background: #FFFFFF; }
-.alerta-item:hover { border-colo
+/* ⚠️  Esta regra estava partida ao meio no repositório. Aqui havia só
+   ".alerta-item:hover { border-colo" — sem valor, sem ponto-e-vírgula e
+   sem fechar a chave. A chave aberta engolia o resto do arquivo: da linha
+   557 em diante NADA era aplicado (realce das linhas da planilha de
+   aditivos, .btn-danger, cards de backup). ~360 linhas de CSS mortas, sem
+   erro visível — o navegador descarta em silêncio.
+
+   A outra metade estava no TOPO de themes.css, como fragmento solto:
+   "r: #CCCCCC; box-shadow: 0 1px 6px rgba(0,0,0,.05); }". Ou seja, o
+   arquivo original foi fatiado no meio desta declaração quando o CSS foi
+   dividido em main/components/themes. A regra abaixo é a junção exata das
+   duas metades; o fragmento saiu de themes.css. */
+.alerta-item:hover { border-color: #CCCCCC; box-shadow: 0 1px 6px rgba(0,0,0,.05); }
 
 /* ═══ ADITIVOS — Realce de linhas da planilha ═══════════════════════════════
    Usa o ID #adt-pl-tbody (especificidade 1-1-1) para garantir prioridade
@@ -864,3 +881,54 @@ body.light-mode #dash-global div[style*="overflow-x:auto"] {
   background: #b91c1c;
   border-color: #991b1b;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   HOVER / FOCO SEM HANDLER INLINE
+   ════════════════════════════════════════════════════════════════════════
+   A CSP de produção não tem 'unsafe-inline' em script-src, então todo
+   onmouseover="this.style.X='Y'" simplesmente não executava no ar — só em
+   `vite dev`, que não manda header de CSP. Era por isso que nenhum hover
+   funcionava no site publicado e tudo parecia certo no desenvolvimento.
+
+   Cada elemento declara o valor do estado na própria tag:
+     <div class="fo-hover-bg" style="--fo-hover-bg:#1d4ed8"> … </div>
+
+   O estado normal continua no style do elemento; o CSS devolve sozinho ao
+   sair, sem precisar do "onmouseout" que repunha o valor na mão.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* :not(:disabled) porque vários handlers de origem testavam this.disabled
+   antes de pintar — botão desabilitado não deve reagir ao cursor. */
+.fo-hover-bg:hover:not(:disabled) { background:   var(--fo-hover-bg)      !important; }
+.fo-hover-fg:hover:not(:disabled) { color:        var(--fo-hover-fg)      !important; }
+.fo-hover-bd:hover:not(:disabled) { border-color: var(--fo-hover-bd)      !important; }
+.fo-hover-op:hover:not(:disabled) { opacity:      var(--fo-hover-op, .85) !important; }
+
+/* Atalho de acessibilidade (e-MAG 2.2): aparece ao receber foco pelo Tab.
+   Era onfocus="this.style.top='0'" — e, sob a CSP de produção, o atalho
+   simplesmente nunca aparecia para quem navega por teclado. */
+.skip-link:focus        { top: 0 !important; }
+
+.fo-focus-bd:focus      { border-color:  var(--fo-focus-bd)    !important; }
+/* O valor é a sombra inteira, não só a cor: os sítios de origem traziam
+   o box-shadow completo no handler inline. */
+.fo-focus-ring:focus    { box-shadow: var(--fo-focus-ring) !important; }
+
+/* Zona de arrastar-soltar. dragover/dragleave não têm pseudo-classe em CSS,
+   então quem põe e tira .fo-drop-ativo é a delegação de eventos
+   (_dropZoneSobre / _dropZoneSai em core/app.js). */
+.fo-drop.fo-drop-ativo  { border-color:  var(--fo-drop-bd)     !important; }
+
+/* Transição suave só onde há hover declarado, para a troca não piscar. */
+.fo-hover-bg, .fo-hover-fg, .fo-hover-bd, .fo-hover-op {
+  transition: background-color .15s ease, color .15s ease,
+              border-color .15s ease, opacity .15s ease;
+}
+
+/* Busca global (Ctrl+K): o realce do item sob o cursor era um onmouseenter
+   que limpava o fundo de todos os irmãos e pintava o próprio — bloqueado pela
+   CSP. Em CSS o !important é necessário porque a navegação por teclado
+   (_moverSel) marca o item selecionado com style inline, que vence a classe.
+   Efeito colateral bem-vindo: ao tirar o mouse, a seleção do teclado reaparece
+   em vez de ficar perdida. */
+.gs-item:hover { background: var(--bg-surface) !important; }

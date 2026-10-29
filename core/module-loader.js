@@ -88,7 +88,10 @@ const DEFAULT_MODULE_TIMEOUT = 5000;
 // Registro estático de módulos (REQ-4: export nomeado de cada módulo)
 // ─────────────────────────────────────────────────────────────────────────────
 // Cada entrada define:
-//   path     — caminho relativo ao arquivo do módulo
+//   path     — caminho relativo ao módulo, usado em log e mensagem de erro
+//   importar — thunk com o MESMO caminho, em especificador LITERAL. É por ele
+//              que o módulo é carregado; o path é só texto. Os dois precisam
+//              andar juntos: se divergirem, o erro aponta o arquivo errado.
 //   export   — nome exato do export nomeado (ex: 'BoletimModule')
 //   pageId   — id do <div class="pagina"> correspondente no HTML
 //   timeout  — ms antes de considerar falha (REQ-2)
@@ -96,6 +99,7 @@ const DEFAULT_MODULE_TIMEOUT = 5000;
 const MODULE_REGISTRY = {
   'dashboard': {
     path:        '../modules/dashboard/dashboard-controller.js',
+    importar:    () => import('../modules/dashboard/dashboard-controller.js'),
     export:      'DashboardModule',
     pageId:      'dashboard',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -103,6 +107,7 @@ const MODULE_REGISTRY = {
   },
   'obras-manager': {
     path:        '../modules/obras-manager/obras-manager-controller.js',
+    importar:    () => import('../modules/obras-manager/obras-manager-controller.js'),
     export:      'ObrasManagerModule',
     pageId:      'obras-manager',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -110,6 +115,7 @@ const MODULE_REGISTRY = {
   },
   'boletim-medicao': {
     path:        '../modules/boletim-medicao/bm-controller.js',
+    importar:    () => import('../modules/boletim-medicao/bm-controller.js'),
     export:      'BoletimModule',
     pageId:      'boletim',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -117,6 +123,7 @@ const MODULE_REGISTRY = {
   },
   'memoria-calculo': {
     path:        '../modules/memoria-calculo/memoria-controller.js',
+    importar:    () => import('../modules/memoria-calculo/memoria-controller.js'),
     export:      'MemoriaModule',
     pageId:      'memoria',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -124,6 +131,7 @@ const MODULE_REGISTRY = {
   },
   'aditivos': {
     path:        '../modules/aditivos/aditivos-controller.js',
+    importar:    () => import('../modules/aditivos/aditivos-controller.js'),
     export:      'AditivosModule',
     pageId:      'aditivos',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -131,6 +139,7 @@ const MODULE_REGISTRY = {
   },
   'config': {
     path:        '../modules/config/config-controller.js',
+    importar:    () => import('../modules/config/config-controller.js'),
     export:      'ConfigModule',
     pageId:      'config',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -138,6 +147,7 @@ const MODULE_REGISTRY = {
   },
   'chuva': {
     path:        '../modules/chuva/chuva-controller.js',
+    importar:    () => import('../modules/chuva/chuva-controller.js'),
     export:      'ChuvaModule',
     pageId:      'chuva',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -145,6 +155,7 @@ const MODULE_REGISTRY = {
   },
   'relatorio': {
     path:        '../modules/relatorio/relatorio-controller.js',
+    importar:    () => import('../modules/relatorio/relatorio-controller.js'),
     export:      'RelatorioModule',
     pageId:      'relatorio',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -152,6 +163,7 @@ const MODULE_REGISTRY = {
   },
   'diario': {
     path:        '../modules/diario/diario-controller.js',
+    importar:    () => import('../modules/diario/diario-controller.js'),
     export:      'DiarioModule',
     pageId:      'diario',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -159,6 +171,7 @@ const MODULE_REGISTRY = {
   },
   'documentos': {
     path:        '../modules/documentos/documentos-controller.js',
+    importar:    () => import('../modules/documentos/documentos-controller.js'),
     export:      'DocumentosModule',
     pageId:      'documentos',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -166,6 +179,7 @@ const MODULE_REGISTRY = {
   },
   'obras-concluidas': {
     path:        '../modules/obras-concluidas/obras-concluidas-controller.js',
+    importar:    () => import('../modules/obras-concluidas/obras-concluidas-controller.js'),
     export:      'ObrasConcluiModule',
     pageId:      'obras-concluidas',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -173,6 +187,7 @@ const MODULE_REGISTRY = {
   },
   'ocorrencias': {
     path:        '../modules/ocorrencias/ocorrencias-controller.js',
+    importar:    () => import('../modules/ocorrencias/ocorrencias-controller.js'),
     export:      'OcorrenciasModule',
     pageId:      'ocorrencias',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -180,6 +195,7 @@ const MODULE_REGISTRY = {
   },
   'historico': {
     path:        '../modules/historico/historico-controller.js',
+    importar:    () => import('../modules/historico/historico-controller.js'),
     export:      'HistoricoModule',
     pageId:      'historico',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -187,6 +203,7 @@ const MODULE_REGISTRY = {
   },
   'painel-contratual': {
     path:        '../modules/painel-contratual/painel-contratual-controller.js',
+    importar:    () => import('../modules/painel-contratual/painel-contratual-controller.js'),
     export:      'PainelContratualModule',
     pageId:      'painel-contratual',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -194,6 +211,7 @@ const MODULE_REGISTRY = {
   },
   'usuarios': {
     path:        '../modules/usuarios/usuarios-controller.js',
+    importar:    () => import('../modules/usuarios/usuarios-controller.js'),
     export:      'UsuariosModule',
     pageId:      'usuarios',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -201,6 +219,7 @@ const MODULE_REGISTRY = {
   },
   'notificacoes': {
     path:        '../modules/notificacoes/notificacoes-controller.js',
+    importar:    () => import('../modules/notificacoes/notificacoes-controller.js'),
     export:      'NotificacoesModule',
     pageId:      'notificacoes',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -208,6 +227,7 @@ const MODULE_REGISTRY = {
   },
   'importacao': {
     path:        '../modules/importacao/importacao-controller.js',
+    importar:    () => import('../modules/importacao/importacao-controller.js'),
     export:      'ImportacaoModule',
     pageId:      'importacao',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -215,6 +235,7 @@ const MODULE_REGISTRY = {
   },
   'dash-global': {
     path:        '../modules/dash-global/dash-global-controller.js',
+    importar:    () => import('../modules/dash-global/dash-global-controller.js'),
     export:      'DashGlobalModule',
     pageId:      'dash-global',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -222,6 +243,7 @@ const MODULE_REGISTRY = {
   },
   'diagnostico': {
     path:        '../modules/diagnostico/diagnostico-controller.js',
+    importar:    () => import('../modules/diagnostico/diagnostico-controller.js'),
     export:      'DiagnosticoModule',
     pageId:      'diagnostico',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -229,6 +251,7 @@ const MODULE_REGISTRY = {
   },
   'auditoria': {
     path:        '../modules/auditoria/auditoria-controller.js',
+    importar:    () => import('../modules/auditoria/auditoria-controller.js'),
     export:      'AuditoriaModule',
     pageId:      'config',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -236,6 +259,7 @@ const MODULE_REGISTRY = {
   },
   'exportacao-obra': {
     path:        '../modules/exportacao-obra/exportacao-obra-controller.js',
+    importar:    () => import('../modules/exportacao-obra/exportacao-obra-controller.js'),
     export:      'ExportacaoObraModule',
     pageId:      'config',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -244,6 +268,7 @@ const MODULE_REGISTRY = {
   // ── Lei 14.133/2021 — módulos incrementais ──────────────────────────────
   'responsaveis': {
     path:        '../modules/responsaveis/responsaveis-controller.js',
+    importar:    () => import('../modules/responsaveis/responsaveis-controller.js'),
     export:      'ResponsaveisModule',
     pageId:      'responsaveis',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -251,6 +276,7 @@ const MODULE_REGISTRY = {
   },
   'sancoes': {
     path:        '../modules/sancoes/sancoes-controller.js',
+    importar:    () => import('../modules/sancoes/sancoes-controller.js'),
     export:      'SancoesModule',
     pageId:      'sancoes',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -258,6 +284,7 @@ const MODULE_REGISTRY = {
   },
   'prazos': {
     path:        '../modules/prazos/prazos-controller.js',
+    importar:    () => import('../modules/prazos/prazos-controller.js'),
     export:      'PrazosModule',
     pageId:      'prazos',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -265,6 +292,7 @@ const MODULE_REGISTRY = {
   },
   'recebimento': {
     path:        '../modules/recebimento/recebimento-controller.js',
+    importar:    () => import('../modules/recebimento/recebimento-controller.js'),
     export:      'RecebimentoModule',
     pageId:      'recebimento',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -272,6 +300,7 @@ const MODULE_REGISTRY = {
   },
   'riscos': {
     path:        '../modules/riscos/riscos-controller.js',
+    importar:    () => import('../modules/riscos/riscos-controller.js'),
     export:      'RiscosModule',
     pageId:      'riscos',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -280,6 +309,7 @@ const MODULE_REGISTRY = {
   // ── Integração com PAC / Obras Federais ────────────────────────────────────
   'acesso-obra': {
     path:        '../modules/acesso-obra/acesso-obra-controller.js',
+    importar:    () => import('../modules/acesso-obra/acesso-obra-controller.js'),
     export:      'AcessoObraModule',
     pageId:      'config',   // Renderiza dentro do painel de configuração
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -287,6 +317,7 @@ const MODULE_REGISTRY = {
   },
   'fiscal-obras': {
     path:        '../modules/fiscal-obras/fiscal-obras-controller.js',
+    importar:    () => import('../modules/fiscal-obras/fiscal-obras-controller.js'),
     export:      'FiscalObrasModule',
     pageId:      'fiscal-obras',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -294,6 +325,7 @@ const MODULE_REGISTRY = {
   },
   'sinapi': {
     path:        '../modules/sinapi/sinapi-controller.js',
+    importar:    () => import('../modules/sinapi/sinapi-controller.js'),
     export:      'SinapiModule',
     pageId:      'sinapi',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -301,6 +333,7 @@ const MODULE_REGISTRY = {
   },
   'fotos-medicao': {
     path:        '../modules/fotos-medicao/fotos-medicao-controller.js',
+    importar:    () => import('../modules/fotos-medicao/fotos-medicao-controller.js'),
     export:      'FotosMedicaoModule',
     pageId:      'fotos-medicao',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -308,6 +341,7 @@ const MODULE_REGISTRY = {
   },
   'checklist-tecnico': {
     path:        '../modules/checklist-tecnico/checklist-tecnico-controller.js',
+    importar:    () => import('../modules/checklist-tecnico/checklist-tecnico-controller.js'),
     export:      'ChecklistTecnicoModule',
     pageId:      'checklist-tecnico',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -315,6 +349,7 @@ const MODULE_REGISTRY = {
   },
   'etapas-pac': {
     path:        '../modules/etapas-pac/etapas-pac-controller.js',
+    importar:    () => import('../modules/etapas-pac/etapas-pac-controller.js'),
     export:      'EtapasPacModule',
     pageId:      'etapas-pac',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -322,6 +357,7 @@ const MODULE_REGISTRY = {
   },
   'relatorio-federal': {
     path:        '../modules/relatorio-federal/relatorio-federal-controller.js',
+    importar:    () => import('../modules/relatorio-federal/relatorio-federal-controller.js'),
     export:      'RelatorioFederalModule',
     pageId:      'relatorio-federal',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -329,6 +365,7 @@ const MODULE_REGISTRY = {
   },
   'modo-campo': {
     path:        '../modules/modo-campo/modo-campo-controller.js',
+    importar:    () => import('../modules/modo-campo/modo-campo-controller.js'),
     export:      'ModoCampoModule',
     pageId:      'modo-campo',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -336,6 +373,7 @@ const MODULE_REGISTRY = {
   },
   'qualidade': {
     path:        '../modules/qualidade/qualidade-controller.js',
+    importar:    () => import('../modules/qualidade/qualidade-controller.js'),
     export:      'QualidadeModule',
     pageId:      'qualidade',
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -344,6 +382,7 @@ const MODULE_REGISTRY = {
   // ── Módulo de integração — sem pageId próprio, roda em background ──────
   'integracao-lei14133': {
     path:        '../modules/integracao-lei14133/integracao-lei14133-controller.js',
+    importar:    () => import('../modules/integracao-lei14133/integracao-lei14133-controller.js'),
     export:      'IntegracaoLei14133Module',
     pageId:      'dashboard', // não tem página própria — usa dashboard como fallback
     timeout:     DEFAULT_MODULE_TIMEOUT,
@@ -498,7 +537,14 @@ class ModuleLoaderClass {
     // ── FASE 1: import() dinâmico ───────────────────────────────────────────
     // REQ-2: timeout de 5 s, com mensagem de qual módulo falhou
     const importResult = await safeExecute(
-      () => import(entry.config.path),
+      // entry.config.importar() e NÃO import(entry.config.path): com uma
+      // variável no especificador, o Rollup/Vite não consegue saber o que
+      // importar e simplesmente não inclui o módulo no bundle. O `dist/` saía
+      // com 6 dos 36 módulos, e só não quebrava em produção porque o hosting
+      // serve o código-fonte ("public": "." no firebase.json), não o dist.
+      // O thunk tem especificador literal: o Vite analisa e o browser executa
+      // nativamente, então o mesmo arquivo serve aos dois modos.
+      () => entry.config.importar(),
       {
         source:  `ModuleLoader:${moduleId}`,
         timeout: entry.config.timeout,

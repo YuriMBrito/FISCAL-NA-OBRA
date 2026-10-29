@@ -42,6 +42,8 @@ import { ToastComponent }   from '../components/toast.js';
 import { SidebarComponent } from '../components/sidebar.js';
 import { TopbarComponent }  from '../components/topbar.js';
 import { ConfirmComponent } from '../components/confirm.js';
+import { AvisoIntegridade } from '../components/aviso-integridade.js';
+import { PAPEL_PADRAO }     from '../utils/rbac.js';
 import { formatters }       from '../utils/formatters.js';
 import { FirebaseService }  from '../firebase/firebase-service.js';
 import { stubGlobals }      from '../utils/global-guard.js';
@@ -150,6 +152,11 @@ class App {
       safeExecuteSync(() => ToastComponent.init(), { source: 'App:toast' });
       window.toast = (msg, tipo = 'ok', dur) =>
         safeExecuteSync(() => ToastComponent.show(msg, tipo, dur), { source: 'toast', silent: true });
+
+      // Aviso de integridade: precisa subir junto com o Toast, antes de
+      // qualquer leitura da obra. É ele que transforma "leitura recusada" em
+      // faixa vermelha na tela, em vez de dado fabricado passando por real.
+      safeExecuteSync(() => AvisoIntegridade.init(), { source: 'App:aviso-integridade' });
 
       // FIX-E3.3: expõe confirm globalizado para migração gradual dos módulos
       // (ConfirmComponent já exporta window._confirm no seu próprio módulo,
@@ -477,8 +484,16 @@ class App {
         if (appShell) appShell.style.display = 'flex';
 
       } catch (err) {
-        const msg = err?.message || '';
-        let texto = '❌ E-mail ou senha inválidos.';
+        // "E-mail ou senha inválidos" era o texto PADRÃO: qualquer falha que
+        // não casasse com a lista virava acusação de senha errada. Um 403 da
+        // API Key restrita a domínios (o servidor de teste não cadastrado no
+        // Google Cloud) mandava o usuário procurar a senha certa durante horas,
+        // quando o login estava correto e o bloqueio era de origem HTTP.
+        // Só afirmamos a causa quando ela é conhecida.
+        const msg    = err?.message || '';
+        const codigo = err?.code || '';
+        let texto;
+
         if (msg.includes('user-not-found') || msg.includes('no user record'))
           texto = '❌ Usuário não encontrado.';
         else if (msg.includes('wrong-password') || msg.includes('invalid-credential') || msg.includes('invalid credential'))
@@ -487,6 +502,18 @@ class App {
           texto = '⏳ Muitas tentativas. Aguarde alguns minutos.';
         else if (msg.includes('network') || msg.includes('Network'))
           texto = '🌐 Sem conexão. Verifique sua internet.';
+        else if (msg.includes('blocked') || msg.includes('referer') || msg.includes('API key')
+                 || msg.includes('requests-to-this-api') || codigo === 'auth/requests-from-referer-are-blocked')
+          texto = '🚫 Esta origem não está autorizada na API Key.<br>' +
+                  '<span style="font-weight:400;font-size:11px">Google Cloud Console → Credenciais → chave do navegador → ' +
+                  'liberar este endereço em "Referenciadores HTTP". Não é a sua senha.</span>';
+        else if (msg.includes('operation-not-allowed'))
+          texto = '🚫 Login por e-mail e senha está desabilitado no Firebase Console.';
+        else
+          texto = `❌ Não foi possível entrar.<br>` +
+                  `<span style="font-weight:400;font-size:11px">${codigo || msg || 'erro desconhecido'}</span>`;
+
+        console.error('[Login]', codigo, msg, err);
         if (erroEl) erroEl.innerHTML = texto;
       } finally {
         window._setLoginLoading?.(false);
@@ -654,7 +681,7 @@ class App {
       // CORREÇÃO v15.3: EventDelegate chama window._loginAction (definido em _initLogin)
       // A versão anterior chamava this._handleLogin() que não existe como método de classe.
       '_loginAction':         ()        => safeExecuteSync(() => window._loginAction?.(),     { source: 'login:action' }),
-      '_loginGoogle':         ()        => safeExecuteSync(() => window._loginGoogle?.(),      { source: 'login:google' }),
+      // '_loginGoogle' removido em 13/08/2026 junto com o provedor Google.
       '_toggleSalvar':        ()        => safeExecuteSync(() => window._toggleSalvar?.(),     { source: 'login:toggle' }),
       '_abaLogin':            (aba)     => safeExecuteSync(() => window._abaLogin?.(aba),      { source: 'login:aba' }),
       '_abrirConfigFirebase': ()        => safeExecuteSync(() => window._abrirConfigFirebase?.(), { source: 'login:cfg' }),
@@ -982,6 +1009,182 @@ class App {
       '_siCriarObra':                 ()      => safeExecuteSync(() => window._siCriarObra?.(),             { source: 'si:criarObra' }),
       '_siExportarRelatorioPDF':      ()      => safeExecuteSync(() => window._siExportarRelatorioPDF?.(),  { source: 'si:exportarPDF' }),
     });
+
+    // ── Ponte para os globais migrados dos handlers inline ────────────────
+    //
+    // Todo handler inline (onclick/onchange/oninput="window._x(...)") virou
+    // data-action="_x", porque a CSP de produção não tem 'unsafe-inline' em
+    // script-src e simplesmente não executava nenhum deles. Ver CHANGELOG
+    // v15.5.5.
+    //
+    // Cada nome aqui vira uma ação que só repassa os argumentos ao global de
+    // mesmo nome — é o que as entradas acima fazem uma a uma, escrito de uma
+    // vez só. A LISTA É A LISTA DE PERMITIDOS: deliberadamente não existe um
+    // fallback genérico para window[action], que transformaria um
+    // data-action="eval" injetado em execução de código — exatamente o que a
+    // CSP está ali para impedir.
+    // O delegador chama handler(...dataArgs, event, el). _ponte repassa tudo,
+    // então o global recebe (…args, event, el) — serve a quem já esperava o
+    // event como primeiro parâmetro.
+    const _ponte = (...nomes) => Object.fromEntries(nomes.map(nome => [
+      nome,
+      (...args) => safeExecuteSync(() => window[nome]?.(...args), { source: `acao:${nome}` }),
+    ]));
+
+    // Para quem recebia o elemento (o antigo onchange="window._x(this)").
+    const _ponteEl = (...nomes) => Object.fromEntries(nomes.map(nome => [
+      nome,
+      (...args) => safeExecuteSync(() => window[nome]?.(args[args.length - 1]), { source: `acao:${nome}` }),
+    ]));
+
+    // Soltar arquivo: tira a moldura de destaque e repassa ao global do
+    // módulo. O preventDefault aqui também importa — sem ele o browser abre
+    // o arquivo solto numa aba, por cima do app.
+    const _soltar = (nome, args) => {
+      const event = args[args.length - 2];
+      const el    = args[args.length - 1];
+      event?.preventDefault?.();
+      el?.classList?.remove('fo-drop-ativo');
+      return safeExecuteSync(() => window[nome]?.(event, el), { source: `acao:${nome}` });
+    };
+
+    EventDelegate.registerAll(_ponte(
+      // Aditivos
+      '_adtNovoItemCalcTotal', '_adtNovoItemPreviewPosicao', '_adtOnReajusteIndice',
+      '_adtOnTipoChange',
+      // Boletim — espelho de preço unitário com/sem BDI
+      '_bmItemSincronizaBdi',
+      // Config
+      '_cfgToggleCaixaCampos',
+      // Checklist técnico
+      '_ck_obs', '_ck_setData', '_ck_setFiscal', '_ck_setTipo',
+      // Buscas e filtros de lista
+      '_doc_busca', '_fm_filtrarItens', '_fm_filtro', '_hist_filtro',
+      '_notif_filtro', '_obrc_busca', '_oc_filtro', '_oc_filtroTipo',
+      '_qa_filtro', '_qa_filtroTipo', '_sidebarSearch',
+      // Relatório
+      '_rel_salvarObs',
+      // Seleção de arquivo que o global já lia do event
+      '_doc_fileSelected', '_siProcessarArquivo', '_bmpdfArquivo',
+    ));
+
+    // ── Ações que estavam no markup e NUNCA tiveram handler ──────────────
+    //
+    // Estes 52 nomes já apareciam como data-action no HTML gerado e os
+    // módulos já criavam window._x correspondente — mas ninguém ligava os
+    // dois. O EventDelegate achava o data-action, não achava handler,
+    // escrevia "Action X não tem handler registrado" no console e devolvia
+    // sem fazer nada. Na tela: botão que não responde ao clique, em
+    // checklist técnico, documentos, fotos de medição, modo campo,
+    // qualidade, recebimento, relatório, relatório federal, usuários,
+    // acesso à obra, histórico, importação de BM em PDF e obras concluídas.
+    //
+    // Não tem relação com a CSP — apareceu ao cruzar os data-action do
+    // markup com os handlers registrados, conferindo a migração dos
+    // handlers inline.
+    EventDelegate.registerAll(_ponte(
+      '_acessoObra_atualizarLista', '_acessoObra_buscarEmail', '_acessoObra_conceder',
+      '_acessoObra_revogar', '_bmpdfConfirmar', '_bmpdfLimpar',
+      '_bmpdfSetModo', '_ck_abrirInspecao', '_ck_excluir',
+      '_ck_fecharModal', '_ck_iniciarNova', '_ck_resp',
+      '_ck_salvar', '_consultarObraConcluida', '_doc_abrirUpload',
+      '_doc_excluir', '_doc_fecharModal', '_doc_salvar',
+      '_fm_abrirCamera', '_fm_abrirForm', '_fm_capturarGPS',
+      '_fm_excluir', '_fm_fecharForm', '_fm_salvarForm',
+      '_hist_mais', '_integPDFRecebimento', '_mc_checkin',
+      '_mc_diarioRapido', '_mc_fecharModal', '_mc_fotoRapida',
+      '_mc_ocorrenciaRapida', '_mc_salvarDiario', '_mc_salvarOcorrencia',
+      '_mc_setGrav', '_qa_abrirForm', '_qa_excluir',
+      '_qa_fecharForm', '_qa_salvarForm', '_recebCancelar',
+      '_recebEditar', '_recebExcluir', '_recebNovoForm',
+      '_recebSalvarForm', '_rel_adicionarOcorrencia', '_rel_confirmarOcorrencia',
+      '_rel_fecharModal', '_rf_gerarHTML', '_rf_imprimir',
+      '_usr_adicionar', '_usr_editar', '_usr_excluir',
+      '_usr_fecharModal',
+    ));
+
+    // Globais que esperam o próprio <input type="file">.
+    EventDelegate.registerAll(_ponteEl(
+      '_diarioAdicionarFotos', '_ocAdicionarFotos', '_fm_adicionarFoto',
+      '_mc_previewFotoOc', '_sinapi_carregar',
+    ));
+
+    // ── Ações que precisam de forma própria ──────────────────────────────
+    EventDelegate.registerAll({
+      // Arrastar-soltar. dragover PRECISA de preventDefault, senão o browser
+      // recusa o drop. A moldura de destaque é classe CSS: dragover e
+      // dragleave não têm pseudo-classe para isso.
+      '_dropZoneSobre': (...args) => {
+        const event = args[args.length - 2];
+        const el    = args[args.length - 1];
+        event?.preventDefault?.();
+        el?.classList?.add('fo-drop-ativo');
+      },
+      '_dropZoneSai': (...args) => {
+        args[args.length - 1]?.classList?.remove('fo-drop-ativo');
+      },
+
+      // Enter no campo de e-mail do convite de acesso à obra.
+      '_acessoObraEnter': (...args) => {
+        const event = args[args.length - 2];
+        if (event?.key === 'Enter') {
+          safeExecuteSync(() => window._acessoObra_buscarEmail?.(), { source: 'acao:acessoObraEnter' });
+        }
+      },
+
+      // Planilha de aditivos: o valor do campo chega como texto.
+      '_adtPlanilhaEditQtd': (idx, valor) => safeExecuteSync(
+        () => window._adtPlanilhaEditQtd?.(idx, parseFloat(valor) || 0),
+        { source: 'acao:adtEditQtd' }),
+      '_adtPlanilhaEditUp': (idx, valor) => safeExecuteSync(() => {
+        // "R$ 1.234,56" → 1234.56
+        const n = parseFloat(String(valor).replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.')) || 0;
+        window._adtPlanilhaEditUp?.(idx, n);
+      }, { source: 'acao:adtEditUp' }),
+
+      // Checklist do relatório: checkbox manda booleano, não texto.
+      '_rel_checklist': (id, marcado) => safeExecuteSync(
+        () => window._rel_checklist?.(id, marcado), { source: 'acao:relChecklist' }),
+
+      // Nível de log do diagnóstico — método de objeto, não função solta.
+      '_diagSetLogLevel': (nivel) => safeExecuteSync(
+        () => window._FO_diag?.setLogLevel(nivel), { source: 'acao:diagLogLevel' }),
+
+      // Busca global e alertas: também métodos de objeto.
+      '_gsAtivarItem':   (idx) => safeExecuteSync(
+        () => window.globalSearchService?._ativarItem(idx), { source: 'acao:gsAtivar' }),
+      '_alertasLimpar':  ()    => safeExecuteSync(
+        () => window.smartAlertsService?.limpar(), { source: 'acao:alertasLimpar' }),
+      '_alertasFechar':  ()    => safeExecuteSync(
+        () => window.smartAlertsService?._fecharPainel(), { source: 'acao:alertasFechar' }),
+
+      // Abre o seletor de arquivo escondido da tela de importação.
+      '_siAbrirSeletorArquivo': () => document.getElementById('si-file-input')?.click(),
+
+      // Zonas de soltar: cada módulo tem o seu, e todas limpam a moldura.
+      '_doc_handleDrop': (...args) => _soltar('_doc_handleDrop', args),
+      '_siHandleDrop':   (...args) => _soltar('_siHandleDrop', args),
+      '_bmpdfDrop':      (...args) => _soltar('_bmpdfDrop', args),
+
+      // Fecha a faixa de aviso (era onclick="this.parentElement.remove()").
+      '_foFecharAviso': (...args) => args[args.length - 1]?.parentElement?.remove(),
+
+      // Seleciona o texto do campo ao focar (era onfocus="this.select()").
+      '_foSelecionarTexto': (...args) => args[args.length - 1]?.select?.(),
+
+      // Fecha o modal do checklist só quando o clique é no fundo, não no
+      // conteúdo. No markup isto era data-action="if" com
+      // data-arg0="event.target===this)window._ck_fecharModal(" — restos de
+      // uma conversão anterior que picotou um onclick="if(...)" no meio.
+      // Ação "if" nunca teve handler, então clicar no fundo não fechava nada.
+      '_ck_fecharModalSeFundo': (...args) => {
+        const event = args[args.length - 2];
+        const el    = args[args.length - 1];
+        if (event?.target === el) {
+          safeExecuteSync(() => window._ck_fecharModal?.(), { source: 'acao:ckFecharFundo' });
+        }
+      },
+    });
   }
 
   _setupGlobalListeners() {
@@ -1038,7 +1241,7 @@ class App {
               <strong>Outros browsers:</strong> verifique as configurações de privacidade/cookies.
             </span>
           </span>
-          <button onclick="this.parentElement.remove()"
+          <button data-action="_foFecharAviso" data-event="click"
             style="background:rgba(255,255,255,.25);border:none;color:#fff;
                    padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">
             Fechar
@@ -1055,12 +1258,23 @@ class App {
       // FIX-E1.2: reseta o flag para que o próximo login carregue os dados.
       this._loginHandled = false;
 
-      const firebaseAtivo = FirebaseService.isReady;
+      // isReady é METHOD (a classe tem um getter e um método com o mesmo nome;
+      // o método vence). Sem os parênteses isto era sempre truthy.
+      const firebaseAtivo = FirebaseService.isReady();
       if (!firebaseAtivo) return; // modo offline genuíno — mantém app-shell
+
       const telaLogin = document.getElementById('tela-login');
       const shell     = document.getElementById('app-shell');
-      if (telaLogin && shell && shell.style.display !== 'none') {
-        shell.style.display    = 'none';
+
+      // A condição `shell.style.display !== 'none'` estava aqui e abria o pior
+      // buraco do sistema: no boot o #app-shell nasce com display:none, e o
+      // onAuthStateChanged dispara com user=null ANTES de restaurar a sessão.
+      // A guarda barrava a troca de tela, o shell aparecia depois assim mesmo,
+      // e o usuário ficava operando DESLOGADO — lendo do cache do IndexedDB,
+      // com toda gravação recusada pela regra estaAutenticado(). Foi assim que
+      // um BM inteiro foi "criado" sem nunca chegar ao servidor.
+      if (telaLogin && shell) {
+        shell.style.display     = 'none';
         telaLogin.style.display = 'flex';
       }
     }, 'app:logout-guard');
@@ -1342,9 +1556,12 @@ class App {
     // Carregamento dinâmico paralelo: todos os serviços iniciam ao mesmo tempo
     // com Promise.all. Um arquivo 404 não derruba os demais — cada _load tem
     // seu próprio try/catch isolado.
-    const _load = async (name, path, fn) => {
+    // 'importar' é um thunk com especificador LITERAL, não uma string de
+    // caminho: import(variavel) não é analisável estaticamente, e o Rollup
+    // deixava estes serviços inteiros fora do bundle.
+    const _load = async (name, importar, fn) => {
       try {
-        const mod = await import(path);
+        const mod = await importar();
         const svc = mod.default || mod[Object.keys(mod)[0]];
         fn(svc);
         console.log(`[Services] ${name} OK.`);
@@ -1359,39 +1576,39 @@ class App {
     // Todos os serviços carregam em paralelo
     await Promise.all([
       // 1. Auditoria de Alterações (nível de campo)
-      _load('auditLogService',     '../services/auditLogService.js',
+      _load('auditLogService',     () => import('../services/auditLogService.js'),
         s => s.init()),
 
       // 2. Versionamento por BM
-      _load('versioningService',   '../services/versioningService.js',
+      _load('versioningService',   () => import('../services/versioningService.js'),
         s => s.init()),
 
       // 3. Motor de Validação
-      _load('validationEngine',    '../services/validationEngine.js',
+      _load('validationEngine',    () => import('../services/validationEngine.js'),
         s => { s.init(); _validation = s; }),
 
       // 4. Análise Inteligente + Detecção de Risco
-      _load('analysisService',     '../services/analysisService.js',
+      _load('analysisService',     () => import('../services/analysisService.js'),
         s => { s.init(); _analysis = s; }),
 
       // 5. Permissões de Usuário
-      _load('permissionsService',  '../services/permissionsService.js',
+      _load('permissionsService',  () => import('../services/permissionsService.js'),
         s => s.init()),
 
       // 6. Backup JSON
-      _load('backupService',       '../services/backupService.js',
+      _load('backupService',       () => import('../services/backupService.js'),
         s => { s.init(); window.gerarBackupJSONAtual = () => s.gerarBackupJSON(); }),
 
       // 7. Busca Global (Ctrl+K)
-      _load('globalSearchService', '../services/globalSearchService.js',
+      _load('globalSearchService', () => import('../services/globalSearchService.js'),
         s => s.init()),
 
       // 8. Alertas Inteligentes (badge + painel)
-      _load('smartAlertsService',  '../services/smartAlertsService.js',
+      _load('smartAlertsService',  () => import('../services/smartAlertsService.js'),
         s => s.init()),
 
       // 9. Analytics do Dashboard (nova aba)
-      _load('dashAnalytics', '../modules/dashboard-analytics/dash-analytics.js',
+      _load('dashAnalytics', () => import('../modules/dashboard-analytics/dash-analytics.js'),
         mod => {
           const Klass = mod.DashAnalyticsModule || mod;
           const inst  = new Klass();
@@ -1427,16 +1644,19 @@ if (typeof window !== 'undefined') window._FO = app;
 // Protege funções críticas expostas via window contra chamadas sem perfil adequado.
 // Uso: if (!requirePerfil('fiscal','administrador')) return;
 window.requirePerfil = function (...perfisPermitidos) {
-  const usuarios   = state.get('usuarios') || [];
   const userLogado = state.get('usuarioLogado') || {};
-  const meuPerfil  = usuarios.find(u =>
-    u.uid === userLogado.uid || u.email === userLogado.email
-  )?.perfil || '';
+  const meuPerfil  = userLogado.perfil || PAPEL_PADRAO;
 
-  // Se a obra não tem lista de usuários configurada, permite (fallback para sistemas novos)
-  if (!usuarios.length) return true;
-
-  const permitido = !meuPerfil || perfisPermitidos.includes(meuPerfil);
+  // FALHA FECHADA, e o papel vem do custom claim (o mesmo que as rules leem).
+  //
+  // A versão anterior buscava o papel em state.usuarios — coleção que nenhum
+  // módulo nunca populou — e liberava por DOIS caminhos: lista vazia
+  // ("fallback para sistemas novos") e papel não encontrado (!meuPerfil).
+  // As duas condições eram sempre verdadeiras, então a função devolvia true
+  // em qualquer cenário: um no-op com aparência de controle de acesso.
+  const permitido = userLogado.adminGlobal === true
+    || meuPerfil === 'administrador'
+    || perfisPermitidos.includes(meuPerfil);
   if (!permitido) {
     EventBus.emit('ui:toast', {
       msg: `🚫 Acesso negado. Perfil necessário: ${perfisPermitidos.join(' ou ')}.`,

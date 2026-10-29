@@ -116,29 +116,21 @@ export const ConfirmComponent = {
           <div style="font-size:13px;color:var(--text-primary,#f1f5f9);line-height:1.6;margin-bottom:${detail ? '8px' : '20px'}">${message}</div>
           ${detail ? `<div style="font-size:12px;color:var(--text-muted,#9ca3af);margin-bottom:20px;line-height:1.5">${detail}</div>` : ''}
           <div style="display:flex;gap:10px;justify-content:flex-end">
-            <button id="_fo-confirm-cancel"
-              style="
-                padding:8px 18px;
+            <button class="fo-hover-op" id="_fo-confirm-cancel"
+              style="padding:8px 18px;
                 border-radius:8px;
                 border:1px solid var(--border,#2d3748);
                 background:var(--bg-surface,#2d3748);
                 color:var(--text-primary,#f1f5f9);
-                font-size:13px;font-weight:600;cursor:pointer;
-              "
-              onmouseover="this.style.opacity='.8'"
-              onmouseout="this.style.opacity='1'"
+                font-size:13px;font-weight:600;cursor:pointer;--fo-hover-op:.8"
             >${labelCancel}</button>
-            <button id="_fo-confirm-ok"
-              style="
-                padding:8px 18px;
+            <button class="fo-hover-bg" id="_fo-confirm-ok"
+              style="padding:8px 18px;
                 border-radius:8px;
                 border:none;
                 background:${okColor};
                 color:#fff;
-                font-size:13px;font-weight:700;cursor:pointer;
-              "
-              onmouseover="this.style.background='${okHover}'"
-              onmouseout="this.style.background='${okColor}'"
+                font-size:13px;font-weight:700;cursor:pointer;--fo-hover-bg:${okHover}"
             >${labelOk}</button>
           </div>
         </div>

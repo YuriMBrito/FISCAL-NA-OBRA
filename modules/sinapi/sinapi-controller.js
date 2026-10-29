@@ -143,7 +143,7 @@ export class SinapiModule {
           (<strong>sinapi.caixa.gov.br</strong>). Colunas detectadas automaticamente: Código SINAPI, Descrição, Unidade, Quantidade e Preço Unitário.
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-          <input type="file" id="sinapi-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="window._sinapi_carregar(this)">
+          <input type="file" id="sinapi-file-input" accept=".xlsx,.xls,.csv" style="display:none" data-action="_sinapi_carregar" data-event="change">
           <button data-action="_sinapiClickFileInput"
             style="padding:9px 18px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">
             📂 Selecionar Planilha SINAPI

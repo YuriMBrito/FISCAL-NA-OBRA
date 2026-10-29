@@ -12,6 +12,7 @@ import { formatters }  from '../../utils/formatters.js';
 import FirebaseService from '../../firebase/firebase-service.js';
 import storageUtils    from '../../utils/storage.js';
 import { baixarCSV, numCSV } from '../../utils/csv-export.js';
+import { abrirParaImpressao } from '../../utils/imprimir-janela.js';
 
 const dataBR  = iso => iso ? new Date(iso+'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const hoje    = () => new Date().toISOString().slice(0,10);
@@ -30,7 +31,6 @@ export class DiarioModule {
     this._subs       = [];
     this._entradas   = [];
     this._editId     = null;
-  
     this._unsubWatch  = null; // FIX-E3.4
   }
 
@@ -153,7 +153,7 @@ export class DiarioModule {
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
             ${fotos.map((f,i) => `
               <div style="position:relative;cursor:pointer" data-action="_diarioVerFoto" data-arg0="${e.id}" data-arg1="${i}" title="Clique para ampliar">
-                <img src="${f.url||f}" style="width:72px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);transition:opacity .15s" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+                <img class="fo-hover-op" src="${f.url||f}" style="width:72px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);transition:opacity .15s;--fo-hover-op:.8">
                 <div style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.55);color:#fff;font-size:8px;padding:1px 4px;border-radius:3px">${i+1}/${fotos.length}</div>
               </div>`).join('')}
           </div>` : ''}
@@ -232,7 +232,7 @@ export class DiarioModule {
         ${section('📷 Registro Fotográfico')}
         <div style="grid-column:1/-1">
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <input type="file" id="diar-foto-input" accept="image/*" multiple style="display:none" onchange="window._diarioAdicionarFotos(this)">
+            <input type="file" id="diar-foto-input" accept="image/*" multiple style="display:none" data-action="_diarioAdicionarFotos" data-event="change">
             <button type="button" data-action="_diarFotoClick" style="padding:7px 14px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);font-size:12px;cursor:pointer">📁 Selecionar Fotos</button>
             <button type="button" data-action="_diarioCapturaCamera" style="padding:7px 14px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);font-size:12px;cursor:pointer">📸 Câmera</button>
             <span id="diar-foto-status" style="font-size:11px;color:var(--text-muted)"></span>
@@ -594,12 +594,9 @@ export class DiarioModule {
     <div class="rodape">
       Diário de Obras — ${cfg.objeto || ''} | Gerado em ${new Date().toLocaleString('pt-BR')} | ${lista.length} entrada(s)
     </div>
-    <script>window.print();<\/script>
     </body></html>`;
 
-    const w = window.open('','_blank','width=900,height=700');
-    if (w) { w.document.write(html); w.document.close(); }
-    else { window.toast?.('⚠️ Permita popups para gerar PDF.','warn'); }
+    abrirParaImpressao(html, { largura: 900, altura: 700, aviso: '⚠️ Permita popups para gerar PDF.' });
     window.auditRegistrar?.({ modulo: 'Diário de Obras', tipo: 'exportação', registro: `${lista.length} entradas`, detalhe: 'PDF do Diário de Obras' });
   }
 
@@ -662,11 +659,9 @@ export class DiarioModule {
         <p style="margin-top:4px">Data: ___/___/______</p>
       </div>
     </div>
-    <script>window.print();<\/script></body></html>`;
+    </body></html>`;
 
-    const w = window.open('','_blank','width=800,height=600');
-    if (w) { w.document.write(html); w.document.close(); }
-    else { window.toast?.('⚠️ Permita popups para gerar PDF.','warn'); }
+    abrirParaImpressao(html, { largura: 800, altura: 600, aviso: '⚠️ Permita popups para gerar PDF.' });
   }
 
   // ── Exportar CSV do Diário ────────────────────────────────────

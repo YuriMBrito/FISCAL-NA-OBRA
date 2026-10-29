@@ -94,9 +94,9 @@ export class OcorrenciasModule {
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
         <input type="text" id="oc-busca" placeholder="🔍 Buscar..." value="${this._filtro}"
-          oninput="window._oc_filtro(this.value)"
+          data-action="_oc_filtro" data-value-from="this.value" data-event="input"
           style="flex:1;min-width:140px;padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)">
-        <select onchange="window._oc_filtroTipo(this.value)"
+        <select data-action="_oc_filtroTipo" data-value-from="this.value" data-event="change"
           style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);width:auto">
           <option value="">Todos os tipos</option>
           ${TIPOS.map(t=>'<option value="'+t.key+'" '+(this._filtroTipo===t.key?'selected':'')+'>'+t.icon+' '+t.label+'</option>').join('')}
@@ -196,7 +196,7 @@ export class OcorrenciasModule {
       `<div style="grid-column:1/-1">
         <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px">📷 Fotos da Ocorrência</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input type="file" id="oc-foto-input" accept="image/*" multiple style="display:none" onchange="window._ocAdicionarFotos(this)">
+          <input type="file" id="oc-foto-input" accept="image/*" multiple style="display:none" data-action="_ocAdicionarFotos" data-event="change">
           <button type="button" data-action="_ocFotoClick" style="padding:7px 14px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);font-size:11px;cursor:pointer">📁 Selecionar</button>
           <button type="button" data-action="_ocCapturaCamera" style="padding:7px 14px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);font-size:11px;cursor:pointer">📸 Câmera</button>
           <span id="oc-foto-status" style="font-size:11px;color:var(--text-muted)"></span>

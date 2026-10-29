@@ -231,9 +231,13 @@ ${htmlBody}
 <div class="rodape">
   Emitido em ${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} — Fiscal na Obra · beta teste
 </div>
-<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>
 </body></html>`);
     w.document.close();
+
+    // O <script> inline aqui era bloqueado pela CSP: a janela abria e ficava
+    // parada. O opener imprime (ver utils/imprimir-janela.js).
+    w.onafterprint = () => w.close();
+    setTimeout(() => { try { w.focus(); w.print(); } catch (e) { console.error('[Lei14133] print:', e); } }, 50);
   }
 
   async _gerarPDFNotificacao(notifId) {

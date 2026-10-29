@@ -23,6 +23,7 @@ import router          from '../../core/router.js';
 import { formatters }  from '../../utils/formatters.js';
 import FirebaseService from '../../firebase/firebase-service.js';
 import { baixarCSV }   from '../../utils/csv-export.js';
+import { abrirParaImpressao } from '../../utils/imprimir-janela.js';
 
 // ── Constantes ──────────────────────────────────────────────────────
 const TIPOS_NOTIF = [
@@ -169,7 +170,7 @@ export class NotificacoesModule {
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:14px;flex-wrap:wrap">
         <div>
           <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px">Status</label>
-          <select onchange="window._notif_filtro('status',this.value)"
+          <select data-action="_notif_filtro" data-arg0="status" data-value-from="this.value" data-event="change"
             style="width:100%;padding:7px;font-size:11px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)">
             <option value="">Todos</option>
             ${STATUS_NOTIF.map(s=>`<option value="${s.k}" ${this._filtros.status===s.k?'selected':''}>${s.l}</option>`).join('')}
@@ -177,7 +178,7 @@ export class NotificacoesModule {
         </div>
         <div>
           <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px">Tipo</label>
-          <select onchange="window._notif_filtro('tipo',this.value)"
+          <select data-action="_notif_filtro" data-arg0="tipo" data-value-from="this.value" data-event="change"
             style="width:100%;padding:7px;font-size:11px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)">
             <option value="">Todos</option>
             ${TIPOS_NOTIF.map(t=>`<option value="${t.k}" ${this._filtros.tipo===t.k?'selected':''}>${t.i} ${t.l}</option>`).join('')}
@@ -185,12 +186,12 @@ export class NotificacoesModule {
         </div>
         <div>
           <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px">De</label>
-          <input type="date" value="${this._filtros.dataIni}" onchange="window._notif_filtro('dataIni',this.value)"
+          <input type="date" value="${this._filtros.dataIni}" data-action="_notif_filtro" data-arg0="dataIni" data-value-from="this.value" data-event="change"
             style="width:100%;padding:7px;font-size:11px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);box-sizing:border-box">
         </div>
         <div>
           <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px">Até</label>
-          <input type="date" value="${this._filtros.dataFim}" onchange="window._notif_filtro('dataFim',this.value)"
+          <input type="date" value="${this._filtros.dataFim}" data-action="_notif_filtro" data-arg0="dataFim" data-value-from="this.value" data-event="change"
             style="width:100%;padding:7px;font-size:11px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);box-sizing:border-box">
         </div>
         <button data-action="_notif_limparFiltros"
@@ -199,7 +200,7 @@ export class NotificacoesModule {
       </div>
       <div style="margin-bottom:12px">
         <input type="text" placeholder="🔍 Buscar por número, assunto, empresa..." value="${this._filtros.busca}"
-          oninput="window._notif_filtro('busca',this.value)"
+          data-action="_notif_filtro" data-arg0="busca" data-value-from="this.value" data-event="input"
           style="width:100%;padding:8px 12px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);box-sizing:border-box">
       </div>
 
@@ -681,12 +682,9 @@ export class NotificacoesModule {
       <div class="footer">
         Documento gerado pelo Sistema Fiscal na Obra — ${new Date().toLocaleString('pt-BR')}
       </div>
-      <script>window.print();<\/script>
     </body></html>`;
 
-    const w = window.open('','_blank','width=900,height=700');
-    if (w) { w.document.write(html); w.document.close(); }
-    else window.toast?.('⚠️ Permita popups para gerar o PDF.','warn');
+    abrirParaImpressao(html, { largura: 900, altura: 700, aviso: '⚠️ Permita popups para gerar o PDF.' });
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -727,10 +725,9 @@ export class NotificacoesModule {
         }).join('')}
       </table>
       <p style="font-size:8pt;color:#888;margin-top:14px">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
-      <script>window.print();<\/script></body></html>`;
+      </body></html>`;
 
-    const w = window.open('','_blank','width=1100,height=700');
-    if (w) { w.document.write(html); w.document.close(); }
+    abrirParaImpressao(html, { largura: 1100, altura: 700 });
   }
 
   // ══════════════════════════════════════════════════════════════════

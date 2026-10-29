@@ -14,6 +14,7 @@ import state           from '../../core/state.js';
 import router          from '../../core/router.js';
 import { formatters }  from '../../utils/formatters.js';
 import FirebaseService from '../../firebase/firebase-service.js';
+import { abrirParaImpressao } from '../../utils/imprimir-janela.js';
 import {
   getValorAcumuladoTotal,
   getValorAcumuladoAnterior,
@@ -113,7 +114,6 @@ export class DashboardModule {
 
       // Há obra selecionada — garante que o placeholder suma antes de renderizar
       inner.innerHTML = '';
-      
       // ── Renderiza aba selecionada ────────────────────────────
       if (this._tabAtual === 'painel') {
         // Limpa conteúdo antigo que não seja o tab header
@@ -213,7 +213,7 @@ export class DashboardModule {
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
             ${this._badgeStatus(statusObra)}
-            <select style="font-size:11px;padding:6px 12px;border-radius:10px;border:1px solid #E8EDF5;background:#F7F9FD;color:#1E2A3B;cursor:pointer;outline:none" onchange="window._dashMudarStatus?.(this.value)">
+            <select style="font-size:11px;padding:6px 12px;border-radius:10px;border:1px solid #E8EDF5;background:#F7F9FD;color:#1E2A3B;cursor:pointer;outline:none" data-action="_dashMudarStatus" data-value-from="this.value" data-event="change">
               ${['Em andamento','Paralisada','Concluída'].map(s=>`<option ${s===statusObra?'selected':''}>${s}</option>`).join('')}
             </select>
           </div>
@@ -601,10 +601,9 @@ export class DashboardModule {
       const saldo = valorContrato - vAcum;
       const isLast= bm.num === bms[bms.length-1].num;
       return `
-        <tr style="cursor:pointer;border-bottom:1px solid var(--border)"
+        <tr class="fo-hover-bg" style="cursor:pointer;border-bottom:1px solid var(--border);--fo-hover-bg:#F7F9FD"
           data-action="_dashDetalheBM" data-arg0="${bm.num}"
-          onmouseover="this.style.background='#F7F9FD'"
-          onmouseout="this.style.background=''">
+         >
           <td style="padding:9px 10px;text-align:center;font-weight:700;
             font-family:var(--font-mono);font-size:11px">${bm.num}</td>
           <td style="padding:9px 10px;font-size:11px">${bm.mes||'—'}</td>
@@ -1549,12 +1548,9 @@ ${alertas.map(a=>`<div class="alerta${a.tipo==='erro'?' alerta-err':''}">${a.ico
 </div>
 
 <div class="footer">Painel de Controle — Fiscal na Obra · ${cfg.contratante||''} · Gerado em ${hoje.toLocaleString('pt-BR')}</div>
-<script>window.print();<\/script>
 </body></html>`;
 
-    const w = window.open('','_blank','width=900,height=700');
-    if (w) { w.document.write(html); w.document.close(); }
-    else window.toast?.('⚠️ Permita popups para gerar PDF.','warn');
+    abrirParaImpressao(html, { largura: 900, altura: 700, aviso: '⚠️ Permita popups para gerar PDF.' });
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -1952,12 +1948,9 @@ ${aditivos.length>0?`
 </div>
 
 <div class="footer">Painel Contratual — ${cfg.contratante||''} · Sistema Fiscal na Obra · Gerado em ${hoje.toLocaleString('pt-BR')}</div>
-<script>window.print();<\/script>
 </body></html>`;
 
-    const w = window.open('','_blank','width=900,height=700');
-    if (w) { w.document.write(html); w.document.close(); }
-    else window.toast?.('⚠️ Permita popups para gerar PDF.','warn');
+    abrirParaImpressao(html, { largura: 900, altura: 700, aviso: '⚠️ Permita popups para gerar PDF.' });
   }
 
     destroy() {

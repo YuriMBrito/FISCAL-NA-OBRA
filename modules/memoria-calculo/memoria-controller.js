@@ -24,6 +24,7 @@ import { MemoriaUI } from './memoria-ui.js';
 import { baixarCSV, numCSV } from '../../utils/csv-export.js';
 import { scrollAfterAdd }    from '../../utils/scroll-guard.js';
 import { patchText, patchRow, guardFocus } from '../../utils/dom-patcher.js';
+import { abrirParaImpressao } from '../../utils/imprimir-janela.js';
 
 /** Converte qualquer valor em número finito seguro */
 function safeNumLocal(v) {
@@ -1392,12 +1393,9 @@ export class MemoriaModule {
   <span>BDI: ${(bdi*100).toFixed(1)}% · Contrato: ${cfg.contrato||'—'}</span>
   <span>Sistema Fiscal na Obra · Gerado em ${hoje.toLocaleString('pt-BR')}</span>
 </div>
-<script>window.print();<\/script>
 </body></html>`;
 
-        const w = window.open('','_blank','width=1200,height=800');
-        if (w) { w.document.write(html); w.document.close(); }
-        else window.toast?.('⚠️ Permita popups para gerar PDF.','warn');
+        abrirParaImpressao(html, { largura: 1200, altura: 800, aviso: '⚠️ Permita popups para gerar PDF.' });
       } catch(e) {
         console.error('[MemoriaModule] imprimirMemoria:', e);
         window.print();

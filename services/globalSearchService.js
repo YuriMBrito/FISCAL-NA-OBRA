@@ -253,9 +253,7 @@ const GlobalSearchService = {
         html += `<div class="gs-item" data-idx="${idx}"
           style="display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;
             border-radius:7px;margin:1px 6px;transition:background .1s"
-          onmouseenter="this.parentElement.querySelectorAll('.gs-item').forEach(e=>e.style.background='');this.style.background='var(--bg-surface)'"
-          onmouseleave="this.style.background=''"
-          onclick="window.globalSearchService._ativarItem(${idx})">
+          data-action="_gsAtivarItem" data-arg0="${idx}" data-event="click">
           <span style="font-size:16px;flex-shrink:0">${r.icone}</span>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;color:var(--text-primary);
