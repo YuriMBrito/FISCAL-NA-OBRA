@@ -1,53 +1,59 @@
 rules_version = '2';
 
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  FISCAL NA OBRA v15.1 — Regras de Segurança Firestore                  ║
-// ║  RBAC completo: admin | gestor | fiscal | engenheiro | tecnico |        ║
-// ║                 visualizador                                            ║
-// ║                                                                         ║
-// ║  PRINCÍPIOS:                                                            ║
-// ║   1. Deny-by-default — tudo bloqueado exceto o explicitamente liberado  ║
-// ║   2. Autenticação obrigatória em TODAS as operações                     ║
-// ║   3. Validação de campos críticos server-side                           ║
-// ║   4. Auditoria/histórico APPEND-ONLY — update/delete bloqueados        ║
-// ║   5. Hierarquia de papéis aplicada nas subcoleções críticas             ║
-// ║                                                                         ║
-// ║  HIERARQUIA DE PAPÉIS (do mais ao menos privilegiado):                  ║
-// ║   administrador > gestor > fiscal ≈ engenheiro > tecnico > visualizador║
-// ║                                                                         ║
-// ║  SUBCOLEÇÕES SENSÍVEIS (exigem papel mínimo específico):                ║
-// ║   aditivos       → fiscal ou superior (impacto financeiro)              ║
-// ║   sancoes        → gestor ou superior (impacto jurídico)                ║
-// ║   responsaveis   → gestor ou superior (Art. 117 Lei 14.133)            ║
-// ║   prazos         → gestor ou superior (Art. 111 Lei 14.133)            ║
-// ║   usuarios       → administrador ou dono da obra                        ║
-// ╚══════════════════════════════════════════════════════════════════════════╝
-
-// ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  POLÍTICA DE LEITURA — decisão do responsável pelo sistema (12/08/2026)  ║
+// ║  FISCAL NA OBRA — Regras de Segurança Firestore                         ║
 // ║                                                                          ║
-// ║  Quem está autorizado a acessar o sistema enxerga TODAS as obras.        ║
-// ║  Por isso a leitura das obras e subcoleções usa estaAutenticado(), e     ║
-// ║  não vínculo por obra.                                                   ║
+// ║  POLÍTICA (27/10/2026) — o papel voltou, agora por CUSTOM CLAIM          ║
 // ║                                                                          ║
-// ║  Já foi tentado escopar a leitura com souMembroDaObra(obraId): derrubou  ║
-// ║  o acesso do próprio responsável às obras cadastradas e foi revertido.   ║
-// ║  Antes de tentar de novo, ler a nota em souMembroDaObra() sobre o        ║
-// ║  hasAny() — a checagem de lista compara o MAPA INTEIRO e por isso        ║
-// ║  praticamente nunca casa com os registros reais.                         ║
+// ║  CONTEXTO: em 13/08/2026 a checagem de papel foi removida daqui e a      ║
+// ║  escrita ficou aberta a qualquer conta autenticada. O motivo era real:   ║
+// ║  o modelo antigo usava                                                   ║
+// ║     lista.hasAny([{'uid': ..., 'perfil': ...}])                          ║
+// ║  que compara MAPAS INTEIROS contra registros que não têm 'uid' — a tela  ║
+// ║  de usuários cadastra pessoas antes de elas terem conta. Nunca casava:   ║
+// ║  só o dono da obra e o admin global escreviam, e todo o resto tomava     ║
+// ║  "Missing or insufficient permissions" sem pista do motivo.              ║
 // ║                                                                          ║
-// ║  Consequência aceita: qualquer conta autenticada lê os dados das obras.  ║
-// ║  O controle que importa passa a ser QUEM consegue autenticar — hoje o    ║
-// ║  login Google aceita qualquer conta, sem lista de permitidos. Fechar     ║
-// ║  esse ponto é o próximo passo, e é o que dá sentido a "autorizados".     ║
-// ║  Escrita continua restrita por papel (podeEscreverNaObra e afins).       ║
+// ║  O QUE MUDOU AGORA: o papel não vem mais de dado cadastral. Vem de       ║
+// ║  request.auth.token.role, um custom claim gravado pelo Admin SDK em      ║
+// ║  criar-usuario.cjs e definir-perfil.mjs — que já faziam isso desde a     ║
+// ║  v15.1, para as Storage Rules. Ou seja: a informação sempre esteve no    ║
+// ║  token; o que faltava era ler dela em vez da lista.                      ║
+// ║                                                                          ║
+// ║  Consequências de ler do token:                                          ║
+// ║   • Não há get() nem exists() em escrita → nenhuma leitura cobrada,      ║
+// ║     nenhuma dependência de documento que pode não existir.               ║
+// ║   • Não há como o bug de comparação de mapas voltar.                     ║
+// ║   • A hierarquia é a MESMA de utils/rbac.js, então o botão que o cliente ║
+// ║     esconde é o mesmo que o servidor recusa. Era essa divergência que    ║
+// ║     fazia o UI liberar ação que o Firestore negava.                      ║
+// ║                                                                          ║
+// ║  ⚠️  CONTA SEM O CLAIM cai em papelPadrao() = 'fiscal' — o mesmo padrão  ║
+// ║  conservador de criar-usuario.cjs --migrar. Negar seria trancar fora     ║
+// ║  quem foi criado direto no Console antes dos claims existirem. Depois    ║
+// ║  de rodar `node criar-usuario.cjs --migrar`, endurecer para              ║
+// ║  'visualizador' é trocar uma linha. O claim entra no token do navegador  ║
+// ║  no próximo login (ou em até 1 h).                                       ║
+// ║                                                                          ║
+// ║  ⚠️  O LOGIN CONTINUA SENDO A PRIMEIRA PORTA. Papel limita o que cada    ║
+// ║  conta faz, não quem consegue entrar. Desabilitar o provedor Google em   ║
+// ║  Authentication → Sign-in method segue obrigatório: ele aceita qualquer  ║
+// ║  conta Google do mundo, e qualquer conta aceita aqui vira 'fiscal'.      ║
+// ║                                                                          ║
+// ║  O QUE CONTINUA BLOQUEADO PARA TODO MUNDO, e por quê:                    ║
+// ║   • /usuarios/{uid} create  → qualquer conta podia se autodeclarar       ║
+// ║     'administrador'. Perfis só pelo Admin SDK.                           ║
+// ║   • auditoria e historico: update → trilha append-only (TCU/CGU).        ║
+// ║     Criar e ler, sempre; reescrever registro passado, nunca.             ║
+// ║   • lixeira: update → item de lixeira é imutável até ser restaurado.     ║
+// ║   • Qualquer coleção fora de /usuarios, /obras e /lixeira.               ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // ═══════════════════════════════════════════════════════════════
-    //  FUNÇÕES AUXILIARES
+    //  AUTENTICAÇÃO
     // ═══════════════════════════════════════════════════════════════
 
     function estaAutenticado() {
@@ -58,494 +64,169 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
-    // Carrega perfil do usuário logado — resultado cacheado pelo Firestore
-    function meuPerfil() {
-      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    // ═══════════════════════════════════════════════════════════════
+    //  PAPÉIS — espelho de HIERARQUIA em utils/rbac.js
+    //
+    //  administrador 5 · gestor 4 · fiscal 3 · engenheiro 2 ·
+    //  tecnico 1 · visualizador 0
+    // ═══════════════════════════════════════════════════════════════
+
+    // Papel de quem não tem o claim. Ver o aviso no cabeçalho antes de mexer.
+    function papelPadrao() {
+      return 'fiscal';
     }
 
-    // ── Verificações de papel global ────────────────────────────
+    function papel() {
+      return request.auth.token.get('role', papelPadrao());
+    }
 
+    function nivel(p) {
+      return p == 'administrador' ? 5
+           : p == 'gestor'        ? 4
+           : p == 'fiscal'        ? 3
+           : p == 'engenheiro'    ? 2
+           : p == 'tecnico'       ? 1
+           : 0;  // visualizador e qualquer valor desconhecido
+    }
+
+    function adminGlobal() {
+      return estaAutenticado() && request.auth.token.get('adminGlobal', false) == true;
+    }
+
+    // Único portão de escrita do arquivo.
+    function nivelMinimo(n) {
+      return estaAutenticado() && (adminGlobal() || nivel(papel()) >= n);
+    }
+
+    // Administrador: pelo claim (sem custo) ou, para contas ainda não
+    // migradas, pelo documento de perfil. O || curto-circuita, então quem
+    // tem o claim não gera leitura. O .get('perfil','') evita o erro de
+    // campo ausente em documento criado só com preferências.
     function souAdmin() {
-      return estaAutenticado()
-        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
-        && meuPerfil().perfil == 'administrador';
-    }
-
-    // ── Verificações de vínculo com obra ───────────────────────
-
-    function souDonoDaObra(obraId) {
-      return estaAutenticado()
-        && get(/databases/$(database)/documents/obras/$(obraId)).data.uid == meuUid();
-    }
-
-    // Retorna dados da lista de usuários da obra (reutilizado em várias funções)
-    function listaUsuariosObra(obraId) {
-      return get(/databases/$(database)/documents/obras/$(obraId)/usuarios/lista).data;
-    }
-
-    function listaExiste(obraId) {
-      return exists(/databases/$(database)/documents/obras/$(obraId)/usuarios/lista);
-    }
-
-    // ── Papéis na obra ─────────────────────────────────────────
-    //
-    // CORREÇÃO CRÍTICA v15.3:
-    // As funções anteriores usavam sintaxe inválida no DSL do Firestore:
-    //   lista.where()          → não existe no DSL
-    //   .toSet().toList().map() → não existe no DSL
-    // Isso causaria falha no deploy das rules ou bloqueio de todas as escritas.
-    //
-    // SOLUÇÃO: O Firestore Rules DSL suporta List.hasAny() com lista estática.
-    // Usamos hasAny() passando cada combinação {uid, perfil} explicitamente —
-    // sintaxe 100% válida e documentada pela Firebase.
-
-    // Membro ativo = dono da obra | admin global | está na lista de usuários
-    //
-    // ATENÇÃO — o ramo da lista quase nunca é verdadeiro na prática:
-    // hasAny([{'uid': meuUid()}]) exige que algum elemento seja EXATAMENTE o
-    // mapa {'uid': ...}. Os registros gravados por salvarUsuariosObra() têm
-    // mais campos (nome, perfil, email), e um mapa com chaves a mais não é
-    // igual — logo, não casa. O mesmo vale para podeEscreverNaObra() e para
-    // podeGerirAditivos(), que comparam {'uid':..., 'perfil':...}.
-    // Na prática, só dono da obra e admin global passam por estas funções.
-    // Corrigir exige guardar no documento da obra um array simples de uids
-    // (ex.: membros: ['uid1','uid2']) e testar com meuUid() in membros.
-    function souMembroDaObra(obraId) {
-      let listaOk = listaExiste(obraId)
-        && listaUsuariosObra(obraId).lista.hasAny([{'uid': meuUid()}]);
-      return estaAutenticado() && (
-        souDonoDaObra(obraId) ||
-        souAdmin() ||
-        listaOk
-      );
-    }
-
-    // Visualizador = membro com perfil 'visualizador' (somente leitura)
-    function souVisualizadorDaObra(obraId) {
-      return estaAutenticado()
-        && listaExiste(obraId)
-        && listaUsuariosObra(obraId).lista.hasAny([
-             {'uid': meuUid(), 'perfil': 'visualizador'}
-           ]);
-    }
-
-    // Pode escrever = membro com perfil acima de visualizador
-    // (tecnico, fiscal, engenheiro, gestor ou administrador)
-    function podeEscreverNaObra(obraId) {
-      return estaAutenticado() && (
-        souDonoDaObra(obraId) ||
-        souAdmin() ||
-        (listaExiste(obraId) && listaUsuariosObra(obraId).lista.hasAny([
-           {'uid': meuUid(), 'perfil': 'tecnico'},
-           {'uid': meuUid(), 'perfil': 'fiscal'},
-           {'uid': meuUid(), 'perfil': 'engenheiro'},
-           {'uid': meuUid(), 'perfil': 'gestor'},
-           {'uid': meuUid(), 'perfil': 'administrador'}
-         ]))
-      );
-    }
-
-    // ── Papéis mínimos para subcoleções críticas ───────────────
-
-    // Papel mínimo: fiscal, engenheiro, gestor, administrador
-    // Tecnico e visualizador NÃO podem criar/editar aditivos (impacto financeiro)
-    // CORREÇÃO: usa hasAny com lista estática — sintaxe válida no DSL
-    function podeGerirAditivos(obraId) {
-      return estaAutenticado() && (
-        souDonoDaObra(obraId) ||
-        souAdmin() ||
-        (listaExiste(obraId) && listaUsuariosObra(obraId).lista.hasAny([
-           {'uid': meuUid(), 'perfil': 'fiscal'},
-           {'uid': meuUid(), 'perfil': 'engenheiro'},
-           {'uid': meuUid(), 'perfil': 'gestor'},
-           {'uid': meuUid(), 'perfil': 'administrador'}
-         ]))
-      );
-    }
-
-    // Papel mínimo: gestor ou administrador (impacto jurídico — Art. 117/125/156)
-    function podeGerirDocumentosJuridicos(obraId) {
-      return estaAutenticado() && (
-        souDonoDaObra(obraId) ||
-        souAdmin() ||
-        (listaExiste(obraId) && listaUsuariosObra(obraId).lista.hasAny([
-           {'uid': meuUid(), 'perfil': 'gestor'},
-           {'uid': meuUid(), 'perfil': 'administrador'}
-         ]))
-      );
-    }
-
-    // ── Validação de dados de entrada ──────────────────────────
-
-    // Valida campos de texto para evitar injeção de strings gigantes
-    function camposTextoValidos(data) {
-      return
-        (!('nome'         in data) || data.nome.size()         <= 500) &&
-        (!('tipo'         in data) || data.tipo.size()         <= 200) &&
-        (!('statusObra'   in data) || data.statusObra.size()   <= 100) &&
-        (!('atualizadoEm' in data) || data.atualizadoEm.size() <= 50)  &&
-        (!('criadoEm'     in data) || data.criadoEm.size()     <= 50);
-    }
-
-    // Valida campos de uma medição (evita valores negativos injetados)
-    function medicaoValida(data) {
-      return data.v is int && data.v >= 1
-        && data.atualizadoEm is string
-        && data.atualizadoEm.size() <= 50;
-    }
-
-    // Valida campos de um aditivo (campos financeiros críticos)
-    function aditivoValido(data) {
-      return data.keys().hasAll(['id', 'tipo'])
-        && data.id is string && data.id.size() > 0
-        && data.tipo.size() <= 100
-        && (!('acrescimos' in data) || data.acrescimos is number)
-        && (!('supressoes' in data) || data.supressoes is number);
+      return adminGlobal()
+        || (estaAutenticado()
+            && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+            && get(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+                 .data.get('perfil', '') == 'administrador');
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  /usuarios/{uid} — Perfis de usuário
+    //  NÍVEL EXIGIDO POR SUBCOLEÇÃO DA OBRA
+    //
+    //  Esta é A tabela de permissões do sistema — mudar política é mudar
+    //  aqui, em um lugar só. Subcoleção que ninguém previu cai no 1
+    //  (tecnico), de propósito: módulo novo nasce funcionando para a
+    //  equipe de campo e não exige editar este arquivo para subir.
+    // ═══════════════════════════════════════════════════════════════
+    function nivelExigido(sub) {
+      // Quem manda em quem tem acesso à obra: só administrador.
+      return sub == 'usuarios' ? 5
+
+        // Impacto jurídico e contratual (Lei 14.133: Art. 111, 117, 125, 156).
+        // 'cfg' entra aqui porque guarda contrato, valor, prazos e CNPJs.
+        : sub in ['cfg', 'sancoes', 'responsaveis', 'prazos', 'recebimentos',
+                  'riscos', 'lei14133', 'versoes', 'fiscais', 'acesso'] ? 4
+
+        // Impacto financeiro: medição é o que vira pagamento.
+        : sub in ['bms', 'medicoes', 'itens', 'aditivos'] ? 2
+
+        // Operação de campo: diario, ocorrencias, chuva, documentos,
+        // notificacoes, fotos-medicao, checklist-tecnico, etapas-pac,
+        // qualidade — e o que vier depois.
+        : 1;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  /usuarios/{uid} — perfis de usuário
     // ═══════════════════════════════════════════════════════════════
     match /usuarios/{uid} {
-      // Cada usuário lê apenas seu próprio perfil; admin lê qualquer um
       allow read: if estaAutenticado() && (meuUid() == uid || souAdmin());
 
-      // Criação: BLOQUEADA no cliente.
-      //
-      // A regra anterior aceitava perfil 'administrador' na criação. Como
-      // souAdmin() confia neste campo, qualquer conta recem-logada podia
-      // criar /usuarios/{seuUid} com perfil administrador e virar admin
-      // global do sistema — leitura e escrita em todas as obras.
-      // Perfis são provisionados por criar-usuario.js (Admin SDK), que roda
-      // com credencial de serviço e não passa por estas regras.
+      // BLOQUEADO no cliente: a regra antiga aceitava perfil 'administrador'
+      // na criação, então qualquer conta recém-logada virava admin global.
       allow create: if false;
 
-      // Atualização pelo próprio usuário: apenas campos de preferência.
-      // 'perfil' fica de fora por construção, então não há auto-promoção.
-      // (A regra anterior comparava contra uma lista fixa, o que de quebra
-      //  impedia um 'gestor' de salvar a própria obra ativa.)
+      // O próprio usuário só mexe em preferência. 'perfil' fica de fora por
+      // construção, então não há auto-promoção.
       allow update: if estaAutenticado()
         && meuUid() == uid
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['obraAtivaId', 'ultimoAcesso', 'atualizadoEm']);
 
-      // Administrador pode atualizar qualquer perfil
       allow update: if souAdmin();
 
-      // Ninguém deleta perfil (proteção de auditoria — inativar, não deletar)
+      // Inativar, não deletar (auditoria).
       allow delete: if false;
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  /obras/global/chuva/{ano} — LEGADO do Quadro de Chuvas
+    //  /obras/{obraId} — a obra e TODOS os seus dados
     //
-    //  Até v15.5.2 o Quadro de Chuvas gravava numa "obra" fictícia
-    //  chamada 'global'. Esse documento de obra nunca existiu, então
-    //  souMembroDaObra('global') não consegue nem avaliar — o get() cai
-    //  em documento inexistente e a regra nega. Sem esta exceção, o
-    //  histórico antigo fica ilegível e some da tela.
-    //
-    //  Somente leitura e somente neste caminho. O módulo copia esses
-    //  registros para a obra ativa no primeiro carregamento; depois que
-    //  a migração de todas as obras terminar, este bloco pode sair.
-    //  Regras do Firestore são aditivas: isto libera apenas este path.
-    // ═══════════════════════════════════════════════════════════════
-    match /obras/global/chuva/{ano} {
-      allow read:  if estaAutenticado();
-      allow write: if false;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  /obras/{obraId} — Documento raiz da obra
+    //  Inclui a obra fictícia 'global', onde o Quadro de Chuvas gravava
+    //  até a v15.5.2: /obras/global/chuva/{ano} cai aqui como qualquer
+    //  outra, então o histórico antigo continua legível e gravável.
     // ═══════════════════════════════════════════════════════════════
     match /obras/{obraId} {
 
-      // Leitura: membros e visualizadores
+      // Leitura: qualquer autenticado, em qualquer obra. É a política de
+      // 13/08 e ela fica — a equipe precisa ver obra de colega, e esconder
+      // leitura nunca foi o problema que custou dado aqui.
       allow read: if estaAutenticado();
 
-      // Criação: qualquer usuário autenticado pode criar uma obra
-      allow create: if estaAutenticado()
-        && request.resource.data.uid == meuUid()
-        && camposTextoValidos(request.resource.data)
-        && request.resource.data.keys().hasAll(['id', 'nome', 'uid']);
+      // O documento raiz carrega nome, tipo, statusObra e o 'uid' do dono.
+      // Criar a obra também grava 'cfg' (criarObra), que exige 4 — os dois
+      // no mesmo nível para não existir obra meio-criada.
+      allow create, update: if nivelMinimo(4);
 
-      // Atualização: dono da obra ou admin
-      allow update: if (souDonoDaObra(obraId) || souAdmin())
-        && camposTextoValidos(request.resource.data);
+      // Hard-delete de contrato: só administrador. O caminho normal é a
+      // lixeira (softDeleteObra), que é reversível.
+      allow delete: if nivelMinimo(5);
 
-      // Exclusão: somente dono ou admin (soft-delete gravado pelo backend)
-      allow delete: if souDonoDaObra(obraId) || souAdmin();
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/cfg/cfg — Configuração da obra
-      // ────────────────────────────────────────────────────────────
-      match /cfg/{docId} {
-        allow read:   if estaAutenticado();
-        // Apenas gestor/admin/dono alteram configurações contratuais
-        allow write:  if podeGerirDocumentosJuridicos(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/bms/bms — Boletins de Medição
-      // ────────────────────────────────────────────────────────────
-      match /bms/{docId} {
-        allow read:   if estaAutenticado();
-        // Fiscal, engenheiro, gestor, admin podem gerenciar BMs
-        allow write:  if podeGerirAditivos(obraId); // mesmo nível mínimo
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/itens/{chunkId} — Itens contratuais
-      // ────────────────────────────────────────────────────────────
-      match /itens/{chunkId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeGerirAditivos(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/medicoes/{bmId} — Medições detalhadas
-      //  Validação: impede injeção de valores negativos ou v ausente
-      // ────────────────────────────────────────────────────────────
-      match /medicoes/{bmId} {
-        allow read:   if estaAutenticado();
-        allow create: if podeEscreverNaObra(obraId) && medicaoValida(request.resource.data);
-        allow update: if podeEscreverNaObra(obraId) && medicaoValida(request.resource.data);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/aditivos/{aditivoId}
-      //  Papel mínimo: fiscal (impacto financeiro — Art. 125 Lei 14.133)
-      //  Validação: campos obrigatórios e tipos numéricos
-      // ────────────────────────────────────────────────────────────
-      match /aditivos/{aditivoId} {
-        allow read:   if estaAutenticado();
-        allow create: if podeGerirAditivos(obraId) && aditivoValido(request.resource.data);
-        allow update: if podeGerirAditivos(obraId) && aditivoValido(request.resource.data);
-        // Aditivos nunca são deletados (integridade contratual) — apenas admin por exceção
-        allow delete: if souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/ocorrencias — Registro de ocorrências
-      // ────────────────────────────────────────────────────────────
-      match /ocorrencias/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/chuva — Dados pluviométricos
-      // ────────────────────────────────────────────────────────────
-      match /chuva/{ano} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/diario — Diário de obra
-      // ────────────────────────────────────────────────────────────
-      match /diario/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/notificacoes — Notificações contratuais
-      // ────────────────────────────────────────────────────────────
-      match /notificacoes/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/documentos — Documentos vinculados
-      // ────────────────────────────────────────────────────────────
-      match /documentos/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/historico — Histórico APPEND-ONLY
-      //  Update e delete VEDADOS — imutabilidade de auditoria (TCU/CGU)
-      // ────────────────────────────────────────────────────────────
-      match /historico/{docId} {
-        allow read:    if estaAutenticado();
-        allow create:  if podeEscreverNaObra(obraId);
-        allow update:  if false; // IMUTÁVEL — nunca alterado
-        allow delete:  if souAdmin(); // Admin pode apagar ao excluir a obra permanentemente
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/usuarios/lista — Usuários vinculados à obra
-      //  Apenas dono e admin gerenciam membros da obra
-      // ────────────────────────────────────────────────────────────
-      match /usuarios/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if souDonoDaObra(obraId) || souAdmin();
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/versoes — Versões contratuais (aditivos)
-      // ────────────────────────────────────────────────────────────
-      match /versoes/{versaoId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeGerirAditivos(obraId);
-        allow delete: if souAdmin(); // versões não são deletadas por usuários comuns
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/auditoria — Trilha APPEND-ONLY
-      //  Update e delete VEDADOS — imutabilidade absoluta (TCU/CGU)
-      // ────────────────────────────────────────────────────────────
+      // ── Trilhas append-only ──────────────────────────────────────
+      // Declaradas ANTES do curinga e excluídas dele: regras do Firestore
+      // são aditivas (basta uma permitir), então a única forma de manter
+      // update proibido é o curinga abaixo não conceder escrita a elas.
       match /auditoria/{docId} {
-        allow read:    if estaAutenticado();
-        allow create:  if souMembroDaObra(obraId);
-        allow update:  if false; // IMUTÁVEL — nunca alterado
-        allow delete:  if souAdmin(); // Admin pode apagar ao excluir a obra permanentemente
+        allow read, create: if estaAutenticado();
+        allow update: if false;
+        // Antes: delete liberado a qualquer autenticado — uma trilha que
+        // qualquer um apaga não é append-only.
+        allow delete: if nivelMinimo(5);
       }
 
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/sancoes — Sanções Administrativas (Art. 156)
-      //  Papel mínimo: gestor (impacto jurídico severo)
-      // ────────────────────────────────────────────────────────────
-      match /sancoes/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeGerirDocumentosJuridicos(obraId);
-        allow delete: if souAdmin(); // sanções não são deletadas
+      match /historico/{docId} {
+        allow read, create: if estaAutenticado();
+        allow update: if false;
+        // deleteObra() apaga 'historico' em cascata, e excluir obra é 5.
+        allow delete: if nivelMinimo(5);
       }
 
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/responsaveis — Responsáveis (Art. 117)
-      //  Papel mínimo: gestor (designação formal de fiscal/gestor)
-      // ────────────────────────────────────────────────────────────
-      match /responsaveis/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeGerirDocumentosJuridicos(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/prazos — Prorrogações contratuais (Art. 111)
-      //  Papel mínimo: gestor
-      // ────────────────────────────────────────────────────────────
-      match /prazos/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeGerirDocumentosJuridicos(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/recebimentos — Recebimento Prov./Def. (Art. 140)
-      //  Papel mínimo: gestor (ato formal com consequências jurídicas)
-      // ────────────────────────────────────────────────────────────
-      match /recebimentos/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeGerirDocumentosJuridicos(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/riscos — Matriz de Riscos
-      // ────────────────────────────────────────────────────────────
-      match /riscos/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  Subcoleções PAC / Obras Federais
-      // ────────────────────────────────────────────────────────────
-      match /fotos-medicao/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      match /checklist-tecnico/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      match /etapas-pac/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      match /qualidade/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/lei14133/{docId} — Módulos Lei 14.133/2021
-      //  Documentos: responsaveis, sancoes, prorrogacoes, recebimentos, riscos
-      //  Leitura: qualquer membro ou visualizador da obra
-      //  Escrita: membros com perfil técnico ou superior
-      // ────────────────────────────────────────────────────────────
-      match /lei14133/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/fiscais/{docId} — Fiscais de Obras (módulo próprio)
-      //  Leitura: qualquer membro ou visualizador da obra
-      //  Escrita: membros com perfil técnico ou superior
-      // ────────────────────────────────────────────────────────────
-      match /fiscais/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if podeEscreverNaObra(obraId);
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  /obras/{obraId}/acesso/{docId} — Controle de Acesso à Obra
-      //  Leitura: qualquer membro da obra
-      //  Escrita: apenas dono ou admin
-      // ────────────────────────────────────────────────────────────
-      match /acesso/{docId} {
-        allow read:   if estaAutenticado();
-        allow write:  if souDonoDaObra(obraId) || souAdmin();
-        allow delete: if souDonoDaObra(obraId) || souAdmin();
-      }
-
-      // ────────────────────────────────────────────────────────────
-      //  SUBCOLEÇÕES FUTURAS — Deny-by-default
-      //  Toda nova subcoleção deve ter regra explícita ACIMA desta.
-      // ────────────────────────────────────────────────────────────
-      match /{subcolecao}/{docId} {
-        allow read, write: if false;
+      // ── Todo o resto dos dados da obra ───────────────────────────
+      match /{subcolecao}/{documento=**} {
+        allow read:  if estaAutenticado();
+        allow write: if nivelMinimo(nivelExigido(subcolecao))
+          && !(subcolecao in ['auditoria', 'historico']);
       }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  /lixeira/{itemId} — Soft-delete por usuário
+    //  /lixeira/{itemId} — soft-delete
+    //
+    //  Criar item de lixeira é operação que PRESERVA dado: é por onde
+    //  passam excluir aditivo, BM, entrada de diário e documento. Fica em
+    //  1 (tecnico) de propósito — prender isso em gestor transformaria
+    //  "apagar uma linha do diário" em pedido ao administrador.
+    //  Destrutivo de verdade é só esvaziar a lixeira: 4.
     // ═══════════════════════════════════════════════════════════════
     match /lixeira/{itemId} {
-      allow read:   if estaAutenticado() && resource.data.uid == meuUid();
-      allow create: if estaAutenticado() && request.resource.data.uid == meuUid();
-      allow delete: if estaAutenticado() && (resource.data.uid == meuUid() || souAdmin());
-      allow update: if false; // itens da lixeira são imutáveis
+      allow read:   if estaAutenticado();
+      allow create: if nivelMinimo(1);
+      allow update: if false;  // item de lixeira é imutável
+      allow delete: if nivelMinimo(4);
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  BLOQUEIO GLOBAL — Deny-by-default para tudo não mapeado
+    //  BLOQUEIO GLOBAL — tudo que não é /usuarios, /obras ou /lixeira
     // ═══════════════════════════════════════════════════════════════
     match /{document=**} {
       allow read, write: if false;

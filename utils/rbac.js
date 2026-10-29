@@ -1,49 +1,63 @@
 /**
  * ╔══════════════════════════════════════════════════════════════╗
- * ║  FISCAL NA OBRA v15.1 — utils/rbac.js                      ║
+ * ║  FISCAL NA OBRA — utils/rbac.js                             ║
  * ║  Controle de Acesso Baseado em Papéis (RBAC) — Cliente      ║
  * ║                                                              ║
- * ║  PRINCÍPIO: Espelha exatamente as Firestore Security Rules  ║
- * ║  para feedback imediato no UI (ex: esconder botões).        ║
- * ║  A regra definitiva SEMPRE é o Firestore — não confiar só   ║
+ * ║  PRINCÍPIO: espelha exatamente as Firestore Security Rules  ║
+ * ║  para dar resposta imediata no UI (ex: esconder botão).     ║
+ * ║  A regra definitiva SEMPRE é o servidor — não confiar só    ║
  * ║  neste módulo para segurança real.                          ║
  * ╚══════════════════════════════════════════════════════════════╝
+ *
+ * DE ONDE VEM O PAPEL (mudou em 27/10/2026)
+ *
+ * Do custom claim 'role' do token, gravado pelo Admin SDK em
+ * criar-usuario.cjs / definir-perfil.mjs. O FirebaseService lê o claim no
+ * onAuthStateChanged e o deixa em state.usuarioLogado.perfil, que é o que
+ * este módulo consulta.
+ *
+ * O que saiu daqui, e por quê:
+ *
+ *   • A busca do papel na lista de usuários da obra (obras/{id}/usuarios/lista,
+ *     casando por e-mail ou uid). As rules não consultam mais essa lista — ela
+ *     é cadastral, e casar por e-mail aqui enquanto o servidor olhava um mapa
+ *     inteiro era justamente a divergência que fazia o UI liberar botão que o
+ *     Firestore recusava. Além disso state.usuariosObra nunca era populado:
+ *     esse caminho já estava morto.
+ *
+ *   • O atalho "dono da obra vale gestor". Não existe mais no servidor: as
+ *     rules decidem só por papel, sem ler obras/{id}.uid. O campo 'uid' da
+ *     obra continua existindo e significa o dono, mas quem o usa hoje é
+ *     informativo — prometer poder aqui que o servidor não dá é o erro que
+ *     este arquivo existe para não cometer.
+ *
+ * MANTER EM SINCRONIA com nivelExigido() em firestore.rules.
  */
 
 import state from '../core/state.js';
 
 // ── Hierarquia de papéis ──────────────────────────────────────
-// Quanto maior o índice, mais privilegiado o papel.
+// Quanto maior o índice, mais privilegiado. Mesma tabela de nivel() nas rules.
 const HIERARQUIA = {
-  visualizador: 0,
-  tecnico:      1,
-  engenheiro:   2,
-  fiscal:       3,
-  gestor:       4,
+  visualizador:  0,
+  tecnico:       1,
+  engenheiro:    2,
+  fiscal:        3,
+  gestor:        4,
   administrador: 5,
 };
 
+// Conta sem o claim 'role'. Tem de ser igual a papelPadrao() nas rules:
+// se divergir, o UI promete o que o servidor nega (ou o contrário).
+export const PAPEL_PADRAO = 'fiscal';
+
 /**
- * Retorna o papel (role) do usuário atual no contexto da obra ativa.
- * Considera: papel global (usuarios/{uid}) e papel na obra (obras/{id}/usuarios/lista).
- * O papel global é usado se o usuário for administrador.
+ * Papel do usuário atual, lido do claim via state.usuarioLogado.perfil.
+ * Não depende da obra ativa: o papel é da conta, como no servidor.
  */
 function _papelAtual() {
   const userLogado = state.get('usuarioLogado') || {};
-  const perfilGlobal = userLogado.perfil || 'visualizador';
-  if (perfilGlobal === 'administrador') return 'administrador';
-
-  // Papel específico na obra (pode ser diferente do papel global)
-  const obraId = state.get('obraAtivaId');
-  const cfg = state.get('cfg') || {};
-
-  // Se for o dono da obra, tem papel de gestor no mínimo
-  if (cfg.uid && cfg.uid === userLogado.uid) return 'gestor';
-
-  // Verifica na lista de usuários da obra
-  const usuarios = state.get('usuariosObra') || [];
-  const entry = usuarios.find(u => u.uid === userLogado.uid);
-  return entry?.perfil || perfilGlobal;
+  return userLogado.perfil || PAPEL_PADRAO;
 }
 
 function _nivel(papel) {
@@ -54,7 +68,7 @@ function _nivel(papel) {
 
 export const RBAC = {
 
-  /** Retorna o papel atual do usuário na obra ativa */
+  /** Retorna o papel atual do usuário */
   papel() { return _papelAtual(); },
 
   /** Retorna true se o usuário tem o papel ou superior */
@@ -62,32 +76,30 @@ export const RBAC = {
     return _nivel(_papelAtual()) >= _nivel(papelMinimo);
   },
 
-  /** Pode ler dados da obra */
-  podeLer() { return true; }, // qualquer autenticado que seja membro pode ler
+  /** Pode ler dados da obra — qualquer autenticado, em qualquer obra */
+  podeLer() { return true; },
 
-  /** Pode criar/editar dados gerais (ocorrências, diário, BM, fotos) */
+  /** Operação de campo: diário, ocorrências, chuva, documentos, fotos */
   podeEscrever() {
     return _nivel(_papelAtual()) >= _nivel('tecnico');
   },
 
-  /** Pode criar/editar aditivos e BMs (impacto financeiro) */
+  /** Impacto financeiro: BMs, medições, itens do contrato e aditivos */
   podeGerirAditivos() {
     return _nivel(_papelAtual()) >= _nivel('engenheiro');
   },
 
-  /** Pode criar/editar sanções, prazos, responsáveis, cfg (impacto jurídico) */
+  /**
+   * Impacto jurídico e contratual: cfg, sanções, prazos, responsáveis,
+   * recebimentos, riscos, versões, lei14133 — e criar/editar a obra.
+   */
   podeGerirDocumentosJuridicos() {
     return _nivel(_papelAtual()) >= _nivel('gestor');
   },
 
-  /** Pode gerenciar usuários da obra e excluir a obra */
+  /** Gerenciar os usuários da obra e excluir a obra: só administrador */
   podeAdministrarObra() {
-    const p = _papelAtual();
-    // Dono da obra tem papel de gestor para esta verificação
-    const cfg = state.get('cfg') || {};
-    const user = state.get('usuarioLogado') || {};
-    const eDono = cfg.uid && cfg.uid === user.uid;
-    return eDono || _nivel(p) >= _nivel('administrador');
+    return _nivel(_papelAtual()) >= _nivel('administrador');
   },
 
   /** É administrador global */

@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "test:security": "node -e \"const r=require('./storage.rules'); console.log('Rules OK')\" 2>/dev/null || echo \"Rules file present ✓\""
+    "test:rules": "firebase emulators:exec --config firebase.emulator.json --only firestore --project demo-fiscal \"node tests/rules/testar-rules.mjs\""
   },
   "devDependencies": {
     "vite": "^5.2.0",

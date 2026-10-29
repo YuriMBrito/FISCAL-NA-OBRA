@@ -1,96 +1,101 @@
 rules_version = '2';
 
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  FISCAL NA OBRA v15.1 — Regras de Segurança Firebase Storage           ║
-// ║  CORREÇÃO CRÍTICA: Leitura agora exige membresia na obra                ║
+// ║  FISCAL NA OBRA — Regras de Segurança do Firebase Storage               ║
+// ║                                                                          ║
+// ║  POLÍTICA (27/10/2026) — papel vem do CUSTOM CLAIM, não da lista         ║
+// ║                                                                          ║
+// ║  O arquivo anterior decidia acesso por membresia na obra, com            ║
+// ║    firestore.get(.../usuarios/lista).data.lista.hasAny([{'uid': ...}])   ║
+// ║  que é exatamente o padrão quebrado que derrubou o modelo de papéis das  ║
+// ║  Firestore Rules em 13/08/2026: hasAny com mapa compara o MAPA INTEIRO,  ║
+// ║  e os registros reais da lista não têm 'uid' — a tela de usuários        ║
+// ║  cadastra pessoas antes de elas terem conta (nome, email, perfil, crea,  ║
+// ║  tel). A comparação nunca casava, então logo, documentos e fotos de      ║
+// ║  medição só abriam para o dono da obra e para o adminGlobal. Todo o      ║
+// ║  resto da equipe tomava "unauthorized" sem nenhuma pista do motivo.      ║
+// ║                                                                          ║
+// ║  Agora o papel sai de request.auth.token.role, gravado pelo Admin SDK    ║
+// ║  em criar-usuario.cjs e definir-perfil.mjs. Não há firestore.get():      ║
+// ║  nenhuma leitura cobrada, nenhuma dependência de dado cadastral, e a     ║
+// ║  mesma hierarquia que o cliente usa em utils/rbac.js.                    ║
+// ║                                                                          ║
+// ║  O QUE MUDOU DE COMPORTAMENTO                                            ║
+// ║   • Leitura de anexo: qualquer autenticado — igual ao Firestore, que já  ║
+// ║     libera leitura de qualquer obra. Trancar só o anexo não protegia     ║
+// ║     nada e escondia arquivo de quem já via o contrato inteiro.           ║
+// ║   • docs/ e as pastas de foto: escrita de 'tecnico' para cima.           ║
+// ║   • logo: 'gestor' para cima (é identidade do contrato, mora no cfg).    ║
+// ║   • delete: 'gestor' para cima. Antes era adminGlobal e só — ou seja,    ║
+// ║     documento anexado por engano não tinha como ser removido.            ║
+// ║   • Pastas 'diario/' e 'ocorrencias/': PASSARAM A EXISTIR aqui. O app    ║
+// ║     sempre enviou foto de diário e de ocorrência para elas               ║
+// ║     (uploadFotoStorage), caíam no bloqueio final, e o catch devolvia o   ║
+// ║     base64 — que ia inteiro para dentro do documento no Firestore,       ║
+// ║     empurrando a obra contra o limite de 1 MiB por documento.            ║
+// ║                                                                          ║
+// ║  CONTA SEM CLAIM: cai em papelPadrao() ('fiscal'), o mesmo padrão        ║
+// ║  conservador que criar-usuario.cjs --migrar aplica. Negar seria trancar  ║
+// ║  fora quem foi criado direto no Console antes dos claims existirem.      ║
+// ║  Depois de rodar a migração, trocar para 'visualizador' é uma linha.     ║
+// ║                                                                          ║
+// ║  ESTRUTURA DE ARQUIVOS                                                   ║
+// ║    obras/{obraId}/logo                     → logo da obra  (≤  2 MB)    ║
+// ║    obras/{obraId}/docs/{arquivo}           → documentos    (≤ 20 MB)    ║
+// ║    obras/{obraId}/fotos-medicao/{arquivo}  → fotos de BM   (≤ 10 MB)    ║
+// ║    obras/{obraId}/diario/{arquivo}         → fotos diário  (≤ 10 MB)    ║
+// ║    obras/{obraId}/ocorrencias/{arquivo}    → fotos ocorr.  (≤ 10 MB)    ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
-//
-// CORREÇÕES v15.1:
-//   - allow read: if autenticado() → substituído por souMembroDaObraStorage()
-//     que verifica se o usuário pertence à obra antes de liberar leitura.
-//   - Isso corrige a vulnerabilidade em que qualquer usuário autenticado
-//     podia acessar documentos, fotos e logos de qualquer obra.
-//
-// ESTRUTURA DE ARQUIVOS:
-//   obras/{obraId}/logo                    → logo da obra (imagem, ≤ 2 MB)
-//   obras/{obraId}/docs/{arquivo}          → documentos (≤ 20 MB)
-//   obras/{obraId}/fotos-medicao/{arquivo} → fotos de BM (≤ 10 MB)
 
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // ─────────────────────────────────────────────────────────────
-    //  FUNÇÕES AUXILIARES
-    // ─────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════
+    //  PAPÉIS — espelho de HIERARQUIA em utils/rbac.js
+    // ═══════════════════════════════════════════════════════════════
 
     function autenticado() {
       return request.auth != null;
     }
 
-    // Administrador global (via Custom Claim)
+    // Papel de quem não tem claim nenhum. Ver o cabeçalho antes de endurecer.
+    function papelPadrao() {
+      return 'fiscal';
+    }
+
+    function papel() {
+      return request.auth.token.get('role', papelPadrao());
+    }
+
+    function nivel(p) {
+      return p == 'administrador' ? 5
+           : p == 'gestor'        ? 4
+           : p == 'fiscal'        ? 3
+           : p == 'engenheiro'    ? 2
+           : p == 'tecnico'       ? 1
+           : 0;  // visualizador e qualquer valor desconhecido
+    }
+
     function adminGlobal() {
-      return autenticado() && request.auth.token.adminGlobal == true;
+      return autenticado() && request.auth.token.get('adminGlobal', false) == true;
     }
 
-    // Perfil com permissão de escrita (Custom Claim 'role')
-    function perfilEscrita() {
-      return autenticado() && (
-        adminGlobal() ||
-        request.auth.token.role in ['fiscal', 'engenheiro', 'administrador']
-      );
+    // Único portão de escrita: autenticado E (admin OU nível suficiente).
+    function nivelMinimo(n) {
+      return autenticado() && (adminGlobal() || nivel(papel()) >= n);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  CORREÇÃO CRÍTICA — Verificação de membresia na obra
-    //
-    //  Lê /obras/{obraId} no Firestore para verificar se o usuário
-    //  é o dono da obra OU está na lista de usuários vinculados.
-    //
-    //  Nota: firestore.get() em Storage Rules consulta o Firestore
-    //  para cruzar dados — operação cobrada como 1 leitura Firestore.
-    // ─────────────────────────────────────────────────────────────
-    function souDonoDaObraStorage(obraId) {
-      return autenticado() &&
-        firestore.exists(/databases/(default)/documents/obras/$(obraId)) &&
-        firestore.get(/databases/(default)/documents/obras/$(obraId)).data.uid == request.auth.uid;
-    }
+    // ═══════════════════════════════════════════════════════════════
+    //  LIMITES POR PASTA
+    // ═══════════════════════════════════════════════════════════════
 
-    function souMembroDaObraStorage(obraId) {
-      let listaPath = /databases/(default)/documents/obras/$(obraId)/usuarios/lista;
-      let listaOk = firestore.exists(listaPath) &&
-        firestore.get(listaPath).data.lista.hasAny([{'uid': request.auth.uid}]);
-      return autenticado() && (
-        souDonoDaObraStorage(obraId) ||
-        adminGlobal() ||
-        listaOk
-      );
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    //  PASTA: obras/{obraId}/logo — Logo da obra
-    // ─────────────────────────────────────────────────────────────
-    match /obras/{obraId}/logo {
-      // CORRIGIDO: apenas membros da obra lêem o logo
-      allow read:   if souMembroDaObraStorage(obraId);
-
-      allow write:  if perfilEscrita()
-        && souMembroDaObraStorage(obraId)
-        && request.resource.size <= 2 * 1024 * 1024
+    function imagemOk(limiteMb) {
+      return request.resource.size <= limiteMb * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
-
-      allow delete: if adminGlobal();
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  PASTA: obras/{obraId}/docs/{arquivo} — Documentos da obra
-    // ─────────────────────────────────────────────────────────────
-    match /obras/{obraId}/docs/{arquivo} {
-      // CORRIGIDO: apenas membros da obra lêem documentos
-      allow read: if souMembroDaObraStorage(obraId);
-
-      allow write: if perfilEscrita()
-        && souMembroDaObraStorage(obraId)
-        && request.resource.size <= 20 * 1024 * 1024
+    function documentoOk() {
+      return request.resource.size <= 20 * 1024 * 1024
         && (
           request.resource.contentType.matches('application/pdf') ||
           request.resource.contentType.matches('image/.*') ||
@@ -101,28 +106,43 @@ service firebase.storage {
           request.resource.contentType.matches('text/csv') ||
           request.resource.contentType.matches('text/plain')
         );
-
-      allow delete: if adminGlobal();
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  PASTA: obras/{obraId}/fotos-medicao/{arquivo} — Fotos de BM
-    // ─────────────────────────────────────────────────────────────
-    match /obras/{obraId}/fotos-medicao/{arquivo} {
-      // CORRIGIDO: apenas membros da obra lêem fotos de medição
-      allow read:   if souMembroDaObraStorage(obraId);
-
-      allow write:  if perfilEscrita()
-        && souMembroDaObraStorage(obraId)
-        && request.resource.size <= 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-
-      allow delete: if adminGlobal();
+    // ═══════════════════════════════════════════════════════════════
+    //  obras/{obraId}/logo — logo da obra
+    // ═══════════════════════════════════════════════════════════════
+    match /obras/{obraId}/logo {
+      allow read:   if autenticado();
+      allow write:  if nivelMinimo(4) && imagemOk(2);
+      allow delete: if nivelMinimo(4);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  BLOQUEIO GLOBAL — Qualquer caminho não mapeado é negado
-    // ─────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════
+    //  obras/{obraId}/{pasta}/{arquivo} — documentos e fotos
+    //
+    //  Uma única regra para as quatro pastas que o app usa, com a lista
+    //  explícita: pasta nova continua barrada até ser declarada aqui, de
+    //  propósito. O que não pode voltar é o silêncio — foi ele que fez a
+    //  foto de diário virar base64 dentro do Firestore.
+    // ═══════════════════════════════════════════════════════════════
+    match /obras/{obraId}/{pasta}/{arquivo} {
+
+      allow read: if autenticado()
+        && pasta in ['docs', 'fotos-medicao', 'diario', 'ocorrencias'];
+
+      allow write: if nivelMinimo(1)
+        && (
+          (pasta == 'docs' && documentoOk()) ||
+          (pasta in ['fotos-medicao', 'diario', 'ocorrencias'] && imagemOk(10))
+        );
+
+      allow delete: if nivelMinimo(4)
+        && pasta in ['docs', 'fotos-medicao', 'diario', 'ocorrencias'];
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  BLOQUEIO GLOBAL — qualquer caminho não mapeado
+    // ═══════════════════════════════════════════════════════════════
     match /{allPaths=**} {
       allow read, write: if false;
     }

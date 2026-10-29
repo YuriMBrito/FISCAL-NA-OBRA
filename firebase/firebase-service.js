@@ -14,6 +14,8 @@
 import EventBus from '../core/EventBus.js';
 import state    from '../core/state.js';
 import MemCache from '../utils/mem-cache.js';
+import IntegridadeDados from './integridade-dados.js';
+import { PAPEL_PADRAO } from '../utils/rbac.js';
 
 // ── Sanitização ────────────────────────────────────────────────
 function sanitize(obj) {
@@ -164,15 +166,55 @@ class FirebaseServiceClass {
     this._authUnsub?.();
     this._authUnsub = this._auth?.onAuthStateChanged(user => {
       if (user) {
-        const u = { uid: user.uid, email: user.email, displayName: user.displayName };
+        // 'perfil' é o custom claim 'role' do token — o MESMO dado que as
+        // Firestore e Storage Rules leem desde 27/10/2026. Enquanto o token
+        // não é lido vale PAPEL_PADRAO, igual ao papelPadrao() das rules, para
+        // o UI não prometer nem negar diferente do servidor.
+        const u = {
+          uid:         user.uid,
+          email:       user.email,
+          displayName: user.displayName,
+          perfil:      PAPEL_PADRAO,
+          adminGlobal: false,
+        };
         state.set('usuarioLogado', u);
         EventBus.emit('auth:login', { user: u });
         this.setObraAtivaId(state.get('obraAtivaId') || '');
+
+        // Ler o claim custa uma volta a mais. Fica fora do caminho do boot de
+        // propósito: atrasar o auth:login atrasaria a tela inteira.
+        this._carregarPapel(user);
       } else {
         state.set('usuarioLogado', null);
         EventBus.emit('auth:logout', {});
       }
     });
+  }
+
+  /**
+   * Resolve o papel da conta a partir do custom claim e atualiza o state.
+   *
+   * Falha aqui não bloqueia nada: o UI segue em PAPEL_PADRAO e o servidor
+   * decide de todo jeito. O que não pode acontecer é o inverso — assumir um
+   * papel alto que as rules recusam, que é como o modelo anterior enganava
+   * o usuário com botão habilitado e "insufficient permissions" no clique.
+   */
+  async _carregarPapel(user) {
+    try {
+      const { claims } = await user.getIdTokenResult();
+      const atual = state.get('usuarioLogado');
+      if (!atual || atual.uid !== user.uid) return;  // sessão já trocou
+
+      const perfil = typeof claims?.role === 'string' ? claims.role : PAPEL_PADRAO;
+      state.set('usuarioLogado', {
+        ...atual,
+        perfil,
+        adminGlobal: claims?.adminGlobal === true,
+      });
+      EventBus.emit('auth:papel-definido', { perfil, adminGlobal: claims?.adminGlobal === true });
+    } catch (err) {
+      console.warn('[Firebase] papel do token não pôde ser lido:', err?.message || err);
+    }
   }
 
   get isReady() { return this._ready; }
@@ -213,55 +255,65 @@ class FirebaseServiceClass {
     const cached = MemCache.get('obras', null);
     if (cached !== null) return cached;
 
-    if (!this._ready || !this._auth?.currentUser) {
-      return []; // Sem Firebase disponível: retorna lista vazia (offline usa cache Firestore nativo)
-    }
-    try {
-      const snap = await this._db.collection('obras').limit(500).get();
-      if (snap.empty) return [];
+    // Antes do login não há o que ler — não é falha, é ordem natural do boot.
+    if (!this._auth?.currentUser) return [];
+
+    const list = await this._lerColecao({
+      dominio: 'obras', obraId: null,
+      query:   () => this._db.collection('obras').limit(500),
       // FIX-EXCLUIR: filtra obras com _excluida:true para que obras
       // em soft-delete não reapareçam após F5 ou novo login.
-      const list = snap.docs
+      extrair: snap => snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter(o => !o._excluida);
-      MemCache.set('obras', null, list);
-      return list;
-    } catch (err) {
-      console.error('[Firebase] getObrasLista:', err);
-      return []; // Firestore offline persistence (IndexedDB) cobre o modo offline
-    }
+        .filter(o => !o._excluida),
+    });
+    if (!IntegridadeDados.degradado('obras', null)) MemCache.set('obras', null, list);
+    return list;
   }
 
   async salvarObrasLista(lista) {
     MemCache.invalidate('obras'); // P4 — invalida cache ao escrever
     const uid = this._auth?.currentUser?.uid;
-    if (!this._ready || !uid) return;
-    try {
-      const batch = this._db.batch();
-      lista.forEach(o => {
-        const ref = this._db.collection('obras').doc(o.id);
-        batch.set(ref, sanitize({ ...o, uid }), { merge: true });
-      });
-      await batch.commit();
-    } catch (err) {
-      console.error('[Firebase] salvarObrasLista:', err);
-    }
+    if (!uid) throw new Error('Sem usuário autenticado — a lista de obras não foi gravada.');
+
+    // total: false — cada obra é gravada com merge, nenhuma é substituída.
+    return this._gravar({
+      dominio: 'obras', obraId: null,
+      fn: () => {
+        const batch = this._db.batch();
+        lista.forEach(o => {
+          const ref = this._db.collection('obras').doc(o.id);
+          // 'uid' é o DONO da obra, definido uma única vez em criarObra().
+          // Aqui ele nunca é reescrito: esta função roda ao concluir, excluir,
+          // restaurar e renomear obras, e injetar o uid de quem está salvando
+          // transferia a propriedade de TODAS as obras do lote para a última
+          // pessoa que mexeu na lista. Omitir o campo deixa o merge preservar
+          // o dono gravado; um 'o.uid' vindo do próprio getObrasLista() é o
+          // valor que já está lá e grava igual.
+          const dados = sanitize({ ...o });
+          if (!o.uid) delete dados.uid;
+          batch.set(ref, dados, { merge: true });
+        });
+        return batch.commit();
+      },
+    });
   }
 
   async criarObra(id, nome, tipo, cfg, bms, itens) {
     const uid = this._auth?.currentUser?.uid || 'local';
     const doc = sanitize({ id, nome, tipo, uid, criadoEm: new Date().toISOString() });
 
-    // Dados persistem exclusivamente no Firebase (sem localStorage)
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(id).set(doc);
-      await this.setObraCfg(id, cfg, 'Em andamento');
-      await this.setBMs(id, bms);
-      await this.setItens(id, itens);
-    } catch (err) {
-      console.error('[Firebase] criarObra:', err);
-    }
+    // Erro propagado: uma obra "criada" que não chegou ao Firestore some no
+    // próximo F5 e leva junto tudo o que for cadastrado nela.
+    return this._gravar({
+      dominio: 'obras', obraId: id,
+      fn: async () => {
+        await this._db.collection('obras').doc(id).set(doc);
+        await this.setObraCfg(id, cfg, 'Em andamento');
+        await this.setBMs(id, bms);
+        await this.setItens(id, itens);
+      },
+    });
   }
 
   async deleteObra(id) {
@@ -341,17 +393,151 @@ class FirebaseServiceClass {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  //  Leitura e escrita guardadas — use SEMPRE estes três helpers
+  //
+  //  Regra da casa, aprendida na marra (BM sumido em 12/08/2026 e o
+  //  histórico do Quadro de Chuvas dias antes):
+  //
+  //    1. Leitura que falha NUNCA vira dado na tela. Ela devolve o valor
+  //       neutro e marca o domínio como degradado — a tela avisa o usuário
+  //       em vez de fingir que a obra tem só um BM.
+  //    2. Escrita que falha NUNCA resolve a promise. Quem chamou precisa
+  //       poder mostrar erro; "✅ salvo" só aparece se salvou mesmo.
+  //    3. Escrita que substitui o documento inteiro (total: true) é RECUSADA
+  //       enquanto a leitura do mesmo dado estiver degradada. É esta barreira
+  //       que impede o estado neutro de ser gravado por cima do dado real.
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Leitura guardada de um documento.
+   *
+   * @param {object}        p
+   * @param {string}        p.dominio  chave lógica ('bms', 'itens', 'cfg'…)
+   * @param {string}        p.obraId
+   * @param {() => object}  p.ref      thunk que devolve a referência Firestore
+   * @param {(snap) => any} p.extrair  extrai o dado do snapshot existente
+   * @param {any}   p.ausente          valor quando o documento NÃO EXISTE
+   *                                   (estado legítimo — obra nova, ano sem chuva)
+   * @param {any}   [p.aoFalhar]       valor quando a leitura FALHA
+   *                                   (padrão: o mesmo de `ausente`)
+   * @param {string}[p.escopo]         unidade dentro do domínio ('bm3', '2026')
+   */
+  async _lerDoc({ dominio, obraId, ref, extrair, ausente = null, aoFalhar, escopo = '' }) {
+    const naFalha = aoFalhar !== undefined ? aoFalhar : ausente;
+
+    if (!this._ready) {
+      IntegridadeDados.falhaLeitura(dominio, obraId, {
+        code: 'firebase-indisponivel',
+        message: 'SDK do Firebase não inicializado — nada foi lido do servidor.',
+      }, escopo);
+      return naFalha;
+    }
+    try {
+      const snap = await ref().get();
+      IntegridadeDados.leituraOk(dominio, obraId, escopo);
+      return snap.exists ? extrair(snap) : ausente;
+    } catch (err) {
+      IntegridadeDados.falhaLeitura(dominio, obraId, err, escopo);
+      return naFalha;
+    }
+  }
+
+  /** Leitura guardada de uma coleção/query. Mesmo contrato do _lerDoc. */
+  async _lerColecao({ dominio, obraId, query, extrair, aoFalhar = [], escopo = '' }) {
+    const mapear = extrair || (snap => snap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+    if (!this._ready) {
+      IntegridadeDados.falhaLeitura(dominio, obraId, {
+        code: 'firebase-indisponivel',
+        message: 'SDK do Firebase não inicializado — nada foi lido do servidor.',
+      }, escopo);
+      return aoFalhar;
+    }
+    try {
+      const snap = await query().get();
+      IntegridadeDados.leituraOk(dominio, obraId, escopo);
+      return mapear(snap);
+    } catch (err) {
+      IntegridadeDados.falhaLeitura(dominio, obraId, err, escopo);
+      return aoFalhar;
+    }
+  }
+
+  /**
+   * Escrita guardada.
+   *
+   * @param {boolean} [p.total]  true quando a gravação SUBSTITUI o documento
+   *                             inteiro do domínio (setBMs, setItens,
+   *                             salvarOcorrencias…). Nesse caso a barreira de
+   *                             integridade é exigida antes de gravar.
+   *                             false para gravações pontuais (um aditivo, uma
+   *                             entrada de diário), que não apagam o resto.
+   * @throws sempre que a gravação não aconteceu — inclusive quando foi
+   *         recusada pela barreira ou quando o Firebase não está disponível.
+   */
+  async _gravar({ dominio, obraId, fn, total = false, escopo = '' }) {
+    if (total) {
+      try {
+        IntegridadeDados.exigirLeituraIntegra(dominio, obraId, escopo);
+      } catch (err) {
+        this._falhaEscrita(dominio, obraId, err);
+        throw err;
+      }
+    }
+
+    if (!this._ready) {
+      const err = new Error(
+        'Firebase indisponível — a gravação NÃO foi feita. Verifique a conexão.'
+      );
+      err.code = 'firebase-indisponivel';
+      this._falhaEscrita(dominio, obraId, err);
+      throw err;
+    }
+
+    // Sem sessão, TODA regra cai em estaAutenticado() e o servidor devolve
+    // permission-denied. Barramos antes de sair da máquina para o usuário ler
+    // "sua sessão expirou" em vez de "permissão insuficiente" — que mandava
+    // caçar perfil e dono de obra quando o problema era estar deslogado.
+    // A leitura continua funcionando nessa situação porque o SDK serve do
+    // cache do IndexedDB, e é isso que faz a tela parecer normal.
+    if (!this._auth?.currentUser) {
+      const err = new Error(
+        'Sua sessão expirou — a gravação NÃO foi feita. Entre novamente e refaça.'
+      );
+      err.code = 'sessao-expirada';
+      this._falhaEscrita(dominio, obraId, err);
+      throw err;
+    }
+
+    try {
+      return await fn();
+    } catch (err) {
+      this._falhaEscrita(dominio, obraId, err);
+      throw err;
+    }
+  }
+
+  /** Ponto único de log + aviso ao usuário para gravação que não aconteceu. */
+  _falhaEscrita(dominio, obraId, err) {
+    console.error(`[Firebase] gravação de "${dominio}" (obra ${obraId}) NÃO foi feita:`, err);
+    EventBus.emit('dados:escrita-falhou', {
+      obraId,
+      dominio,
+      codigo:   err?.code || err?.codigo || 'desconhecido',
+      mensagem: err?.message || String(err),
+    });
+  }
+
   // ── Config ──────────────────────────────────────────────────
 
   async setObraCfg(id, cfg, statusObra = 'Em andamento') {
     const data = sanitize({ ...cfg, statusObra, atualizadoEm: new Date().toISOString() });
     MemCache.invalidate('cfg', id); // P4
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(id).collection('cfg').doc('cfg').set(data);
-    } catch (err) {
-      console.error('[Firebase] setObraCfg:', err);
-    }
+    return this._gravar({
+      dominio: 'cfg', obraId: id, total: true,
+      fn: () => this._db.collection('obras').doc(id).collection('cfg').doc('cfg').set(data),
+    });
   }
 
   async getObraCfg(id) {
@@ -359,19 +545,14 @@ class FirebaseServiceClass {
     const cached = MemCache.get('cfg', id);
     if (cached !== null) return cached;
 
-    if (this._ready) {
-      try {
-        const snap = await this._db.collection('obras').doc(id).collection('cfg').doc('cfg').get();
-        if (snap.exists) {
-          const data = snap.data();
-          MemCache.set('cfg', id, data);
-          return data;
-        }
-      } catch (err) {
-        console.error('[Firebase] getObraCfg:', err);
-      }
-    }
-    return null; // Firestore offline persistence cobre o modo offline
+    const data = await this._lerDoc({
+      dominio: 'cfg', obraId: id,
+      ref:     () => this._db.collection('obras').doc(id).collection('cfg').doc('cfg'),
+      extrair: snap => snap.data(),
+      ausente: null,
+    });
+    if (data) MemCache.set('cfg', id, data);
+    return data;
   }
 
   // ── BMs ─────────────────────────────────────────────────────
@@ -379,12 +560,12 @@ class FirebaseServiceClass {
   async setBMs(id, bms) {
     const data = sanitize({ bms, atualizadoEm: new Date().toISOString() });
     MemCache.invalidate('bms', id); // P4
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(id).collection('bms').doc('bms').set(data);
-    } catch (err) {
-      console.error('[Firebase] setBMs:', err);
-    }
+    // total: true — este .set() substitui a lista inteira de BMs da obra.
+    // Era exatamente aqui que um erro engolido virava "o BM que criei sumiu".
+    return this._gravar({
+      dominio: 'bms', obraId: id, total: true,
+      fn: () => this._db.collection('obras').doc(id).collection('bms').doc('bms').set(data),
+    });
   }
 
   // ── CORREÇÃO v15.1: Salvar BMs + Medições em operação atômica ────────────
@@ -395,101 +576,141 @@ class FirebaseServiceClass {
   // Uso: FirebaseService.setBMsComMedicoes(obraId, bms, bmNum, medicoes)
   async setBMsComMedicoes(obraId, bms, bmNum, medicoes) {
     MemCache.invalidate('bms', obraId);
+
     if (!this._ready) {
-      // Offline: salva em memória (Firestore persistence sincroniza depois)
+      // Sem SDK não há batch: cai para as duas escritas guardadas, que
+      // propagam o erro em vez de fingir que gravaram.
       await this.setBMs(obraId, bms);
       await this.setMedicoes(obraId, bmNum, medicoes);
       return;
     }
-    try {
-      const batch = this._db.batch();
 
-      // BMs
-      const bmsRef = this._db
-        .collection('obras').doc(obraId)
-        .collection('bms').doc('bms');
-      batch.set(bmsRef, sanitize({ bms, atualizadoEm: new Date().toISOString() }));
+    // Exige integridade dos DOIS domínios: o batch substitui a lista de BMs
+    // e o documento de medições do BM.
+    return this._gravar({
+      dominio: 'bms', obraId, total: true,
+      fn: async () => {
+        IntegridadeDados.exigirLeituraIntegra('medicoes', obraId, `bm${bmNum}`);
 
-      // Medições do BM
-      const medRef = this._db
-        .collection('obras').doc(obraId)
-        .collection('medicoes').doc(`bm${bmNum}`);
-      batch.set(medRef, sanitize({
-        v: 3,
-        data: sanitize(medicoes),
-        atualizadoEm: new Date().toISOString(),
-      }));
+        const batch = this._db.batch();
 
-      await batch.commit();
-      console.log(`[Firebase] setBMsComMedicoes BM${bmNum} — batch OK`);
-    } catch (err) {
-      console.error('[Firebase] setBMsComMedicoes:', err);
-      throw err; // propaga para o caller exibir toast de erro
-    }
+        const bmsRef = this._db
+          .collection('obras').doc(obraId)
+          .collection('bms').doc('bms');
+        batch.set(bmsRef, sanitize({ bms, atualizadoEm: new Date().toISOString() }));
+
+        const medRef = this._db
+          .collection('obras').doc(obraId)
+          .collection('medicoes').doc(`bm${bmNum}`);
+        batch.set(medRef, sanitize({
+          v: 3,
+          data: sanitize(medicoes),
+          atualizadoEm: new Date().toISOString(),
+        }));
+
+        await batch.commit();
+        console.log(`[Firebase] setBMsComMedicoes BM${bmNum} — batch OK`);
+      },
+    });
   }
 
+  /**
+   * Lista de BMs da obra.
+   *
+   * `ausente` e `aoFalhar` são DIFERENTES de propósito — é a distinção que
+   * faltava e que produziu o incidente do BM sumido:
+   *   - documento não existe → obra sem BM cadastrado: devolver o BM 01 em
+   *     branco é correto, é o ponto de partida de qualquer obra.
+   *   - leitura recusada     → NÃO sabemos quantos BMs existem. Devolver o
+   *     BM 01 aqui faz uma obra com 8 BMs parecer uma obra recém-criada.
+   *     Devolvemos [] e marcamos o domínio: os callers fazem
+   *     `if (bms && bms.length) state.set(...)`, então o state preserva o que
+   *     já tinha, e a gravação de BMs fica bloqueada até a leitura voltar.
+   */
   async getBMs(id) {
     // P4 — cache em memória
     const cached = MemCache.get('bms', id);
     if (cached !== null) return cached;
 
-    if (this._ready) {
-      try {
-        const snap = await this._db.collection('obras').doc(id).collection('bms').doc('bms').get();
-        if (snap.exists) {
-          const bms = snap.data().bms || [];
-          MemCache.set('bms', id, bms);
-          return bms;
-        }
-      } catch (err) {
-        console.error('[Firebase] getBMs:', err);
-      }
-    }
-    return [{ num: 1, label: 'BM 01', mes: '(a definir)', data: '' }];
+    const bms = await this._lerDoc({
+      dominio:  'bms', obraId: id,
+      ref:      () => this._db.collection('obras').doc(id).collection('bms').doc('bms'),
+      extrair:  snap => snap.data().bms || [],
+      ausente:  [{ num: 1, label: 'BM 01', mes: '(a definir)', data: '' }],
+      aoFalhar: [],
+    });
+    if (bms.length) MemCache.set('bms', id, bms);
+    return bms;
   }
 
   // ── Itens ───────────────────────────────────────────────────
 
   async setItens(id, itens) {
-    if (!this._ready) return;
-    try {
-      // Itens grandes: chunk de 400 para evitar limite Firestore
-      const chunks = [];
-      for (let i = 0; i < itens.length; i += 400) {
-        chunks.push(itens.slice(i, i + 400));
-      }
-      const batch = this._db.batch();
-      chunks.forEach((chunk, idx) => {
-        const ref = this._db.collection('obras').doc(id).collection('itens').doc(`chunk_${idx}`);
-        batch.set(ref, sanitize({ chunk, idx, total: chunks.length }));
-      });
-      // Marca total de chunks
-      const metaRef = this._db.collection('obras').doc(id).collection('itens').doc('_meta');
-      batch.set(metaRef, { totalChunks: chunks.length, atualizadoEm: new Date().toISOString() });
-      await batch.commit();
-    } catch (err) {
-      console.error('[Firebase] setItens:', err);
-    }
+    return this._gravar({
+      dominio: 'itens', obraId: id, total: true,
+      fn: async () => {
+        // Itens grandes: chunk de 400 para evitar limite Firestore
+        const chunks = [];
+        for (let i = 0; i < itens.length; i += 400) {
+          chunks.push(itens.slice(i, i + 400));
+        }
+        const batch = this._db.batch();
+        chunks.forEach((chunk, idx) => {
+          const ref = this._db.collection('obras').doc(id).collection('itens').doc(`chunk_${idx}`);
+          batch.set(ref, sanitize({ chunk, idx, total: chunks.length }));
+        });
+        // Marca total de chunks
+        const metaRef = this._db.collection('obras').doc(id).collection('itens').doc('_meta');
+        batch.set(metaRef, { totalChunks: chunks.length, atualizadoEm: new Date().toISOString() });
+        await batch.commit();
+      },
+    });
   }
 
+  /**
+   * Itens contratuais, remontados a partir dos chunks de 400.
+   *
+   * Um chunk faltando é tratado como FALHA, não como "acabaram os itens":
+   * devolver a planilha truncada faria o próximo setItens() gravar a versão
+   * mutilada por cima da íntegra — perda real, silenciosa e irreversível.
+   */
   async getItens(id) {
-    if (this._ready) {
-      try {
-        const metaSnap = await this._db.collection('obras').doc(id).collection('itens').doc('_meta').get();
-        if (metaSnap.exists) {
-          const { totalChunks } = metaSnap.data();
-          const itens = [];
-          for (let i = 0; i < totalChunks; i++) {
-            const snap = await this._db.collection('obras').doc(id).collection('itens').doc(`chunk_${i}`).get();
-            if (snap.exists) itens.push(...(snap.data().chunk || []));
-          }
-          return itens;
-        }
-      } catch (err) {
-        console.error('[Firebase] getItens:', err);
-      }
+    if (!this._ready) {
+      IntegridadeDados.falhaLeitura('itens', id, {
+        code: 'firebase-indisponivel',
+        message: 'SDK do Firebase não inicializado — nada foi lido do servidor.',
+      });
+      return [];
     }
-    return []; // Firestore offline persistence cobre o modo offline
+    try {
+      const col      = this._db.collection('obras').doc(id).collection('itens');
+      const metaSnap = await col.doc('_meta').get();
+
+      if (!metaSnap.exists) {
+        // Obra sem itens importados — estado legítimo.
+        IntegridadeDados.leituraOk('itens', id);
+        return [];
+      }
+
+      const { totalChunks } = metaSnap.data();
+      const itens = [];
+      for (let i = 0; i < totalChunks; i++) {
+        const snap = await col.doc(`chunk_${i}`).get();
+        if (!snap.exists) {
+          throw Object.assign(
+            new Error(`chunk_${i} de ${totalChunks} não encontrado — planilha incompleta`),
+            { code: 'itens-incompletos' }
+          );
+        }
+        itens.push(...(snap.data().chunk || []));
+      }
+
+      IntegridadeDados.leituraOk('itens', id);
+      return itens;
+    } catch (err) {
+      IntegridadeDados.falhaLeitura('itens', id, err);
+      return [];
+    }
   }
 
   // ── Medições ────────────────────────────────────────────────
@@ -504,64 +725,59 @@ class FirebaseServiceClass {
    * da tela, race de carregamento — apagava toda a memória de cálculo do BM.
    */
   async setMedicoes(obraId, bmNum, medicoes, opts = {}) {
-    const data = { v: 3, data: sanitize(medicoes), atualizadoEm: new Date().toISOString() };
-    if (!this._ready) return;
+    const data   = { v: 3, data: sanitize(medicoes), atualizadoEm: new Date().toISOString() };
+    const escopo = `bm${bmNum}`;
 
-    const vazio = !medicoes || typeof medicoes !== 'object' || Object.keys(medicoes).length === 0;
-    const ref   = this._db.collection('obras').doc(obraId).collection('medicoes').doc(`bm${bmNum}`);
+    return this._gravar({
+      dominio: 'medicoes', obraId, escopo, total: true,
+      fn: async () => {
+        const vazio = !medicoes || typeof medicoes !== 'object' || Object.keys(medicoes).length === 0;
+        const ref   = this._db.collection('obras').doc(obraId).collection('medicoes').doc(`bm${bmNum}`);
 
-    if (vazio && !opts.permitirVazio) {
-      try {
-        const snap = await ref.get();
-        const atual = snap.exists ? (snap.data().data || {}) : {};
-        if (Object.keys(atual).length > 0) {
-          console.warn(
-            `[Firebase] ⛔ setMedicoes abortado — BM${bmNum} da obra ${obraId} ` +
-            `tem ${Object.keys(atual).length} registro(s) e a gravação viria vazia.`
-          );
-          return;
+        if (vazio && !opts.permitirVazio) {
+          // Guarda pré-existente (FIX-DATALOSS): store vazio nunca apaga
+          // medição gravada. Agora a recusa é audível — lança em vez de
+          // retornar em silêncio, senão o autosave "confirma" um apagamento
+          // que não aconteceu.
+          const snap  = await ref.get();
+          const atual = snap.exists ? (snap.data().data || {}) : {};
+          if (Object.keys(atual).length > 0) {
+            throw Object.assign(
+              new Error(
+                `Gravação vazia recusada: o BM ${bmNum} tem ${Object.keys(atual).length} ` +
+                `registro(s) salvos e a tela veio sem nenhum. Recarregue antes de editar.`
+              ),
+              { code: 'gravacao-vazia-recusada' }
+            );
+          }
         }
-      } catch (err) {
-        // Não conseguimos confirmar o estado atual: não arriscamos apagar.
-        console.error('[Firebase] setMedicoes (verificação pré-escrita):', err);
-        return;
-      }
-    }
 
-    try {
-      await ref.set(sanitize(data));
-    } catch (err) {
-      console.error('[Firebase] setMedicoes:', err);
-    }
+        await ref.set(sanitize(data));
+      },
+    });
   }
 
   async getMedicoes(obraId, bmNum) {
-    if (this._ready) {
-      try {
-        const snap = await this._db.collection('obras').doc(obraId).collection('medicoes').doc(`bm${bmNum}`).get();
-        if (snap.exists) {
-          const raw = snap.data().data || {};
-          return raw;
-        }
-      } catch (err) {
-        console.error('[Firebase] getMedicoes:', err);
-      }
-    }
-    return {}; // Firestore offline persistence (IndexedDB) cobre o modo offline
+    return this._lerDoc({
+      dominio: 'medicoes', obraId, escopo: `bm${bmNum}`,
+      ref:     () => this._db.collection('obras').doc(obraId).collection('medicoes').doc(`bm${bmNum}`),
+      extrair: snap => snap.data().data || {},
+      ausente: {},
+    });
   }
 
   // ── Aditivos ────────────────────────────────────────────────
 
   async salvarAditivo(obraId, aditivo) {
     MemCache.invalidate('aditivos', obraId); // P4
-    if (!this._ready) return;
-    try {
-      const docId = aditivo.id || `adt_${Date.now()}`;
-      await this._db.collection('obras').doc(obraId).collection('aditivos').doc(docId).set(sanitize({ ...aditivo, id: docId }));
-    } catch (err) {
-      console.error('[Firebase] salvarAditivo:', err);
-      throw err;
-    }
+    const docId = aditivo.id || `adt_${Date.now()}`;
+    // total: false — grava UM aditivo; os outros documentos da coleção ficam
+    // intactos, então não há o que uma leitura degradada possa destruir aqui.
+    return this._gravar({
+      dominio: 'aditivos', obraId,
+      fn: () => this._db.collection('obras').doc(obraId).collection('aditivos')
+                    .doc(docId).set(sanitize({ ...aditivo, id: docId })),
+    });
   }
 
   async getAditivos(obraId) {
@@ -569,38 +785,33 @@ class FirebaseServiceClass {
     const cached = MemCache.get('aditivos', obraId);
     if (cached !== null) return cached;
 
-    if (!this._ready) return [];
-    try {
-      const snap = await this._db.collection('obras').doc(obraId).collection('aditivos').get();
-      const result = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const result = await this._lerColecao({
+      dominio: 'aditivos', obraId,
+      query:   () => this._db.collection('obras').doc(obraId).collection('aditivos'),
+    });
+    if (!IntegridadeDados.degradado('aditivos', obraId)) {
       MemCache.set('aditivos', obraId, result);
-      return result;
-    } catch (err) {
-      console.error('[Firebase] getAditivos:', err);
-      return [];
     }
+    return result;
   }
 
   async deleteAditivo(obraId, aditivoId) {
     MemCache.invalidate('aditivos', obraId); // P4
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(obraId).collection('aditivos').doc(aditivoId).delete();
-    } catch (err) {
-      console.error('[Firebase] deleteAditivo:', err);
-    }
+    return this._gravar({
+      dominio: 'aditivos', obraId,
+      fn: () => this._db.collection('obras').doc(obraId).collection('aditivos').doc(aditivoId).delete(),
+    });
   }
 
   // ── Ocorrências ─────────────────────────────────────────────
 
   async salvarOcorrencias(obraId, ocorrencias) {
     MemCache.invalidate('ocorrencias', obraId); // P4
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(obraId).collection('ocorrencias').doc('lista').set(sanitize({ lista: ocorrencias }));
-    } catch (err) {
-      console.error('[Firebase] salvarOcorrencias:', err);
-    }
+    return this._gravar({
+      dominio: 'ocorrencias', obraId, total: true,
+      fn: () => this._db.collection('obras').doc(obraId).collection('ocorrencias')
+                    .doc('lista').set(sanitize({ lista: ocorrencias })),
+    });
   }
 
   async getOcorrencias(obraId) {
@@ -608,16 +819,16 @@ class FirebaseServiceClass {
     const cached = MemCache.get('ocorrencias', obraId);
     if (cached !== null) return cached;
 
-    if (!this._ready) return [];
-    try {
-      const snap = await this._db.collection('obras').doc(obraId).collection('ocorrencias').doc('lista').get();
-      const result = snap.exists ? (snap.data().lista || []) : [];
+    const result = await this._lerDoc({
+      dominio: 'ocorrencias', obraId,
+      ref:     () => this._db.collection('obras').doc(obraId).collection('ocorrencias').doc('lista'),
+      extrair: snap => snap.data().lista || [],
+      ausente: [],
+    });
+    if (!IntegridadeDados.degradado('ocorrencias', obraId)) {
       MemCache.set('ocorrencias', obraId, result);
-      return result;
-    } catch (err) {
-      console.error('[Firebase] getOcorrencias:', err);
-      return [];
     }
+    return result;
   }
 
   // ── Chuva ───────────────────────────────────────────────────
@@ -625,90 +836,77 @@ class FirebaseServiceClass {
   async salvarChuva(obraId, ano, dados) {
     // Erro propagado de propósito: engolir a exceção aqui fazia o Quadro de
     // Chuvas exibir "registro salvo" mesmo quando a escrita era recusada.
-    if (!this._ready) throw new Error('Firebase indisponível');
-    try {
-      await this._db.collection('obras').doc(obraId).collection('chuva').doc(String(ano)).set(sanitize({ dados }));
-    } catch (err) {
-      console.error('[Firebase] salvarChuva:', err);
-      throw err;
-    }
+    return this._gravar({
+      dominio: 'chuva', obraId, escopo: String(ano), total: true,
+      fn: () => this._db.collection('obras').doc(obraId).collection('chuva')
+                    .doc(String(ano)).set(sanitize({ dados })),
+    });
   }
 
   async getChuva(obraId, ano) {
-    if (!this._ready) return {};
-    try {
-      const snap = await this._db.collection('obras').doc(obraId).collection('chuva').doc(String(ano)).get();
-      return snap.exists ? (snap.data().dados || {}) : {};
-    } catch (err) {
-      console.error('[Firebase] getChuva:', err);
-      return {};
-    }
+    return this._lerDoc({
+      dominio: 'chuva', obraId, escopo: String(ano),
+      ref:     () => this._db.collection('obras').doc(obraId).collection('chuva').doc(String(ano)),
+      extrair: snap => snap.data().dados || {},
+      ausente: {},
+    });
   }
 
   // ── Diário ──────────────────────────────────────────────────
 
   async salvarDiario(obraId, diario) {
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(obraId).collection('diario').doc('lista').set(sanitize({ lista: diario }));
-    } catch (err) {
-      console.error('[Firebase] salvarDiario:', err);
-    }
+    return this._gravar({
+      dominio: 'diario', obraId, total: true,
+      fn: () => this._db.collection('obras').doc(obraId).collection('diario')
+                    .doc('lista').set(sanitize({ lista: diario })),
+    });
   }
 
   async getDiario(obraId) {
-    if (!this._ready) return [];
-    try {
-      const snap = await this._db.collection('obras').doc(obraId).collection('diario').doc('lista').get();
-      return snap.exists ? (snap.data().lista || []) : [];
-    } catch (err) {
-      console.error('[Firebase] getDiario:', err);
-      return [];
-    }
+    return this._lerDoc({
+      dominio: 'diario', obraId,
+      ref:     () => this._db.collection('obras').doc(obraId).collection('diario').doc('lista'),
+      extrair: snap => snap.data().lista || [],
+      ausente: [],
+    });
   }
 
   // ── Notificações ────────────────────────────────────────────
 
   async salvarNotificacoes(obraId, lista) {
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(obraId).collection('notificacoes').doc('lista').set(sanitize({ lista }));
-    } catch (err) {
-      console.error('[Firebase] salvarNotificacoes:', err);
-    }
+    return this._gravar({
+      dominio: 'notificacoes', obraId, total: true,
+      fn: () => this._db.collection('obras').doc(obraId).collection('notificacoes')
+                    .doc('lista').set(sanitize({ lista })),
+    });
   }
 
   async getNotificacoes(obraId) {
-    if (!this._ready) return [];
-    try {
-      const snap = await this._db.collection('obras').doc(obraId).collection('notificacoes').doc('lista').get();
-      return snap.exists ? (snap.data().lista || []) : [];
-    } catch (err) {
-      console.error('[Firebase] getNotificacoes:', err);
-      return [];
-    }
+    return this._lerDoc({
+      dominio: 'notificacoes', obraId,
+      ref:     () => this._db.collection('obras').doc(obraId).collection('notificacoes').doc('lista'),
+      extrair: snap => snap.data().lista || [],
+      ausente: [],
+    });
   }
 
   // ── Documentos ──────────────────────────────────────────────
 
   async salvarDocumentos(obraId, docs) {
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(obraId).collection('documentos').doc('lista').set(sanitize({ lista: docs }));
-    } catch (err) {
-      console.error('[Firebase] salvarDocumentos:', err);
-    }
+    return this._gravar({
+      dominio: 'documentos', obraId, total: true,
+      fn: () => this._db.collection('obras').doc(obraId).collection('documentos')
+                    .doc('lista').set(sanitize({ lista: docs })),
+    });
   }
 
   async getDocumentos(obraId) {
-    if (!this._ready) return [];
-    try {
-      const snap = await this._db.collection('obras').doc(obraId).collection('documentos').doc('lista').get();
-      return snap.exists ? (snap.data().lista || []) : [];
-    } catch (err) {
-      console.error('[Firebase] getDocumentos:', err);
-      return [];
-    }
+    return this._lerDoc({
+      dominio: 'documentos', obraId,
+      ref:     () => this._db.collection('obras').doc(obraId).collection('documentos').doc('lista'),
+      extrair: snap => snap.data().lista || [],
+      ausente: [],
+    });
   }
 
   // ── Auditoria — API pública (v24.0) ──────────────────────────
@@ -763,25 +961,34 @@ class FirebaseServiceClass {
 
   async salvarHistorico(obraId, dados) {
     // dados = { registros: [...] } — persiste exclusivamente no Firebase
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(obraId).collection('historico').doc('dados').set(sanitize(dados));
-    } catch (err) { console.error('[Firebase] salvarHistorico:', err); }
+    return this._gravar({
+      dominio: 'historico', obraId, total: true,
+      fn: () => this._db.collection('obras').doc(obraId).collection('historico')
+                    .doc('dados').set(sanitize(dados)),
+    });
   }
 
   async getHistorico(obraId) {
     if (!this._ready) {
-      return { registros: [] }; // Firestore offline persistence cobre o modo offline
+      IntegridadeDados.falhaLeitura('historico', obraId, {
+        code: 'firebase-indisponivel',
+        message: 'SDK do Firebase não inicializado — nada foi lido do servidor.',
+      });
+      return { registros: [] };
     }
     try {
-      const doc = await this._db.collection('obras').doc(obraId).collection('historico').doc('dados').get();
-      if (doc.exists) return doc.data();
-      // fallback: try old structure
-      const snap = await this._db.collection('obras').doc(obraId).collection('historico').orderBy('ts','desc').limit(200).get().catch(()=>null);
-      const registros = snap ? snap.docs.map(d=>({id:d.id,...d.data()})) : [];
-      return { registros };
+      const col = this._db.collection('obras').doc(obraId).collection('historico');
+      const doc = await col.doc('dados').get();
+      if (doc.exists) {
+        IntegridadeDados.leituraOk('historico', obraId);
+        return doc.data();
+      }
+      // Estrutura antiga: registros soltos na coleção.
+      const snap = await col.orderBy('ts', 'desc').limit(200).get();
+      IntegridadeDados.leituraOk('historico', obraId);
+      return { registros: snap.docs.map(d => ({ id: d.id, ...d.data() })) };
     } catch (err) {
-      console.error('[Firebase] getHistorico:', err);
+      IntegridadeDados.falhaLeitura('historico', obraId, err);
       return { registros: [] };
     }
   }
@@ -789,89 +996,75 @@ class FirebaseServiceClass {
   // ── Usuários ────────────────────────────────────────────────
 
   async salvarUsuarios(obraId, usuarios) {
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(obraId).collection('usuarios').doc('lista').set(sanitize({ lista: usuarios }));
-    } catch (err) {
-      console.error('[Firebase] salvarUsuarios:', err);
-    }
+    return this._gravar({
+      dominio: 'usuarios', obraId, total: true,
+      fn: () => this._db.collection('obras').doc(obraId).collection('usuarios')
+                    .doc('lista').set(sanitize({ lista: usuarios })),
+    });
   }
 
   async getUsuarios(obraId) {
-    if (!this._ready) return [];
-    try {
-      const snap = await this._db.collection('obras').doc(obraId).collection('usuarios').doc('lista').get();
-      return snap.exists ? (snap.data().lista || []) : [];
-    } catch (err) {
-      console.error('[Firebase] getUsuarios:', err);
-      return [];
-    }
+    return this._lerDoc({
+      dominio: 'usuarios', obraId,
+      ref:     () => this._db.collection('obras').doc(obraId).collection('usuarios').doc('lista'),
+      extrair: snap => snap.data().lista || [],
+      ausente: [],
+    });
   }
 
   // ── Fiscais de Obras ────────────────────────────────────────
   async getFiscais(obraId) {
-    if (!this._ready) return [];
-    try {
-      const snap = await this._db.collection('obras').doc(obraId).collection('fiscais').doc('lista').get();
-      return snap.exists ? (snap.data().lista || []) : [];
-    } catch (err) {
-      console.error('[Firebase] getFiscais:', err);
-      return [];
-    }
+    return this._lerDoc({
+      dominio: 'fiscais', obraId,
+      ref:     () => this._db.collection('obras').doc(obraId).collection('fiscais').doc('lista'),
+      extrair: snap => snap.data().lista || [],
+      ausente: [],
+    });
   }
 
   async salvarFiscais(obraId, fiscais) {
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(obraId).collection('fiscais').doc('lista').set(sanitize({ lista: fiscais }));
-    } catch (err) {
-      console.error('[Firebase] salvarFiscais:', err);
-    }
+    return this._gravar({
+      dominio: 'fiscais', obraId, total: true,
+      fn: () => this._db.collection('obras').doc(obraId).collection('fiscais')
+                    .doc('lista').set(sanitize({ lista: fiscais })),
+    });
   }
 
   // ── Acesso à Obra ────────────────────────────────────────────
   async getAcessoObra(obraId) {
-    if (!this._ready) return { usuarios: [] };
-    try {
-      const snap = await this._db.collection('obras').doc(obraId).collection('acesso').doc('controle').get();
-      return snap.exists ? snap.data() : { usuarios: [] };
-    } catch (err) {
-      console.error('[Firebase] getAcessoObra:', err);
-      return { usuarios: [] };
-    }
+    return this._lerDoc({
+      dominio: 'acesso', obraId,
+      ref:     () => this._db.collection('obras').doc(obraId).collection('acesso').doc('controle'),
+      extrair: snap => snap.data(),
+      ausente: { usuarios: [] },
+    });
   }
 
   async salvarAcessoObra(obraId, lista) {
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(obraId).collection('acesso').doc('controle').set(sanitize({ usuarios: lista }));
-    } catch (err) {
-      console.error('[Firebase] salvarAcessoObra:', err);
-    }
+    return this._gravar({
+      dominio: 'acesso', obraId, total: true,
+      fn: () => this._db.collection('obras').doc(obraId).collection('acesso')
+                    .doc('controle').set(sanitize({ usuarios: lista })),
+    });
   }
 
   // ── Versões Contratuais ─────────────────────────────────────
 
   async salvarVersaoContratual(obraId, versao) {
-    if (!this._ready) return;
-    try {
-      await this._db.collection('obras').doc(obraId).collection('versoes')
-        .doc(`v${versao.numero}`).set(sanitize(versao));
-    } catch (err) {
-      console.error('[Firebase] salvarVersaoContratual:', err);
-    }
+    // total: false — cada versão é um documento próprio (v1, v2…).
+    return this._gravar({
+      dominio: 'versoes', obraId,
+      fn: () => this._db.collection('obras').doc(obraId).collection('versoes')
+                    .doc(`v${versao.numero}`).set(sanitize(versao)),
+    });
   }
 
   async getVersoesContratuais(obraId) {
-    if (!this._ready) return [];
-    try {
-      const snap = await this._db.collection('obras').doc(obraId).collection('versoes')
-        .orderBy('numero').limit(100).get();
-      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    } catch (err) {
-      console.error('[Firebase] getVersoesContratuais:', err);
-      return [];
-    }
+    return this._lerColecao({
+      dominio: 'versoes', obraId,
+      query:   () => this._db.collection('obras').doc(obraId).collection('versoes')
+                         .orderBy('numero').limit(100),
+    });
   }
 
   // ── Logo / Storage ───────────────────────────────────────────
@@ -913,22 +1106,25 @@ class FirebaseServiceClass {
   // ── Atualizar campos específicos da obra ─────────────────────
   async atualizarObra(obraId, campos) {
     // Atualiza campos específicos na lista de obras (ex: statusObra, nome)
-    try {
-      const lista = await this.getObrasLista() || [];
-      const idx = lista.findIndex(o => o.id === obraId);
-      if (idx >= 0) {
-        lista[idx] = { ...lista[idx], ...campos };
-        await this.salvarObrasLista(lista);
-      }
-      // Também atualiza a coleção de obras no Firebase se disponível
-      if (this._ready && this._db) {
+    return this._gravar({
+      dominio: 'obras', obraId,
+      fn: async () => {
+        const lista = await this.getObrasLista() || [];
+        const idx = lista.findIndex(o => o.id === obraId);
+        if (idx >= 0) {
+          lista[idx] = { ...lista[idx], ...campos };
+          await this.salvarObrasLista(lista);
+        }
+        // Também atualiza o documento da obra
         try {
           await this._db.collection('obras').doc(obraId).update(campos);
-        } catch(e) { /* ignora se doc não existir */ }
-      }
-    } catch (err) {
-      console.error('[Firebase] atualizarObra:', err);
-    }
+        } catch (e) {
+          // 'not-found' é esperado quando a obra ainda só existe na lista;
+          // qualquer outro erro (permissão, rede) precisa subir.
+          if (e?.code !== 'not-found') throw e;
+        }
+      },
+    });
   }
 
   // ── Sincronização completa da obra ───────────────────────────
@@ -965,9 +1161,20 @@ class FirebaseServiceClass {
    */
   async softDeleteObra(obraId, metaExclusao = {}) {
     try {
-      // 1. Coleta snapshot completo ANTES de mover
-      let snapshot = {};
-      try { snapshot = await this.sincronizarObra(obraId); } catch {}
+      // 1. Coleta snapshot completo ANTES de mover.
+      //    Se o snapshot não puder ser coletado por inteiro, a exclusão é
+      //    abortada: mandar para a lixeira sem dados de restauração é o
+      //    mesmo que apagar de vez, só que parecendo reversível.
+      const snapshot = await this.sincronizarObra(obraId);
+
+      const degradados = IntegridadeDados.dominiosDegradados(obraId);
+      if (degradados.length) {
+        throw new Error(
+          `Exclusão abortada: não foi possível ler ${degradados.map(d => d.dominio).join(', ')} ` +
+          `desta obra, então a cópia de restauração ficaria incompleta. ` +
+          `Recarregue a página e tente de novo.`
+        );
+      }
 
       // 2. Lê entrada da lista de obras
       const lista   = await this.getObrasLista();
@@ -1044,13 +1251,15 @@ class FirebaseServiceClass {
    */
   async salvarItemLixeiraFirebase(item) {
     const uid = this._auth?.currentUser?.uid;
-    if (!this._ready || !uid) return;
-    try {
-      const sanitized = sanitize({ ...item, uid });
-      await this._db.collection('lixeira').doc(item.id).set(sanitized);
-    } catch (err) {
-      console.error('[Firebase] salvarItemLixeiraFirebase:', err);
-    }
+    if (!uid) throw new Error('Sem usuário autenticado — nada foi enviado para a lixeira.');
+
+    // Erro propagado: quem chama (softDeleteObra) precisa ABORTAR a exclusão
+    // se o backup não foi gravado. Engolindo aqui, a obra era marcada como
+    // excluída e a lixeira ficava sem o que restaurar.
+    return this._gravar({
+      dominio: 'lixeira', obraId: item.obraId || null,
+      fn: () => this._db.collection('lixeira').doc(item.id).set(sanitize({ ...item, uid })),
+    });
   }
 
   /**
@@ -1075,12 +1284,10 @@ class FirebaseServiceClass {
    * Remove um item da lixeira do Firestore (exclusão permanente).
    */
   async removerItemLixeiraFirebase(itemId) {
-    if (!this._ready) return;
-    try {
-      await this._db.collection('lixeira').doc(itemId).delete();
-    } catch (err) {
-      console.error('[Firebase] removerItemLixeiraFirebase:', err);
-    }
+    return this._gravar({
+      dominio: 'lixeira', obraId: null,
+      fn: () => this._db.collection('lixeira').doc(itemId).delete(),
+    });
   }
 
   /**
@@ -1091,63 +1298,99 @@ class FirebaseServiceClass {
   }
 
   // ── Lei 14.133/2021 — Responsáveis do Contrato ───────────────────────────
+  // Os cinco blocos abaixo (responsáveis, sanções, prorrogações, recebimentos,
+  // riscos) são documentos únicos dentro de /lei14133 — .set() substitui a
+  // lista inteira, então todos vão com total: true.
+  //
+  // CORREÇÃO: estes métodos chamavam `this._ss`, que nunca existiu na classe.
+  // O rascunho local em sessionStorage era, na verdade, um TypeError em todo
+  // caminho de erro — "Cannot read properties of undefined (reading 'set')" —
+  // que substituía o erro real e ainda impedia o fallback de acontecer.
+  // O helper correto é o SS do topo do arquivo.
+
   async salvarResponsaveis(obraId, lista) {
-    if (!this._ready || !this._db) { this._ss.set(`resp_${obraId}`, lista); return; }
-    try { await this._db.collection('obras').doc(obraId).collection('lei14133').doc('responsaveis').set({ lista, updatedAt: new Date().toISOString() }); }
-    catch (e) { console.error('[Firebase] salvarResponsaveis:', e); this._ss.set(`resp_${obraId}`, lista); }
+    return this._gravarLei14133(obraId, 'responsaveis', `resp_${obraId}`, lista);
   }
   async getResponsaveis(obraId) {
-    if (!this._ready || !this._db) return this._ss.get(`resp_${obraId}`) || [];
-    try { const s = await this._db.collection('obras').doc(obraId).collection('lei14133').doc('responsaveis').get(); return s.exists ? (s.data().lista || []) : []; }
-    catch (e) { console.error('[Firebase] getResponsaveis:', e); return this._ss.get(`resp_${obraId}`) || []; }
+    return this._lerLei14133(obraId, 'responsaveis', `resp_${obraId}`);
   }
 
   // ── Lei 14.133/2021 — Sanções Administrativas ────────────────────────────
   async salvarSancoes(obraId, lista) {
-    if (!this._ready || !this._db) { this._ss.set(`sanc_${obraId}`, lista); return; }
-    try { await this._db.collection('obras').doc(obraId).collection('lei14133').doc('sancoes').set({ lista, updatedAt: new Date().toISOString() }); }
-    catch (e) { console.error('[Firebase] salvarSancoes:', e); this._ss.set(`sanc_${obraId}`, lista); }
+    return this._gravarLei14133(obraId, 'sancoes', `sanc_${obraId}`, lista);
   }
   async getSancoes(obraId) {
-    if (!this._ready || !this._db) return this._ss.get(`sanc_${obraId}`) || [];
-    try { const s = await this._db.collection('obras').doc(obraId).collection('lei14133').doc('sancoes').get(); return s.exists ? (s.data().lista || []) : []; }
-    catch (e) { console.error('[Firebase] getSancoes:', e); return this._ss.get(`sanc_${obraId}`) || []; }
+    return this._lerLei14133(obraId, 'sancoes', `sanc_${obraId}`);
   }
 
   // ── Lei 14.133/2021 — Prorrogações de Prazo ──────────────────────────────
   async salvarProrrogacoes(obraId, lista) {
-    if (!this._ready || !this._db) { this._ss.set(`prorr_${obraId}`, lista); return; }
-    try { await this._db.collection('obras').doc(obraId).collection('lei14133').doc('prorrogacoes').set({ lista, updatedAt: new Date().toISOString() }); }
-    catch (e) { console.error('[Firebase] salvarProrrogacoes:', e); this._ss.set(`prorr_${obraId}`, lista); }
+    return this._gravarLei14133(obraId, 'prorrogacoes', `prorr_${obraId}`, lista);
   }
   async getProrrogacoes(obraId) {
-    if (!this._ready || !this._db) return this._ss.get(`prorr_${obraId}`) || [];
-    try { const s = await this._db.collection('obras').doc(obraId).collection('lei14133').doc('prorrogacoes').get(); return s.exists ? (s.data().lista || []) : []; }
-    catch (e) { console.error('[Firebase] getProrrogacoes:', e); return this._ss.get(`prorr_${obraId}`) || []; }
+    return this._lerLei14133(obraId, 'prorrogacoes', `prorr_${obraId}`);
   }
 
   // ── Lei 14.133/2021 — Recebimento Provisório e Definitivo ───────────────
   async salvarRecebimentos(obraId, lista) {
-    if (!this._ready || !this._db) { this._ss.set(`receb_${obraId}`, lista); return; }
-    try { await this._db.collection('obras').doc(obraId).collection('lei14133').doc('recebimentos').set({ lista, updatedAt: new Date().toISOString() }); }
-    catch (e) { console.error('[Firebase] salvarRecebimentos:', e); this._ss.set(`receb_${obraId}`, lista); }
+    return this._gravarLei14133(obraId, 'recebimentos', `receb_${obraId}`, lista);
   }
   async getRecebimentos(obraId) {
-    if (!this._ready || !this._db) return this._ss.get(`receb_${obraId}`) || [];
-    try { const s = await this._db.collection('obras').doc(obraId).collection('lei14133').doc('recebimentos').get(); return s.exists ? (s.data().lista || []) : []; }
-    catch (e) { console.error('[Firebase] getRecebimentos:', e); return this._ss.get(`receb_${obraId}`) || []; }
+    return this._lerLei14133(obraId, 'recebimentos', `receb_${obraId}`);
   }
 
   // ── Lei 14.133/2021 — Matriz de Riscos ───────────────────────────────────
   async salvarRiscos(obraId, lista) {
-    if (!this._ready || !this._db) { this._ss.set(`riscos_${obraId}`, lista); return; }
-    try { await this._db.collection('obras').doc(obraId).collection('lei14133').doc('riscos').set({ lista, updatedAt: new Date().toISOString() }); }
-    catch (e) { console.error('[Firebase] salvarRiscos:', e); this._ss.set(`riscos_${obraId}`, lista); }
+    return this._gravarLei14133(obraId, 'riscos', `riscos_${obraId}`, lista);
   }
   async getRiscos(obraId) {
-    if (!this._ready || !this._db) return this._ss.get(`riscos_${obraId}`) || [];
-    try { const s = await this._db.collection('obras').doc(obraId).collection('lei14133').doc('riscos').get(); return s.exists ? (s.data().lista || []) : []; }
-    catch (e) { console.error('[Firebase] getRiscos:', e); return this._ss.get(`riscos_${obraId}`) || []; }
+    return this._lerLei14133(obraId, 'riscos', `riscos_${obraId}`);
+  }
+
+  // ── Documento-único-com-lista: helpers genéricos ────────────────────────
+  //
+  // Vários módulos (Lei 14.133, PAC, qualidade, fotos) guardam a coleção
+  // inteira num único documento. O .set() substitui tudo, então são sempre
+  // total: true. O rascunho em sessionStorage existe para o usuário não perder
+  // o que digitou — mas nunca substitui o aviso de que a gravação falhou.
+
+  /** Grava o documento; salva rascunho local e propaga o erro se não gravar. */
+  async _gravarDocLista({ obraId, dominio, ref, dados, chaveSS, rascunho }) {
+    try {
+      return await this._gravar({
+        dominio, obraId, total: true,
+        fn: () => ref().set({ ...dados, updatedAt: new Date().toISOString() }),
+      });
+    } catch (err) {
+      if (chaveSS) SS.set(chaveSS, rascunho);
+      throw err;
+    }
+  }
+
+  /** Lê o documento; só cai no rascunho local quando a leitura FALHA. */
+  async _lerDocLista({ obraId, dominio, ref, campo = 'lista', chaveSS }) {
+    const lista = await this._lerDoc({
+      dominio, obraId, ref,
+      extrair:  snap => snap.data()[campo] || [],
+      ausente:  [],
+      aoFalhar: null, // null distingue "falhou" de "não existe"
+    });
+    if (lista !== null) return lista;
+    return (chaveSS ? SS.get(chaveSS) : null) || [];
+  }
+
+  _gravarLei14133(obraId, doc, chaveSS, lista) {
+    return this._gravarDocLista({
+      obraId, dominio: doc, chaveSS, rascunho: lista, dados: { lista },
+      ref: () => this._db.collection('obras').doc(obraId).collection('lei14133').doc(doc),
+    });
+  }
+
+  _lerLei14133(obraId, doc, chaveSS) {
+    return this._lerDocLista({
+      obraId, dominio: doc, chaveSS,
+      ref: () => this._db.collection('obras').doc(obraId).collection('lei14133').doc(doc),
+    });
   }
 
   // ── Listeners em tempo real — onSnapshot (FIX-E3.4) ─────────────────────────
@@ -1356,63 +1599,78 @@ class FirebaseServiceClass {
   }
 
   // ── PAC / Obras Federais — Fotos de Medição ──────────────────────────────
-  async salvarFotosMedicao(obraId, lista) {
-    if (!this._ready || !this._db) { this._ss.set(`fotos_med_${obraId}`, lista); return; }
-    try { await this._db.collection('obras').doc(obraId).collection('fotos-medicao').doc('lista').set({ lista, updatedAt: new Date().toISOString() }); }
-    catch (e) { console.error('[Firebase] salvarFotosMedicao:', e); this._ss.set(`fotos_med_${obraId}`, lista); }
+  salvarFotosMedicao(obraId, lista) {
+    return this._gravarDocLista({
+      obraId, dominio: 'fotos-medicao', chaveSS: `fotos_med_${obraId}`,
+      rascunho: lista, dados: { lista },
+      ref: () => this._db.collection('obras').doc(obraId).collection('fotos-medicao').doc('lista'),
+    });
   }
-  async getFotosMedicao(obraId) {
-    if (!this._ready || !this._db) return this._ss.get(`fotos_med_${obraId}`) || [];
-    try { const s = await this._db.collection('obras').doc(obraId).collection('fotos-medicao').doc('lista').get(); return s.exists ? (s.data().lista || []) : []; }
-    catch (e) { console.error('[Firebase] getFotosMedicao:', e); return this._ss.get(`fotos_med_${obraId}`) || []; }
+  getFotosMedicao(obraId) {
+    return this._lerDocLista({
+      obraId, dominio: 'fotos-medicao', chaveSS: `fotos_med_${obraId}`,
+      ref: () => this._db.collection('obras').doc(obraId).collection('fotos-medicao').doc('lista'),
+    });
   }
 
   // ── PAC / Obras Federais — Checklist Técnico ─────────────────────────────
-  async salvarChecklistTecnico(obraId, lista) {
-    if (!this._ready || !this._db) { this._ss.set(`ck_tec_${obraId}`, lista); return; }
-    try { await this._db.collection('obras').doc(obraId).collection('checklist-tecnico').doc('registros').set({ lista, updatedAt: new Date().toISOString() }); }
-    catch (e) { console.error('[Firebase] salvarChecklistTecnico:', e); this._ss.set(`ck_tec_${obraId}`, lista); }
+  salvarChecklistTecnico(obraId, lista) {
+    return this._gravarDocLista({
+      obraId, dominio: 'checklist-tecnico', chaveSS: `ck_tec_${obraId}`,
+      rascunho: lista, dados: { lista },
+      ref: () => this._db.collection('obras').doc(obraId).collection('checklist-tecnico').doc('registros'),
+    });
   }
-  async getChecklistTecnico(obraId) {
-    if (!this._ready || !this._db) return this._ss.get(`ck_tec_${obraId}`) || [];
-    try { const s = await this._db.collection('obras').doc(obraId).collection('checklist-tecnico').doc('registros').get(); return s.exists ? (s.data().lista || []) : []; }
-    catch (e) { console.error('[Firebase] getChecklistTecnico:', e); return this._ss.get(`ck_tec_${obraId}`) || []; }
+  getChecklistTecnico(obraId) {
+    return this._lerDocLista({
+      obraId, dominio: 'checklist-tecnico', chaveSS: `ck_tec_${obraId}`,
+      ref: () => this._db.collection('obras').doc(obraId).collection('checklist-tecnico').doc('registros'),
+    });
   }
 
   // ── PAC / Obras Federais — Etapas PAC ────────────────────────────────────
-  async salvarEtapasPac(obraId, etapas) {
-    if (!this._ready || !this._db) { this._ss.set(`etapas_pac_${obraId}`, etapas); return; }
-    try { await this._db.collection('obras').doc(obraId).collection('etapas-pac').doc('lista').set({ etapas, updatedAt: new Date().toISOString() }); }
-    catch (e) { console.error('[Firebase] salvarEtapasPac:', e); this._ss.set(`etapas_pac_${obraId}`, etapas); }
+  salvarEtapasPac(obraId, etapas) {
+    return this._gravarDocLista({
+      obraId, dominio: 'etapas-pac', chaveSS: `etapas_pac_${obraId}`,
+      rascunho: etapas, dados: { etapas },
+      ref: () => this._db.collection('obras').doc(obraId).collection('etapas-pac').doc('lista'),
+    });
   }
-  async getEtapasPac(obraId) {
-    if (!this._ready || !this._db) return this._ss.get(`etapas_pac_${obraId}`) || [];
-    try { const s = await this._db.collection('obras').doc(obraId).collection('etapas-pac').doc('lista').get(); return s.exists ? (s.data().etapas || []) : []; }
-    catch (e) { console.error('[Firebase] getEtapasPac:', e); return this._ss.get(`etapas_pac_${obraId}`) || []; }
+  getEtapasPac(obraId) {
+    return this._lerDocLista({
+      obraId, dominio: 'etapas-pac', chaveSS: `etapas_pac_${obraId}`, campo: 'etapas',
+      ref: () => this._db.collection('obras').doc(obraId).collection('etapas-pac').doc('lista'),
+    });
   }
 
   // ── Prazos — Cronograma de Atividades (Curva S) ──────────────────────────
-  async salvarCronograma(obraId, lista) {
-    if (!this._ready || !this._db) { this._ss.set(`cronograma_${obraId}`, lista); return; }
-    try { await this._db.collection('obras').doc(obraId).collection('lei14133').doc('cronograma').set({ lista, updatedAt: new Date().toISOString() }); }
-    catch (e) { console.error('[Firebase] salvarCronograma:', e); this._ss.set(`cronograma_${obraId}`, lista); }
+  salvarCronograma(obraId, lista) {
+    return this._gravarDocLista({
+      obraId, dominio: 'cronograma', chaveSS: `cronograma_${obraId}`,
+      rascunho: lista, dados: { lista },
+      ref: () => this._db.collection('obras').doc(obraId).collection('lei14133').doc('cronograma'),
+    });
   }
-  async getCronograma(obraId) {
-    if (!this._ready || !this._db) return this._ss.get(`cronograma_${obraId}`) || [];
-    try { const s = await this._db.collection('obras').doc(obraId).collection('lei14133').doc('cronograma').get(); return s.exists ? (s.data().lista || []) : []; }
-    catch (e) { console.error('[Firebase] getCronograma:', e); return this._ss.get(`cronograma_${obraId}`) || []; }
+  getCronograma(obraId) {
+    return this._lerDocLista({
+      obraId, dominio: 'cronograma', chaveSS: `cronograma_${obraId}`,
+      ref: () => this._db.collection('obras').doc(obraId).collection('lei14133').doc('cronograma'),
+    });
   }
 
   // ── PAC / Obras Federais — Controle de Qualidade ─────────────────────────
-  async salvarQualidade(obraId, lista) {
-    if (!this._ready || !this._db) { this._ss.set(`qualidade_${obraId}`, lista); return; }
-    try { await this._db.collection('obras').doc(obraId).collection('qualidade').doc('registros').set({ lista, updatedAt: new Date().toISOString() }); }
-    catch (e) { console.error('[Firebase] salvarQualidade:', e); this._ss.set(`qualidade_${obraId}`, lista); }
+  salvarQualidade(obraId, lista) {
+    return this._gravarDocLista({
+      obraId, dominio: 'qualidade', chaveSS: `qualidade_${obraId}`,
+      rascunho: lista, dados: { lista },
+      ref: () => this._db.collection('obras').doc(obraId).collection('qualidade').doc('registros'),
+    });
   }
-  async getQualidade(obraId) {
-    if (!this._ready || !this._db) return this._ss.get(`qualidade_${obraId}`) || [];
-    try { const s = await this._db.collection('obras').doc(obraId).collection('qualidade').doc('registros').get(); return s.exists ? (s.data().lista || []) : []; }
-    catch (e) { console.error('[Firebase] getQualidade:', e); return this._ss.get(`qualidade_${obraId}`) || []; }
+  getQualidade(obraId) {
+    return this._lerDocLista({
+      obraId, dominio: 'qualidade', chaveSS: `qualidade_${obraId}`,
+      ref: () => this._db.collection('obras').doc(obraId).collection('qualidade').doc('registros'),
+    });
   }
 }
 

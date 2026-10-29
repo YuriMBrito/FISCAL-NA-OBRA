@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════╗
- * ║  FISCAL NA OBRA — criar-usuario.js                          ║
+ * ║  FISCAL NA OBRA — criar-usuario.cjs                          ║
  * ║  Cria usuários no Firebase Authentication + Firestore       ║
  * ╚══════════════════════════════════════════════════════════════╝
  *
@@ -10,12 +10,12 @@
  *   2. Ter instalado: npm install firebase-admin
  *
  * USO:
- *   node criar-usuario.js EMAIL SENHA NOME PERFIL
+ *   node criar-usuario.cjs EMAIL SENHA NOME PERFIL
  *
  * EXEMPLOS:
- *   node criar-usuario.js admin@empresa.com Senha123 "Administrador" administrador
- *   node criar-usuario.js joao@empresa.com Senha456 "João Silva" fiscal
- *   node criar-usuario.js maria@empresa.com Senha789 "Maria Costa" engenheiro
+ *   node criar-usuario.cjs admin@empresa.com Senha123 "Administrador" administrador
+ *   node criar-usuario.cjs joao@empresa.com Senha456 "João Silva" fiscal
+ *   node criar-usuario.cjs maria@empresa.com Senha789 "Maria Costa" engenheiro
  *
  * PERFIS DISPONÍVEIS:
  *   administrador  → Acesso total ao sistema
@@ -53,20 +53,27 @@ admin.initializeApp({
 // ── Lê os argumentos da linha de comando ────────────────────────
 const [,, email, senha, nome, perfil] = process.argv;
 
+// Modo de operação, decidido ANTES das validações de criação: elas chamam
+// process.exit(1) quando falta e-mail ou senha, e `--migrar` não tem nem um
+// nem outro. Era exatamente por isso que a migração em lote nunca rodava —
+// o processo morria na validação antes de chegar ao dispatcher.
+const MODO_MIGRAR  = process.argv.slice(2).includes('--migrar');
+const MODO_DRY_RUN = process.argv.slice(2).includes('--dry-run');
+
 const PERFIS_VALIDOS = ['administrador', 'gestor', 'fiscal', 'engenheiro', 'tecnico', 'visualizador'];
 // CORREÇÃO v15.3: 'gestor' adicionado — necessário pois as Firestore Rules
 // reconhecem este papel para sanções, responsáveis, prazos e recebimentos
 // (Art. 117, 125, 156 Lei 14.133/2021), mas o script não permitia criá-lo.
 
 // ── Valida os argumentos ─────────────────────────────────────────
-if (!email || !senha) {
+if (!MODO_MIGRAR && (!email || !senha)) {
   console.log('');
   console.log('USO:');
-  console.log('  node criar-usuario.js EMAIL SENHA NOME PERFIL');
+  console.log('  node criar-usuario.cjs EMAIL SENHA NOME PERFIL');
   console.log('');
   console.log('EXEMPLOS:');
-  console.log('  node criar-usuario.js admin@empresa.com Senha123 "Administrador" administrador');
-  console.log('  node criar-usuario.js joao@empresa.com Senha456 "João Silva" fiscal');
+  console.log('  node criar-usuario.cjs admin@empresa.com Senha123 "Administrador" administrador');
+  console.log('  node criar-usuario.cjs joao@empresa.com Senha456 "João Silva" fiscal');
   console.log('');
   console.log('PERFIS DISPONÍVEIS:');
   PERFIS_VALIDOS.forEach(p => console.log('  ' + p));
@@ -74,7 +81,7 @@ if (!email || !senha) {
   process.exit(1);
 }
 
-if (senha.length < 6) {
+if (!MODO_MIGRAR && senha.length < 6) {
   console.error('✖  A senha deve ter pelo menos 6 caracteres.');
   process.exit(1);
 }
@@ -157,15 +164,13 @@ async function criarUsuario() {
   }
 }
 
-criarUsuario();
-
 // ════════════════════════════════════════════════════════════════════════
 //  MIGRAÇÃO EM LOTE DE CUSTOM CLAIMS (v24.0)
 //  Ativa as Storage Rules da Fase 2 para todos os usuários existentes.
 //
 //  USO:
-//    node criar-usuario.js --migrar
-//    node criar-usuario.js --migrar --dry-run   (apenas lista, não aplica)
+//    node criar-usuario.cjs --migrar
+//    node criar-usuario.cjs --migrar --dry-run   (apenas lista, não aplica)
 //
 //  O que faz:
 //    1. Lista todos os usuários no Firebase Authentication
@@ -252,16 +257,20 @@ async function migrarCustomClaims(dryRun = false) {
   if (dryRun) {
     console.log('');
     console.log('ℹ️  DRY-RUN: nenhuma alteração foi aplicada.');
-    console.log('   Para aplicar: node criar-usuario.js --migrar');
+    console.log('   Para aplicar: node criar-usuario.cjs --migrar');
   }
 }
 
 // ── Dispatcher ────────────────────────────────────────────────────────────
-const args = process.argv.slice(2);
-if (args.includes('--migrar')) {
-  const dryRun = args.includes('--dry-run');
-  migrarCustomClaims(dryRun).then(() => process.exit(0)).catch(e => {
+// Um caminho só, e no fim do arquivo. Antes havia um criarUsuario() solto no
+// meio do módulo, que rodava SEMPRE: com `--migrar` ele batia na validação de
+// e-mail/senha e encerrava o processo, então a migração abaixo era código
+// inalcançável — e as Storage Rules por claim dependem dela.
+if (MODO_MIGRAR) {
+  migrarCustomClaims(MODO_DRY_RUN).then(() => process.exit(0)).catch(e => {
     console.error('Erro fatal na migração:', e);
     process.exit(1);
   });
+} else {
+  criarUsuario();
 }

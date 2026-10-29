@@ -1,0 +1,14 @@
+{
+  "_nota": "Config exclusiva do emulador para `npm run test:rules`. Porta própria (8099) porque a 8080 do firebase.json costuma estar ocupada, e sem UI para o teste não pendurar. O deploy continua usando firebase.json. storage NÃO entra aqui: o emulador de Storage sobe com regra inválida e sai com código 0 — não valida nada. storage.rules é validado pelo `firebase deploy`, que recusa ruleset inválido.",
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8099
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
+}
