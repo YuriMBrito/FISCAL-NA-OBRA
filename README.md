@@ -33,6 +33,46 @@ npm run test:coverage  # com relatório de cobertura
 
 ---
 
+## 🛟 Regra da casa: falha de I/O nunca pode ser silenciosa
+
+Dois incidentes vieram do mesmo defeito — o Quadro de Chuvas em 11/08/2026 e um
+BM da obra da UBS em 12/08/2026. Nos dois, o Firestore recusou uma operação, o
+código engoliu o erro, e a tela mostrou um estado inventado como se fosse real.
+
+**Três invariantes, garantidas por `firebase/integridade-dados.js` e cobertas
+por `tests/firebase-service-guardas.test.js`:**
+
+1. **Leitura que falha não vira dado na tela.** Devolve o valor neutro *e* marca
+   o domínio como degradado. Repare a diferença que faltava em `getBMs()`:
+   documento inexistente → BM 01 em branco (obra nova, correto); leitura
+   recusada → `[]` + faixa vermelha (não sabemos o que existe lá).
+2. **Gravação que falha não resolve a promise.** Nenhum "✅ salvo" sem
+   confirmação do servidor. Erros viram toast pelo evento `dados:escrita-falhou`.
+3. **Gravação que substitui documento inteiro é recusada enquanto a leitura
+   daquele dado estiver degradada** (`total: true` nos helpers). É esta barreira
+   que impede o estado neutro de ser gravado por cima do dado verdadeiro — a
+   diferença entre "sumiu da tela" e "sumiu do banco".
+
+Ao adicionar métodos no `FirebaseService`, use `_lerDoc` / `_lerColecao` /
+`_gravar`. Não escreva `try { ... } catch (e) { console.error(e) }` em volta de
+um `.set()`: é exatamente essa linha que produziu os dois incidentes.
+
+### Depois de alterar `firestore.rules`
+
+Mudança de regra é mudança de comportamento em produção — trate como deploy de código:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+- [ ] Abrir o app com a conta de um usuário **comum** (não só a sua) e conferir
+      que nenhuma faixa vermelha de integridade aparece
+- [ ] Abrir uma obra da qual você **não é o dono** — é o caso que quebrou em
+      11/08: `souMembroDaObra()` recusava, e as subcoleções sumiam da tela
+- [ ] Criar e salvar um BM de teste, confirmando o "✅" e depois recarregando (F5)
+
+---
+
 ## 🔒 Checklist de Segurança Obrigatório Antes do Deploy
 
 ### Imediato (bloqueante para produção)
@@ -46,10 +86,10 @@ npm run test:coverage  # com relatório de cobertura
 - [ ] **Migrar Custom Claims de todos os usuários**
   ```bash
   # Dry-run primeiro (não aplica, só lista)
-  node criar-usuario.js --migrar --dry-run
+  node criar-usuario.cjs --migrar --dry-run
 
   # Depois aplica de verdade
-  node criar-usuario.js --migrar
+  node criar-usuario.cjs --migrar
   ```
   Necessário para que as Storage Rules (Fase 2) funcionem corretamente.
 
@@ -86,6 +126,8 @@ npm run test:coverage  # com relatório de cobertura
   /notificacoes/lista             → notificações
   /documentos/lista               → documentos vinculados
   /usuarios/lista                 → usuários vinculados à obra
+                                    { lista: [...cadastro],
+                                      papeis: { email: perfil } ← lido pelas Rules
   /versoes/{versaoId}             → versões contratuais (aditivos)
   /lei14133/{docId}               → responsáveis, sanções, prazos, riscos
   /sancoes/{docId}                → sanções administrativas
@@ -174,7 +216,7 @@ fiscal-app-fixed/
 ├── storage.rules         # Regras Firebase Storage (Custom Claims Fase 2)
 ├── firebase.json         # Headers CSP, HSTS, X-Frame-Options
 ├── firestore.indexes.json # 10 índices compostos
-├── criar-usuario.js      # Criar usuários + migração Custom Claims em lote
+├── criar-usuario.cjs      # Criar usuários + migração Custom Claims em lote
 ├── LGPD.md               # Política de privacidade e checklist LGPD
 └── README.md             # Este arquivo
 ```
